@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import pb from '@/lib/pocketbaseClient';
-import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function usePatients() {
   const { currentUser } = useAuth();

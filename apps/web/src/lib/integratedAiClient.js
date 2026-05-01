@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/lib/apiBaseUrl.js';
+import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 
 function getPocketbaseToken() {
 	const pocketbaseToken = localStorage.getItem('pocketbase_auth');

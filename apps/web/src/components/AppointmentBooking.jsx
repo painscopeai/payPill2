@@ -11,7 +11,7 @@ import { Search, Calendar as CalendarIcon, Clock, User, Building, Star, Loader2 
 import { toast } from 'sonner';
 import pb from '@/lib/pocketbaseClient';
 import apiServerClient from '@/lib/apiServerClient';
-import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 
 export default function AppointmentBooking() {

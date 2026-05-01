@@ -7,7 +7,7 @@ import { Calendar, Clock, Video, FileText, XCircle, Download, MessageSquare } fr
 import { toast } from 'sonner';
 import pb from '@/lib/pocketbaseClient';
 import apiServerClient from '@/lib/apiServerClient';
-import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export default function AppointmentList() {

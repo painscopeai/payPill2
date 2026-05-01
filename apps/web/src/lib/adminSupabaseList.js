@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient.js';
+import { supabase } from '@/lib/supabaseClient';
 
 /** Map DB rows to legacy PocketBase-like shape (created field). */
 export function withLegacyDates(rows) {

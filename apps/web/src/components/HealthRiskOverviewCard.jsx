@@ -4,7 +4,7 @@ import { Progress } from '@/components/ui/progress';
 import { Activity, Heart, Pill, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import pb from '@/lib/pocketbaseClient';
-import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function HealthRiskOverviewCard() {
   const { currentUser } = useAuth();

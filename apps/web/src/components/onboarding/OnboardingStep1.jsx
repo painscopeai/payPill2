@@ -1,6 +1,6 @@
 import React from 'react';
 import { useOnboarding } from '@/contexts/OnboardingContext.jsx';
-import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useAuth } from '@/contexts/AuthContext';
 import OnboardingWizard from './OnboardingWizard.jsx';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

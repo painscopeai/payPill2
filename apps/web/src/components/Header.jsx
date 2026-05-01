@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useAuth } from '@/contexts/AuthContext';
 import pb from '@/lib/pocketbaseClient.js';
 import { Button } from '@/components/ui/button';
 import { Activity, LogOut, User, Menu, Sparkles } from 'lucide-react';

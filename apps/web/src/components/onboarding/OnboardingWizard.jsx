@@ -1,6 +1,6 @@
 import React from 'react';
 import { useOnboarding } from '@/contexts/OnboardingContext.jsx';
-import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Save, ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react';

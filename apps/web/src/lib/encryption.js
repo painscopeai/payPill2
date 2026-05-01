@@ -1,6 +1,9 @@
 import CryptoJS from 'crypto-js';
 
-const SECRET_KEY = import.meta.env.VITE_ENCRYPTION_KEY || 'default-fallback-secret-key-2026';
+const SECRET_KEY =
+	(typeof process !== 'undefined' && process.env.NEXT_PUBLIC_ENCRYPTION_KEY) ||
+	(typeof process !== 'undefined' && process.env.VITE_ENCRYPTION_KEY) ||
+	'default-fallback-secret-key-2026';
 
 export const encryptData = (data) => {
   try {

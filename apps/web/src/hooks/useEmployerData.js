@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import pb from '@/lib/pocketbaseClient';
-import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 export const useEmployerData = () => {

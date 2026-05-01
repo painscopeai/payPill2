@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { encryptData, decryptData } from '@/lib/encryption';
 import apiServerClient from '@/lib/apiServerClient';
-import { useAuth } from './AuthContext.jsx';
+import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 
 const OnboardingContext = createContext(null);
