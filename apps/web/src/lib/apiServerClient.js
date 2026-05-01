@@ -1,9 +1,13 @@
-const API_SERVER_URL = "/hcgi/api";
+import { getApiBaseUrl, warnIfApiLikelyBroken } from '@/lib/apiBaseUrl.js';
+
+warnIfApiLikelyBroken();
 
 const apiServerClient = {
-    fetch: async (url, options = {}) => {
-        return await window.fetch(API_SERVER_URL + url, options);
-    }
+	fetch: async (url, options = {}) => {
+		const base = getApiBaseUrl();
+		const path = url.startsWith('/') ? url : `/${url}`;
+		return await window.fetch(`${base}${path}`, options);
+	},
 };
 
 export default apiServerClient;

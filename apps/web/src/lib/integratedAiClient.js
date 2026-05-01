@@ -1,4 +1,4 @@
-const API_SERVER_URL = '/hcgi/api';
+import { getApiBaseUrl } from '@/lib/apiBaseUrl.js';
 
 function getPocketbaseToken() {
 	const pocketbaseToken = localStorage.getItem('pocketbase_auth');
@@ -11,11 +11,17 @@ function getPocketbaseToken() {
 	}
 }
 
+function apiUrl(path) {
+	const base = getApiBaseUrl();
+	const p = path.startsWith('/') ? path : `/${path}`;
+	return `${base}${p}`;
+}
+
 const integratedAiClient = {
 	fetch: async (path, options = {}) => {
 		const pocketbaseToken = getPocketbaseToken();
 
-		const response = await window.fetch(API_SERVER_URL + path, {
+		const response = await window.fetch(apiUrl(path), {
 			...options,
 			headers: {
 				...options.headers,
@@ -46,7 +52,7 @@ const integratedAiClient = {
 			formData.append('images', image);
 		});
 
-		const response = await window.fetch(API_SERVER_URL + path, {
+		const response = await window.fetch(apiUrl(path), {
 			method: 'POST',
 			headers,
 			body: formData,
