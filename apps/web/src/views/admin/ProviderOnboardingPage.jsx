@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 import apiServerClient from '@/lib/apiServerClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,22 +11,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Search, Plus, Loader2, AlertCircle } from 'lucide-react';
 
-const TYPE_OPTIONS = [
-  { value: 'hospital', label: 'Hospital' },
-  { value: 'pharmacy', label: 'Pharmacy' },
-  { value: 'clinic', label: 'Clinic' },
-  { value: 'specialist', label: 'Specialist' },
-  { value: 'other', label: 'Other' },
+/** Used only if provider_types API returns nothing (e.g. migration not applied). */
+const FALLBACK_TYPE_OPTIONS = [
+  { slug: 'hospital', label: 'Hospital' },
+  { slug: 'pharmacy', label: 'Pharmacy' },
+  { slug: 'clinic', label: 'Clinic' },
+  { slug: 'specialist', label: 'Specialist' },
+  { slug: 'other', label: 'Other' },
 ];
 
-function categoryLabelForType(type) {
-  const o = TYPE_OPTIONS.find((x) => x.value === type);
-  return o ? o.label : type;
+function categoryLabelForType(typeOptions, slug) {
+  const o = typeOptions.find((x) => x.slug === slug);
+  return o ? o.label : slug || '';
 }
 
 export default function ProviderOnboardingPage() {
+  const [typeOptions, setTypeOptions] = useState(FALLBACK_TYPE_OPTIONS);
+  const [typesLoading, setTypesLoading] = useState(true);
   const [applicationId, setApplicationId] = useState(null);
   const [applicationStatus, setApplicationStatus] = useState(null);
+  const [lastSubmittedSummary, setLastSubmittedSummary] = useState(null);
   const [formData, setFormData] = useState({
     organization_name: '',
     type: '',
@@ -50,9 +55,34 @@ export default function ProviderOnboardingPage() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
+  const loadProviderTypes = useCallback(async () => {
+    setTypesLoading(true);
+    try {
+      const res = await apiServerClient.fetch('/admin/provider-types', {
+        headers: await authHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load provider types');
+      }
+      const data = await res.json();
+      const rows = data.items || [];
+      if (rows.length > 0) {
+        setTypeOptions(rows.map((r) => ({ slug: r.slug, label: r.label })));
+      } else {
+        setTypeOptions(FALLBACK_TYPE_OPTIONS);
+      }
+    } catch (e) {
+      toast.error(e.message);
+      setTypeOptions(FALLBACK_TYPE_OPTIONS);
+    } finally {
+      setTypesLoading(false);
+    }
+  }, []);
+
   const loadDraftApplication = useCallback(async () => {
     try {
-      const res = await apiServerClient.fetch('/admin/provider-applications?mine=1&limit=5', {
+      const res = await apiServerClient.fetch('/admin/provider-applications?status=draft&mine=1&limit=5', {
         headers: await authHeaders(),
       });
       if (!res.ok) {
@@ -158,9 +188,10 @@ export default function ProviderOnboardingPage() {
   };
 
   useEffect(() => {
+    loadProviderTypes();
     loadDraftApplication();
     fetchFormsList();
-  }, [loadDraftApplication]);
+  }, [loadDraftApplication, loadProviderTypes]);
 
   const saveDraft = async (e) => {
     e.preventDefault();
@@ -174,7 +205,7 @@ export default function ProviderOnboardingPage() {
         'Content-Type': 'application/json',
         ...(await authHeaders()),
       };
-      const category = formData.type ? categoryLabelForType(formData.type) : null;
+      const category = formData.type ? categoryLabelForType(typeOptions, formData.type) : null;
       const body = {
         applicant_email: formData.applicant_email.trim(),
         organization_name: formData.organization_name?.trim() || null,
@@ -220,6 +251,10 @@ export default function ProviderOnboardingPage() {
       toast.error('Save a draft first');
       return;
     }
+    if (!formData.type?.trim() || formData.type === 'unspecified') {
+      toast.error('Select a provider type before submitting');
+      return;
+    }
     setIsSubmittingReview(true);
     try {
       const res = await apiServerClient.fetch(`/admin/provider-applications/${applicationId}/submit`, {
@@ -231,7 +266,12 @@ export default function ProviderOnboardingPage() {
         throw new Error(errData.error || 'Submit failed');
       }
       const json = await res.json();
-      setApplicationStatus(json.application?.status);
+      const app = json.application;
+      setApplicationStatus(app?.status);
+      setLastSubmittedSummary({
+        id: app?.id,
+        organization_name: app?.organization_name || formData.organization_name || '',
+      });
       toast.success('Application submitted for review');
       setApplicationId(null);
       setFormData({
@@ -248,15 +288,44 @@ export default function ProviderOnboardingPage() {
     }
   };
 
+  const startNewApplication = () => {
+    setLastSubmittedSummary(null);
+    void loadDraftApplication();
+  };
+
   return (
     <div className="space-y-8 max-w-4xl mx-auto p-4 md:p-8">
       <div>
         <h1 className="text-3xl font-bold font-display">Provider Onboarding</h1>
         <p className="text-muted-foreground">
           Create a provider application (draft), save, then submit for admin review. Approved applications become
-          marketplace provider records.
+          marketplace provider records.{' '}
+          <Link to="/admin/provider-types" className="text-primary underline-offset-4 hover:underline">
+            Manage provider types
+          </Link>
         </p>
       </div>
+
+      {lastSubmittedSummary ? (
+        <Card className="border-green-600/40 bg-green-50/80 dark:bg-green-950/30 dark:border-green-700/50">
+          <CardHeader>
+            <CardTitle className="text-lg text-green-900 dark:text-green-100">Application submitted</CardTitle>
+            <CardDescription className="text-green-800/90 dark:text-green-200/90">
+              <strong>{lastSubmittedSummary.organization_name || 'Application'}</strong> (id:{' '}
+              {lastSubmittedSummary.id}) is in the review queue. Open{' '}
+              <Link to="/admin/providers" className="font-medium underline underline-offset-2">
+                Provider Management
+              </Link>{' '}
+              to approve or reject it under &quot;Pending applications&quot;.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button type="button" variant="outline" onClick={startNewApplication}>
+              Start new application
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="border-border shadow-sm">
@@ -368,13 +437,14 @@ export default function ProviderOnboardingPage() {
                 <Select
                   value={formData.type || undefined}
                   onValueChange={(v) => setFormData({ ...formData, type: v })}
+                  disabled={typesLoading}
                 >
                   <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue placeholder={typesLoading ? 'Loading types…' : 'Select type'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {TYPE_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
+                    {typeOptions.map((o) => (
+                      <SelectItem key={o.slug} value={o.slug}>
                         {o.label}
                       </SelectItem>
                     ))}

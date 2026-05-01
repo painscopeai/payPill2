@@ -4,8 +4,8 @@ import { withTimeout } from '@/lib/withTimeout';
 
 warnIfApiLikelyBroken();
 
-/** Stay under typical gateway/serverless limits so the UI does not spin forever. */
-const FETCH_TIMEOUT_MS = 28_000;
+/** Cold serverless + admin APIs can exceed short limits; keep under typical Vercel max. */
+const FETCH_TIMEOUT_MS = 60_000;
 const SESSION_WAIT_MS = 8_000;
 
 const apiServerClient = {
@@ -30,6 +30,11 @@ const apiServerClient = {
 		const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 		try {
 			return await window.fetch(`${base}${path}`, { ...options, headers, signal: controller.signal });
+		} catch (e: unknown) {
+			if (e instanceof DOMException && e.name === 'AbortError') {
+				throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS / 1000}s. Try again.`);
+			}
+			throw e;
 		} finally {
 			clearTimeout(timeoutId);
 		}

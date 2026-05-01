@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Building2, ShieldCheck, 
   CreditCard, Activity, FileText, Brain, Settings,
   LogOut, ChevronLeft, ChevronRight, ListTodo, ClipboardList, BookOpen, ScrollText, FileSpreadsheet,
-  PieChart, TrendingUp, BarChart3, LineChart
+  PieChart, TrendingUp, BarChart3, LineChart, Tags
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -53,6 +53,7 @@ const sections = [
     items: [
       { title: 'Management', path: '/admin/providers', icon: Building2 },
       { title: 'Onboarding', path: '/admin/provider-onboarding', icon: FileText },
+      { title: 'Provider types', path: '/admin/provider-types', icon: Tags },
       { title: 'Bulk Upload', path: '/admin/bulk-provider-upload', icon: FileSpreadsheet },
     ]
   },
