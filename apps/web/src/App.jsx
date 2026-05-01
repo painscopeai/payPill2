@@ -14,7 +14,14 @@ import RoleSelectionLandingPage from './pages/RoleSelectionLandingPage.jsx';
 import AuthIndividualPage from './pages/AuthIndividualPage.jsx';
 import AuthEmployerPage from './pages/AuthEmployerPage.jsx';
 import AuthInsurancePage from './pages/AuthInsurancePage.jsx';
+import AuthAdminPage from './pages/AuthAdminPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
+import FormSubmissionPage from './pages/FormSubmissionPage.jsx';
+import ProtectedAdminRoute from './components/admin/ProtectedAdminRoute.jsx';
+import AdminLayout from './components/admin/AdminLayout.jsx';
+import AdminLandingPage from './pages/admin/AdminLandingPage.jsx';
+import AdminLoginPage from './pages/admin/AdminLoginPage.jsx';
+import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 
 // Lazy Loaded Patient Pages
 const PatientOnboardingPage = React.lazy(() => import('./pages/PatientOnboardingPage.jsx'));
@@ -51,6 +58,31 @@ const InsurancePaymentsPage = React.lazy(() => import('./pages/InsurancePayments
 const InsuranceAnalyticsPage = React.lazy(() => import('./pages/InsuranceAnalyticsPage.jsx'));
 const InsuranceSettingsPage = React.lazy(() => import('./pages/InsuranceSettingsPage.jsx'));
 
+const PatientsAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/PatientsAnalyticsPage.jsx'));
+const EmployersAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/EmployersAnalyticsPage.jsx'));
+const InsuranceAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/InsuranceAnalyticsPage.jsx'));
+const ProvidersAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/ProvidersAnalyticsPage.jsx'));
+const SubscriptionsAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/SubscriptionsAnalyticsPage.jsx'));
+const FinancialAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/FinancialAnalyticsPage.jsx'));
+const AIAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/AIAnalyticsPage.jsx'));
+const FormsAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/FormsAnalyticsPage.jsx'));
+const PatientsManagementPage = React.lazy(() => import('./pages/admin/PatientsManagementPage.jsx'));
+const EmployersManagementPage = React.lazy(() => import('./pages/admin/EmployersManagementPage.jsx'));
+const InsuranceUsersManagementPage = React.lazy(() => import('./pages/admin/InsuranceUsersManagementPage.jsx'));
+const TransactionsManagementPage = React.lazy(() => import('./pages/admin/TransactionsManagementPage.jsx'));
+const SubscriptionPlansPage = React.lazy(() => import('./pages/admin/SubscriptionPlansPage.jsx'));
+const SubscriptionAssignmentPage = React.lazy(() => import('./pages/admin/SubscriptionAssignmentPage.jsx'));
+const SubscriptionMonitoringPage = React.lazy(() => import('./pages/admin/SubscriptionMonitoringPage.jsx'));
+const SubscriptionLogsPage = React.lazy(() => import('./pages/admin/SubscriptionLogsPage.jsx'));
+const ProvidersManagementPage = React.lazy(() => import('./pages/admin/ProvidersManagementPage.jsx'));
+const ProviderOnboardingPage = React.lazy(() => import('./pages/admin/ProviderOnboardingPage.jsx'));
+const BulkProviderUploadPage = React.lazy(() => import('./pages/admin/BulkProviderUploadPage.jsx'));
+const FormBuilderPage = React.lazy(() => import('./pages/admin/FormBuilderPage.jsx'));
+const FormResponsesPage = React.lazy(() => import('./pages/admin/FormResponsesPage.jsx'));
+const KnowledgeBasePage = React.lazy(() => import('./pages/admin/KnowledgeBasePage.jsx'));
+const AILogsPage = React.lazy(() => import('./pages/admin/AILogsPage.jsx'));
+const SystemSettingsPage = React.lazy(() => import('./pages/admin/SystemSettingsPage.jsx'));
+
 // Lazy Loaded Provider Pages
 const ProviderDashboard = React.lazy(() => import('./pages/ProviderDashboard.jsx'));
 const ProviderAppointmentsPage = React.lazy(() => import('./pages/ProviderAppointmentsPage.jsx'));
@@ -75,6 +107,48 @@ function App() {
                 <Route path="/auth/individual" element={<AuthIndividualPage />} />
                 <Route path="/auth/employer" element={<AuthEmployerPage />} />
                 <Route path="/auth/insurance" element={<AuthInsurancePage />} />
+                <Route path="/auth/admin" element={<AuthAdminPage />} />
+
+                <Route path="/admin" element={<AdminLandingPage />} />
+                <Route path="/admin/login" element={<AdminLoginPage />} />
+                <Route path="/forms/:formId" element={<FormSubmissionPage />} />
+
+                <Route path="/admin/*" element={
+                  <ProtectedAdminRoute>
+                    <AdminLayout>
+                      <Suspense fallback={<div className="flex h-[50vh] items-center justify-center"><LoadingSpinner size="lg" /></div>}>
+                        <Routes>
+                          <Route path="dashboard" element={<AdminDashboard />} />
+                          <Route path="analytics/patients" element={<PatientsAnalyticsPage />} />
+                          <Route path="analytics/employers" element={<EmployersAnalyticsPage />} />
+                          <Route path="analytics/insurance" element={<InsuranceAnalyticsPage />} />
+                          <Route path="analytics/providers" element={<ProvidersAnalyticsPage />} />
+                          <Route path="analytics/subscriptions" element={<SubscriptionsAnalyticsPage />} />
+                          <Route path="analytics/financial" element={<FinancialAnalyticsPage />} />
+                          <Route path="analytics/ai" element={<AIAnalyticsPage />} />
+                          <Route path="analytics/forms" element={<FormsAnalyticsPage />} />
+                          <Route path="patients" element={<PatientsManagementPage />} />
+                          <Route path="employers" element={<EmployersManagementPage />} />
+                          <Route path="insurance-users" element={<InsuranceUsersManagementPage />} />
+                          <Route path="transactions" element={<TransactionsManagementPage />} />
+                          <Route path="subscription-plans" element={<SubscriptionPlansPage />} />
+                          <Route path="subscription-assignment" element={<SubscriptionAssignmentPage />} />
+                          <Route path="subscription-monitoring" element={<SubscriptionMonitoringPage />} />
+                          <Route path="subscription-logs" element={<SubscriptionLogsPage />} />
+                          <Route path="providers" element={<ProvidersManagementPage />} />
+                          <Route path="provider-onboarding" element={<ProviderOnboardingPage />} />
+                          <Route path="bulk-provider-upload" element={<BulkProviderUploadPage />} />
+                          <Route path="forms" element={<FormBuilderPage />} />
+                          <Route path="forms/:formId/responses" element={<FormResponsesPage />} />
+                          <Route path="knowledge-base" element={<KnowledgeBasePage />} />
+                          <Route path="ai-logs" element={<AILogsPage />} />
+                          <Route path="settings" element={<SystemSettingsPage />} />
+                          <Route path="*" element={<div className="p-8 text-center text-muted-foreground">Module coming soon</div>} />
+                        </Routes>
+                      </Suspense>
+                    </AdminLayout>
+                  </ProtectedAdminRoute>
+                } />
 
                 {/* Patient Routes */}
                 <Route path="/patient/*" element={

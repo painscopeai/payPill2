@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { User, Building2, ShieldCheck, Activity, ArrowRight } from 'lucide-react';
+import { User, Building2, ShieldCheck, Activity, ArrowRight, LayoutDashboard } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabaseClient.js';
 
 export default function RoleSelectionLandingPage() {
@@ -47,7 +47,7 @@ export default function RoleSelectionLandingPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Individual Card */}
           <Card className="flex flex-col h-full rounded-2xl border-border/60 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
             <CardHeader className="pb-4">
@@ -116,6 +116,30 @@ export default function RoleSelectionLandingPage() {
                 onClick={() => navigate('/auth/insurance')}
               >
                 Get Started <ArrowRight className="h-4 w-4" />
+              </Button>
+            </CardFooter>
+          </Card>
+
+          {/* Admin Card */}
+          <Card className="flex flex-col h-full rounded-2xl border-border/60 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+            <CardHeader className="pb-4">
+              <div className="h-14 w-14 rounded-2xl bg-violet-500/10 flex items-center justify-center mb-4">
+                <LayoutDashboard className="h-7 w-7 text-violet-600" />
+              </div>
+              <CardTitle className="text-2xl">Platform Administration</CardTitle>
+              <CardDescription className="text-base mt-2">For Administrators</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1">
+              <p className="text-muted-foreground">
+                Access analytics, manage users, subscriptions, providers, and system configuration.
+              </p>
+            </CardContent>
+            <CardFooter className="pt-4 mt-auto">
+              <Button
+                className="w-full rounded-xl gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+                onClick={() => navigate('/auth/admin')}
+              >
+                Admin Sign In <ArrowRight className="h-4 w-4" />
               </Button>
             </CardFooter>
           </Card>

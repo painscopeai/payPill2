@@ -8,6 +8,13 @@ const errorMiddleware = (err, req, res, next) => {
 		return next(err);
 	}
 
+	const status = err.status && Number.isInteger(err.status) ? err.status : 500;
+	if (status !== 500) {
+		return res.status(status).json({
+			error: err.message || 'Request failed',
+		});
+	}
+
 	res.status(500).json({
 		message: 'Something went wrong!',
 		...(process.env.NODE_ENV !== NodeEnv.Production && {

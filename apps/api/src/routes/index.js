@@ -15,6 +15,18 @@ import aiRecommendationsRouter from './ai-recommendations.js';
 import dataExportRouter from './data-export.js';
 import onboardingRouter from './onboarding.js';
 import auditRouter from './audit.js';
+import adminAuthRouter from './admin-auth.js';
+import adminUsersRouter from './admin-users.js';
+import adminTransactionsRouter from './admin-transactions.js';
+import adminSubscriptionsRouter from './admin-subscriptions.js';
+import adminProvidersRouter from './admin-providers.js';
+import adminFormsRouter from './admin-forms.js';
+import adminAiRouter from './admin-ai.js';
+import adminSettingsRouter from './admin-settings.js';
+import analyticsRouter from './analytics.js';
+import formsRouter from './forms.js';
+import knowledgeBaseRouter from './knowledge-base.js';
+import { checkAuth } from '../middleware/rbac.js';
 
 export default () => {
   const router = Router();
@@ -24,6 +36,8 @@ export default () => {
 
   // Authentication routes
   router.use('/auth', authRouter);
+
+  router.use('/admin/auth', adminAuthRouter);
 
   // Integrated AI chat system
   router.use('/integrated-ai', integratedAiRouter);
@@ -66,6 +80,18 @@ export default () => {
 
   // Audit logging
   router.use('/audit-logs', auditRouter);
+
+  router.use('/forms', formsRouter);
+  router.use('/knowledge-base', knowledgeBaseRouter);
+  router.use('/analytics', analyticsRouter);
+
+  router.use('/admin/users', checkAuth, adminUsersRouter);
+  router.use('/admin/transactions', checkAuth, adminTransactionsRouter);
+  router.use('/admin/subscriptions', checkAuth, adminSubscriptionsRouter);
+  router.use('/admin/providers', checkAuth, adminProvidersRouter);
+  router.use('/admin/forms', checkAuth, adminFormsRouter);
+  router.use('/admin/ai', checkAuth, adminAiRouter);
+  router.use('/admin/settings', checkAuth, adminSettingsRouter);
 
   return router;
 };

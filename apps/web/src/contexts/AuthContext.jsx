@@ -11,6 +11,7 @@ function mapProfileToCurrentUser(profile, authUser) {
 		id: profile.id,
 		email: profile.email || authUser?.email || null,
 		role: profile.role,
+		permissions: Array.isArray(profile.permissions) ? profile.permissions : [],
 		first_name: profile.first_name,
 		last_name: profile.last_name,
 		name: profile.name,
