@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { User, Building2, ShieldCheck, Activity, ArrowRight } from 'lucide-react';
+import { isSupabaseConfigured } from '@/lib/supabaseClient.js';
 
 export default function RoleSelectionLandingPage() {
   const navigate = useNavigate();
@@ -13,6 +14,15 @@ export default function RoleSelectionLandingPage() {
       <Helmet>
         <title>Welcome to PayPill Healthcare</title>
       </Helmet>
+
+      {!isSupabaseConfigured && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-950 dark:text-amber-100 px-4 py-3 text-center text-sm">
+          <strong>Backend env missing:</strong> add{' '}
+          <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-xs">VITE_SUPABASE_URL</code> and{' '}
+          <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-xs">VITE_SUPABASE_ANON_KEY</code> in Vercel
+          (Project → Settings → Environment Variables), then redeploy. Until then, sign-in will not work.
+        </div>
+      )}
 
       <header className="w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-4">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
