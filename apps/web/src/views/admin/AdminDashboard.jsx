@@ -14,6 +14,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { format } from 'date-fns';
+import { withTimeout } from '@/lib/withTimeout';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(var(--success))', 'hsl(var(--warning))'];
 
@@ -33,15 +34,19 @@ export default function AdminDashboard() {
         patientsC, employersC, insuranceC, providersC,
         transactionsC, subscriptionsC,
         activitiesRows
-      ] = await Promise.all([
-        adminCountExact('patients'),
-        adminCountExact('employers'),
-        adminCountExact('insurance_companies'),
-        adminCountExact('providers'),
-        adminCountExact('transactions'),
-        adminCountExact('subscriptions', { column: 'status', value: 'active' }),
-        adminListRecent('audit_logs', 10),
-      ]);
+      ] = await withTimeout(
+        Promise.all([
+          adminCountExact('patients'),
+          adminCountExact('employers'),
+          adminCountExact('insurance_companies'),
+          adminCountExact('providers'),
+          adminCountExact('transactions'),
+          adminCountExact('subscriptions', { column: 'status', value: 'active' }),
+          adminListRecent('audit_logs', 10),
+        ]),
+        25_000,
+        'Dashboard stats',
+      );
 
       setStats({
         patients: patientsC,

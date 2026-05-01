@@ -46,7 +46,12 @@ export function useAnalyticsSync(endpoint, options = {}) {
     } catch (err) {
       console.error(`Error fetching analytics from ${endpoint}:`, err);
       if (showLoading) {
-        setError(err.message);
+        const aborted =
+          err?.name === 'AbortError' || /aborted|timed out/i.test(String(err?.message || ''));
+        const message = aborted
+          ? 'Request timed out. Check your connection or try again.'
+          : err.message;
+        setError(message);
         toast.error('Failed to sync analytics data');
       }
     } finally {

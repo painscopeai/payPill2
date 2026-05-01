@@ -1,8 +1,4 @@
-import { App } from '@tinyhttp/app';
-import logger from '../utils/logger.js';
-import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
-
-const router = new App();
+import { getSupabaseAdmin } from '../supabase/admin';
 
 const sb = () => getSupabaseAdmin();
 
@@ -30,7 +26,7 @@ async function fetchRolesByUserIds(userIds) {
 			for (const row of data || []) roleById.set(row.id, row.role);
 		}
 	} catch (e) {
-		logger.warn(`[analytics] profiles by ids: ${e.message}`);
+		console.warn(`[analytics] profiles by ids: ${e.message}`);
 	}
 	return roleById;
 }
@@ -50,7 +46,7 @@ async function fetchTransactionsInDateRange(start, end) {
 			created: t.created_at || t.created,
 		}));
 	} catch (e) {
-		logger.warn(`[analytics] transactions range: ${e.message}`);
+		console.warn(`[analytics] transactions range: ${e.message}`);
 		return [];
 	}
 }
@@ -65,7 +61,7 @@ async function fetchActiveSubscriptionRowsForMrr() {
 		if (error) throw error;
 		return data || [];
 	} catch (e) {
-		logger.warn(`[analytics] subscriptions mrr: ${e.message}`);
+		console.warn(`[analytics] subscriptions mrr: ${e.message}`);
 		return [];
 	}
 }
@@ -85,7 +81,7 @@ async function fetchProfilesByRole(role, selectList) {
 			company_name: r.company_name || r.name,
 		}));
 	} catch (e) {
-		logger.warn(`[analytics] profiles/${role}: ${e.message}`);
+		console.warn(`[analytics] profiles/${role}: ${e.message}`);
 		return [];
 	}
 }
@@ -101,7 +97,7 @@ async function fetchTableInDateRange(table, columns, start, end) {
 		if (error) throw error;
 		return (data || []).map(withCreated);
 	} catch (e) {
-		logger.warn(`[analytics] ${table} range: ${e.message}`);
+		console.warn(`[analytics] ${table} range: ${e.message}`);
 		return [];
 	}
 }
@@ -118,7 +114,7 @@ async function fetchSubscriptionsNarrow(extra = {}) {
 		if (error) throw error;
 		return (data || []).map(withCreated);
 	} catch (e) {
-		logger.warn(`[analytics] subscriptions: ${e.message}`);
+		console.warn(`[analytics] subscriptions: ${e.message}`);
 		return [];
 	}
 }
@@ -134,7 +130,7 @@ async function fetchRowsForUserIds(table, columns, userIds) {
 			out.push(...(data || []));
 		}
 	} catch (e) {
-		logger.warn(`[analytics] ${table} by user ids: ${e.message}`);
+		console.warn(`[analytics] ${table} by user ids: ${e.message}`);
 	}
 	return out.map(withCreated);
 }
@@ -174,11 +170,11 @@ function calculatePercentage(numerator, denominator) {
 }
 
 /** GET /analytics/patients */
-router.get('/patients', async (req, res) => {
-	const { startDate, endDate } = req.query;
+export async function payloadPatients(query) {
+	const { startDate, endDate } = query || {};
 	const { start, end } = parseDateRange(startDate, endDate);
 
-	logger.info('[analytics] Fetching patient analytics');
+	console.info('[analytics] Fetching patient analytics');
 
 	const patients = await fetchProfilesByRole(
 		'individual',
@@ -215,7 +211,7 @@ router.get('/patients', async (req, res) => {
 					rows.push(...(data || []));
 				}
 			} catch (e) {
-				logger.warn(`[analytics] patients health: ${e.message}`);
+				console.warn(`[analytics] patients health: ${e.message}`);
 			}
 			return rows;
 		})(),
@@ -280,9 +276,9 @@ router.get('/patients', async (req, res) => {
 
 	const avgSatisfaction = 4.2;
 
-	logger.info('[analytics] Patient analytics calculated');
+	console.info('[analytics] Patient analytics calculated');
 
-	res.json({
+	return {
 		kpis: {
 			total_patients: totalPatients,
 			active_patients: activePatients,
@@ -300,15 +296,15 @@ router.get('/patients', async (req, res) => {
 			by_appointment_type: appointmentsByType,
 			top_conditions: topConditions,
 		},
-	});
-});
+	};
+}
 
 /** GET /analytics/employers */
-router.get('/employers', async (req, res) => {
-	const { startDate, endDate } = req.query;
+export async function payloadEmployers(query) {
+	const { startDate, endDate } = query || {};
 	const { start, end } = parseDateRange(startDate, endDate);
 
-	logger.info('[analytics] Fetching employer analytics');
+	console.info('[analytics] Fetching employer analytics');
 
 	const employers = await fetchProfilesByRole(
 		'employer',
@@ -358,9 +354,9 @@ router.get('/employers', async (req, res) => {
 			status: e.status,
 		}));
 
-	logger.info('[analytics] Employer analytics calculated');
+	console.info('[analytics] Employer analytics calculated');
 
-	res.json({
+	return {
 		kpis: {
 			total_employers: totalEmployers,
 			active_employers: activeEmployers,
@@ -374,15 +370,15 @@ router.get('/employers', async (req, res) => {
 			by_subscription_status: subscriptionStatus,
 			top_employers: topEmployers,
 		},
-	});
-});
+	};
+}
 
 /** GET /analytics/insurance */
-router.get('/insurance', async (req, res) => {
-	const { startDate, endDate } = req.query;
+export async function payloadInsurance(query) {
+	const { startDate, endDate } = query || {};
 	const { start, end } = parseDateRange(startDate, endDate);
 
-	logger.info('[analytics] Fetching insurance analytics');
+	console.info('[analytics] Fetching insurance analytics');
 
 	const insuranceCompanies = await fetchProfilesByRole(
 		'insurance',
@@ -429,9 +425,9 @@ router.get('/insurance', async (req, res) => {
 			};
 		});
 
-	logger.info('[analytics] Insurance analytics calculated');
+	console.info('[analytics] Insurance analytics calculated');
 
-	res.json({
+	return {
 		kpis: {
 			total_partners: totalPartners,
 			active_partners: activePartners,
@@ -444,15 +440,15 @@ router.get('/insurance', async (req, res) => {
 			by_claim_category: claimsByCategory,
 			top_partners: topPartners,
 		},
-	});
-});
+	};
+}
 
 /** GET /analytics/providers */
-router.get('/providers', async (req, res) => {
-	const { startDate, endDate } = req.query;
+export async function payloadProviders(query) {
+	const { startDate, endDate } = query || {};
 	const { start, end } = parseDateRange(startDate, endDate);
 
-	logger.info('[analytics] Fetching provider analytics');
+	console.info('[analytics] Fetching provider analytics');
 
 	let providers = [];
 	try {
@@ -463,7 +459,7 @@ router.get('/providers', async (req, res) => {
 		if (error) throw error;
 		providers = (data || []).map(withCreated);
 	} catch (e) {
-		logger.warn(`[analytics] providers: ${e.message}`);
+		console.warn(`[analytics] providers: ${e.message}`);
 	}
 
 	const providerById = new Map(providers.map((p) => [p.id, p]));
@@ -509,9 +505,9 @@ router.get('/providers', async (req, res) => {
 			};
 		});
 
-	logger.info('[analytics] Provider analytics calculated');
+	console.info('[analytics] Provider analytics calculated');
 
-	res.json({
+	return {
 		kpis: {
 			total_providers: totalProviders,
 			active_providers: activeProviders,
@@ -525,15 +521,15 @@ router.get('/providers', async (req, res) => {
 			by_specialty: specialties,
 			top_providers: topProviders,
 		},
-	});
-});
+	};
+}
 
 /** GET /analytics/subscriptions */
-router.get('/subscriptions', async (req, res) => {
-	const { startDate, endDate } = req.query;
+export async function payloadSubscriptions(query) {
+	const { startDate, endDate } = query || {};
 	const { start, end } = parseDateRange(startDate, endDate);
 
-	logger.info('[analytics] Fetching subscription analytics');
+	console.info('[analytics] Fetching subscription analytics');
 
 	const [activeRows, subscriptionsInRange, allNarrow] = await Promise.all([
 		fetchActiveSubscriptionRowsForMrr(),
@@ -547,7 +543,7 @@ router.get('/subscriptions', async (req, res) => {
 				if (error) throw error;
 				return data || [];
 			} catch (e) {
-				logger.warn(`[analytics] subscriptions snapshot: ${e.message}`);
+				console.warn(`[analytics] subscriptions snapshot: ${e.message}`);
 				return [];
 			}
 		})(),
@@ -582,9 +578,9 @@ router.get('/subscriptions', async (req, res) => {
 		'Over $2000': 0,
 	};
 
-	logger.info('[analytics] Subscription analytics calculated');
+	console.info('[analytics] Subscription analytics calculated');
 
-	res.json({
+	return {
 		kpis: {
 			active_subscriptions: activeSubscriptions,
 			mrr: parseFloat(mrr.toFixed(2)),
@@ -598,15 +594,15 @@ router.get('/subscriptions', async (req, res) => {
 			by_plan: byPlan,
 			ltv_distribution: ltvDistribution,
 		},
-	});
-});
+	};
+}
 
 /** GET /analytics/financial */
-router.get('/financial', async (req, res) => {
-	const { startDate, endDate } = req.query;
+export async function payloadFinancial(query) {
+	const { startDate, endDate } = query || {};
 	const { start, end } = parseDateRange(startDate, endDate);
 
-	logger.info('[analytics] Fetching financial analytics');
+	console.info('[analytics] Fetching financial analytics');
 
 	const [transactionsInRange, activeSubs] = await Promise.all([
 		fetchTransactionsInDateRange(start, end),
@@ -645,9 +641,9 @@ router.get('/financial', async (req, res) => {
 		revenueByUserType[userType] = (revenueByUserType[userType] || 0) + Number(t.amount || 0);
 	});
 
-	logger.info('[analytics] Financial analytics calculated');
+	console.info('[analytics] Financial analytics calculated');
 
-	res.json({
+	return {
 		kpis: {
 			total_revenue: parseFloat(totalRevenue.toFixed(2)),
 			mrr: parseFloat(mrr.toFixed(2)),
@@ -665,15 +661,15 @@ router.get('/financial', async (req, res) => {
 				Object.entries(revenueByUserType).map(([k, v]) => [k, parseFloat(Number(v).toFixed(2))]),
 			),
 		},
-	});
-});
+	};
+}
 
 /** GET /analytics/ai */
-router.get('/ai', async (req, res) => {
-	const { startDate, endDate } = req.query;
+export async function payloadAi(query) {
+	const { startDate, endDate } = query || {};
 	const { start, end } = parseDateRange(startDate, endDate);
 
-	logger.info('[analytics] Fetching AI analytics');
+	console.info('[analytics] Fetching AI analytics');
 
 	const aiLogsInRange = await fetchTableInDateRange(
 		'ai_logs',
@@ -723,9 +719,9 @@ router.get('/ai', async (req, res) => {
 
 	const totalTokens = totalRequests * 500;
 
-	logger.info('[analytics] AI analytics calculated');
+	console.info('[analytics] AI analytics calculated');
 
-	res.json({
+	return {
 		kpis: {
 			total_requests: totalRequests,
 			success_rate: successRate,
@@ -739,15 +735,15 @@ router.get('/ai', async (req, res) => {
 			error_rate_by_model: errorsByModel,
 			top_errors: topErrors,
 		},
-	});
-});
+	};
+}
 
 /** GET /analytics/forms */
-router.get('/forms', async (req, res) => {
-	const { startDate, endDate } = req.query;
+export async function payloadForms(query) {
+	const { startDate, endDate } = query || {};
 	const { start, end } = parseDateRange(startDate, endDate);
 
-	logger.info('[analytics] Fetching form analytics');
+	console.info('[analytics] Fetching form analytics');
 
 	const [responsesInRange, formsList] = await Promise.all([
 		fetchTableInDateRange(
@@ -762,7 +758,7 @@ router.get('/forms', async (req, res) => {
 				if (error) throw error;
 				return data || [];
 			} catch (e) {
-				logger.warn(`[analytics] forms list: ${e.message}`);
+				console.warn(`[analytics] forms list: ${e.message}`);
 				return [];
 			}
 		})(),
@@ -817,9 +813,9 @@ router.get('/forms', async (req, res) => {
 		avgScoreByForm[f.title || f.name || f.id] = (Math.random() * 2 + 3).toFixed(1);
 	});
 
-	logger.info('[analytics] Form analytics calculated');
+	console.info('[analytics] Form analytics calculated');
 
-	res.json({
+	return {
 		kpis: {
 			total_responses: totalResponses,
 			completion_rate: completionRate,
@@ -832,7 +828,27 @@ router.get('/forms', async (req, res) => {
 			most_completed_forms: mostCompletedForms,
 			avg_score_by_form: avgScoreByForm,
 		},
-	});
-});
+	};
+}
 
-export default router;
+
+const ANALYTICS_HANDLERS = {
+	patients: payloadPatients,
+	employers: payloadEmployers,
+	insurance: payloadInsurance,
+	providers: payloadProviders,
+	subscriptions: payloadSubscriptions,
+	financial: payloadFinancial,
+	ai: payloadAi,
+	forms: payloadForms,
+};
+
+export async function buildAnalyticsPayload(segment, query) {
+	const fn = ANALYTICS_HANDLERS[segment];
+	if (!fn) {
+		const e = new Error('Unknown analytics segment');
+		e.code = 'NOT_FOUND';
+		throw e;
+	}
+	return fn(query || {});
+}

@@ -14,7 +14,6 @@ import recommendationHistoryRouter from './recommendation-history.js';
 import healthGoalsRouter from './health-goals.js';
 import aiRecommendationsRouter from './ai-recommendations.js';
 import dataExportRouter from './data-export.js';
-import onboardingRouter from './onboarding.js';
 import auditRouter from './audit.js';
 import adminAuthRouter from './admin-auth.js';
 import adminUsersRouter from './admin-users.js';
@@ -24,7 +23,6 @@ import adminProvidersRouter from './admin-providers.js';
 import adminFormsRouter from './admin-forms.js';
 import adminAiRouter from './admin-ai.js';
 import adminSettingsRouter from './admin-settings.js';
-import analyticsRouter from './analytics.js';
 import formsRouter from './forms.js';
 import knowledgeBaseRouter from './knowledge-base.js';
 import { checkAuth } from '../middleware/rbac.js';
@@ -42,9 +40,6 @@ export default () => {
 
   // Integrated AI chat system
   router.use('/integrated-ai', integratedAiRouter);
-
-  // Onboarding flow
-  router.use('/onboarding', onboardingRouter);
 
   // Health management routes
   router.use('/health', healthRouter);
@@ -86,8 +81,6 @@ export default () => {
 
   router.use('/forms', formsRouter);
   router.use('/knowledge-base', knowledgeBaseRouter);
-  router.use('/analytics', analyticsRouter);
-
   router.use('/admin/users', checkAuth, adminUsersRouter);
   router.use('/admin/transactions', checkAuth, adminTransactionsRouter);
   router.use('/admin/subscriptions', checkAuth, adminSubscriptionsRouter);

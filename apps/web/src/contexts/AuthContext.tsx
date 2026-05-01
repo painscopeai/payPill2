@@ -11,6 +11,7 @@ import React, {
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
+import { withTimeout } from '@/lib/withTimeout';
 
 const AuthContext = createContext<unknown>(null);
 
@@ -75,7 +76,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 			setUserRoleState(null);
 			return null;
 		}
-		const user = await fetchProfileWithRetry(nextSession.user.id, nextSession.user.email);
+		const user = await withTimeout(
+			fetchProfileWithRetry(nextSession.user.id, nextSession.user.email),
+			18_000,
+			'Profile load',
+		);
 		setCurrentUser(user);
 		setUserRoleState((user?.role as string) ?? null);
 		return user;
