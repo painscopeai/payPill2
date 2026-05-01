@@ -10,11 +10,16 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, Loader2, ArrowLeft } from 'lucide-react';
+import { assertPortalSignIn } from '@/lib/portalAuth.js';
+import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 export default function AuthEmployerPage() {
   const navigate = useNavigate();
-  const { login, signup, isLoading, error } = useAuth();
+  const { login, signup, verifySignupEmail, logout, isLoading, error } = useAuth();
   const [activeTab, setActiveTab] = useState('signin');
+  const [localError, setLocalError] = useState('');
+  const [signupStep, setSignupStep] = useState('form');
+  const [pendingVerifyEmail, setPendingVerifyEmail] = useState('');
 
   const [signInData, setSignInData] = useState({ email: '', password: '' });
   const [signUpData, setSignUpData] = useState({
@@ -29,22 +34,29 @@ export default function AuthEmployerPage() {
     termsAccepted: false
   });
 
+  const displayError = localError || error;
+
   const handleSignIn = async (e) => {
     e.preventDefault();
+    setLocalError('');
     try {
-      await login(signInData.email, signInData.password);
+      const user = await login(signInData.email, signInData.password);
+      await assertPortalSignIn(user, 'employer', logout);
       navigate('/employer/dashboard');
-    } catch (err) {}
+    } catch (err) {
+      setLocalError(err?.message || '');
+    }
   };
 
   const handleSignUp = async (e) => {
     e.preventDefault();
+    setLocalError('');
     if (signUpData.password !== signUpData.confirmPassword) {
-      alert("Passwords do not match");
+      setLocalError('Passwords do not match');
       return;
     }
     if (!signUpData.termsAccepted) {
-      alert("Please accept the terms and conditions");
+      setLocalError('Please accept the terms and conditions');
       return;
     }
 
@@ -53,7 +65,7 @@ export default function AuthEmployerPage() {
       const firstName = nameParts[0] || 'Admin';
       const lastName = nameParts.slice(1).join(' ') || 'User';
 
-      await signup(
+      const result = await signup(
         signUpData.email, 
         signUpData.password, 
         {
@@ -66,8 +78,25 @@ export default function AuthEmployerPage() {
         }, 
         'employer'
       );
+      if (result.outcome === 'verify_email') {
+        setPendingVerifyEmail(result.email);
+        setSignupStep('verify');
+        return;
+      }
       navigate('/employer/dashboard');
-    } catch (err) {}
+    } catch (err) {
+      setLocalError(err?.message || '');
+    }
+  };
+
+  const handleVerifySignup = async (token) => {
+    setLocalError('');
+    try {
+      await verifySignupEmail(pendingVerifyEmail, token);
+      navigate('/employer/dashboard');
+    } catch (err) {
+      setLocalError(err?.message || 'Verification failed.');
+    }
   };
 
   return (
@@ -88,7 +117,7 @@ export default function AuthEmployerPage() {
         </div>
 
         <Card className="border-border/60 shadow-lg rounded-2xl overflow-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setLocalError(''); setSignupStep('form'); }} className="w-full">
             <TabsList className="grid w-full grid-cols-2 rounded-none border-b bg-transparent p-0 h-14">
               <TabsTrigger value="signin" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none h-full">
                 Sign In
@@ -99,9 +128,9 @@ export default function AuthEmployerPage() {
             </TabsList>
             
             <CardContent className="p-6 pt-8">
-              {error && (
+              {displayError && (
                 <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm font-medium">
-                  {error}
+                  {displayError}
                 </div>
               )}
 
@@ -139,6 +168,15 @@ export default function AuthEmployerPage() {
               </TabsContent>
 
               <TabsContent value="signup" className="mt-0 space-y-4">
+                {signupStep === 'verify' ? (
+                  <EmailVerificationStep
+                    email={pendingVerifyEmail}
+                    onVerify={handleVerifySignup}
+                    onBack={() => { setSignupStep('form'); setLocalError(''); }}
+                    isLoading={isLoading}
+                    accentClassName="bg-blue-600 hover:bg-blue-700"
+                  />
+                ) : (
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="companyName">Company Name</Label>
@@ -228,6 +266,7 @@ export default function AuthEmployerPage() {
                     </Button>
                   </div>
                 </form>
+                )}
               </TabsContent>
             </CardContent>
           </Tabs>

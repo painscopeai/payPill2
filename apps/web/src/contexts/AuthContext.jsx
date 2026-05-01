@@ -163,25 +163,54 @@ export const AuthProvider = ({ children }) => {
 			}
 
 			if (data.session) {
-				return applySession(data.session);
+				const user = await applySession(data.session);
+				return { outcome: 'session', user };
 			}
 
-			const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-				email,
-				password,
-			});
-			if (signInErr) {
-				const msg =
-					signInErr.message?.includes('Email not confirmed') || signInErr.message?.includes('confirm')
-						? 'Check your email to confirm your account before signing in.'
-						: signInErr.message || 'Could not sign in after signup.';
-				setError(msg);
-				throw new Error(msg);
+			// Email confirmation / token flow: no session until verifyOtp
+			if (data.user) {
+				return { outcome: 'verify_email', email };
 			}
-			return applySession(signInData.session);
+
+			const msg = 'Could not complete signup. Check your email or try again.';
+			setError(msg);
+			throw new Error(msg);
 		} catch (err) {
 			console.error('[AuthContext] Signup error:', err);
 			const errorMessage = err.message || 'Failed to create account.';
+			setError(errorMessage);
+			throw err instanceof Error ? err : new Error(errorMessage);
+		} finally {
+			setIsLoading(false);
+		}
+	}, [applySession]);
+
+	const verifySignupEmail = useCallback(async (email, token) => {
+		setIsLoading(true);
+		setError(null);
+		try {
+			const trimmed = (token || '').trim();
+			if (!trimmed) {
+				const msg = 'Please enter the verification code from your email.';
+				setError(msg);
+				throw new Error(msg);
+			}
+			const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+				email,
+				token: trimmed,
+				type: 'signup',
+			});
+			if (verifyErr) throw verifyErr;
+			if (!data.session) {
+				const msg = 'Verification did not complete. Check the code and try again.';
+				setError(msg);
+				throw new Error(msg);
+			}
+			const user = await applySession(data.session);
+			return user;
+		} catch (err) {
+			console.error('[AuthContext] verifySignupEmail error:', err);
+			const errorMessage = err.message || 'Verification failed.';
 			setError(errorMessage);
 			throw err instanceof Error ? err : new Error(errorMessage);
 		} finally {
@@ -232,10 +261,11 @@ export const AuthProvider = ({ children }) => {
 			login,
 			logout,
 			signup,
+			verifySignupEmail,
 			setUserRole,
 			isAuthenticated: Boolean(session?.user),
 		}),
-		[currentUser, userRole, isLoading, error, session, login, logout, signup, setUserRole],
+		[currentUser, userRole, isLoading, error, session, login, logout, signup, verifySignupEmail, setUserRole],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

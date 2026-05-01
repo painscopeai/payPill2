@@ -9,12 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LayoutDashboard, Loader2, ArrowLeft } from 'lucide-react';
+import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 export default function AuthAdminPage() {
   const navigate = useNavigate();
-  const { login, signup, isLoading, error, logout } = useAuth();
+  const { login, signup, verifySignupEmail, isLoading, error, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('signin');
   const [localError, setLocalError] = useState('');
+  const [signupStep, setSignupStep] = useState('form');
+  const [pendingVerifyEmail, setPendingVerifyEmail] = useState('');
 
   const [signInData, setSignInData] = useState({ email: '', password: '' });
   const [signUpData, setSignUpData] = useState({
@@ -64,7 +67,7 @@ export default function AuthAdminPage() {
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || 'User';
 
-      const user = await signup(
+      const result = await signup(
         signUpData.email,
         signUpData.password,
         {
@@ -78,10 +81,26 @@ export default function AuthAdminPage() {
         },
         'admin',
       );
-      await assertAdminUser(user);
+      if (result.outcome === 'verify_email') {
+        setPendingVerifyEmail(result.email);
+        setSignupStep('verify');
+        return;
+      }
+      await assertAdminUser(result.user);
       navigate('/admin/dashboard');
     } catch (err) {
       setLocalError(err.message);
+    }
+  };
+
+  const handleVerifySignup = async (token) => {
+    setLocalError('');
+    try {
+      const user = await verifySignupEmail(pendingVerifyEmail, token);
+      await assertAdminUser(user);
+      navigate('/admin/dashboard');
+    } catch (err) {
+      setLocalError(err?.message || 'Verification failed.');
     }
   };
 
@@ -113,6 +132,7 @@ export default function AuthAdminPage() {
             onValueChange={(val) => {
               setActiveTab(val);
               setLocalError('');
+              setSignupStep('form');
             }}
             className="w-full"
           >
@@ -174,6 +194,19 @@ export default function AuthAdminPage() {
               </TabsContent>
 
               <TabsContent value="signup" className="mt-0 space-y-4">
+                {signupStep === 'verify' ? (
+                  <EmailVerificationStep
+                    email={pendingVerifyEmail}
+                    onVerify={handleVerifySignup}
+                    onBack={() => {
+                      setSignupStep('form');
+                      setLocalError('');
+                    }}
+                    isLoading={isSubmitting}
+                    submitLabel="Verify and create account"
+                    accentClassName="bg-violet-600 hover:bg-violet-700"
+                  />
+                ) : (
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="admin-fullName">Full Name</Label>
@@ -264,6 +297,7 @@ export default function AuthAdminPage() {
                     Create Admin Account
                   </Button>
                 </form>
+                )}
               </TabsContent>
             </CardContent>
           </Tabs>

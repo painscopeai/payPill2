@@ -11,9 +11,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Activity, Mail, Lock, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import Header from '@/components/Header.jsx';
+import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 const SignupPage = () => {
-  const { signup } = useAuth();
+  const { signup, verifySignupEmail, isLoading } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     first_name: '',
@@ -25,6 +26,8 @@ const SignupPage = () => {
     privacy_preferences: false
   });
   const [loading, setLoading] = useState(false);
+  const [signupStep, setSignupStep] = useState('form');
+  const [pendingVerifyEmail, setPendingVerifyEmail] = useState('');
 
   const checkEmailExists = async (email) => {
     try {
@@ -64,10 +67,11 @@ const SignupPage = () => {
         return;
       }
 
-      await signup(
+      const result = await signup(
         formData.email, 
         formData.password, 
         {
+          name: `${formData.first_name} ${formData.last_name}`.trim(),
           first_name: formData.first_name,
           last_name: formData.last_name,
           terms_accepted: formData.terms_accepted,
@@ -75,13 +79,27 @@ const SignupPage = () => {
         }, 
         'individual'
       );
-      
+      if (result.outcome === 'verify_email') {
+        setPendingVerifyEmail(result.email);
+        setSignupStep('verify');
+        return;
+      }
       toast.success('Account created successfully');
       navigate('/patient/onboarding');
     } catch (error) {
       toast.error(error.message || 'Failed to create account');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifySignup = async (token) => {
+    try {
+      await verifySignupEmail(pendingVerifyEmail, token);
+      toast.success('Account created successfully');
+      navigate('/patient/onboarding');
+    } catch (error) {
+      toast.error(error.message || 'Verification failed');
     }
   };
 
@@ -102,6 +120,15 @@ const SignupPage = () => {
             <CardDescription>Get started with PayPill today</CardDescription>
           </CardHeader>
           <CardContent>
+            {signupStep === 'verify' ? (
+              <EmailVerificationStep
+                email={pendingVerifyEmail}
+                onVerify={handleVerifySignup}
+                onBack={() => setSignupStep('form')}
+                isLoading={isLoading}
+                accentClassName="bg-primary hover:bg-primary/90"
+              />
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -226,6 +253,7 @@ const SignupPage = () => {
                 </Link>
               </p>
             </form>
+            )}
           </CardContent>
         </Card>
       </div>

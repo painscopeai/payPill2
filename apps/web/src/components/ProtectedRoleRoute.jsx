@@ -20,9 +20,15 @@ const ProtectedRoleRoute = ({ requiredRole, children }) => {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-  
-  if (!roles.includes(userRole)) {
+  const baseRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+  const allowed = new Set(baseRoles);
+  for (const r of baseRoles) {
+    if (['individual', 'employer', 'insurance', 'provider'].includes(r)) {
+      allowed.add('admin');
+    }
+  }
+
+  if (!allowed.has(userRole)) {
     return <Navigate to="/" replace />;
   }
 
