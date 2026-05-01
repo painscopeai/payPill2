@@ -60,7 +60,7 @@ const InsuranceSettingsPage = React.lazy(() => import('./pages/InsuranceSettings
 
 const PatientsAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/PatientsAnalyticsPage.jsx'));
 const EmployersAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/EmployersAnalyticsPage.jsx'));
-const InsuranceAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/InsuranceAnalyticsPage.jsx'));
+const AdminInsuranceAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/InsuranceAnalyticsPage.jsx'));
 const ProvidersAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/ProvidersAnalyticsPage.jsx'));
 const SubscriptionsAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/SubscriptionsAnalyticsPage.jsx'));
 const FinancialAnalyticsPage = React.lazy(() => import('./pages/admin/analytics/FinancialAnalyticsPage.jsx'));
@@ -121,7 +121,7 @@ function App() {
                           <Route path="dashboard" element={<AdminDashboard />} />
                           <Route path="analytics/patients" element={<PatientsAnalyticsPage />} />
                           <Route path="analytics/employers" element={<EmployersAnalyticsPage />} />
-                          <Route path="analytics/insurance" element={<InsuranceAnalyticsPage />} />
+                          <Route path="analytics/insurance" element={<AdminInsuranceAnalyticsPage />} />
                           <Route path="analytics/providers" element={<ProvidersAnalyticsPage />} />
                           <Route path="analytics/subscriptions" element={<SubscriptionsAnalyticsPage />} />
                           <Route path="analytics/financial" element={<FinancialAnalyticsPage />} />
