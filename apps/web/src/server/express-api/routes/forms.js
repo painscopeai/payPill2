@@ -8,12 +8,13 @@ const svc = () => getSupabaseAdmin();
 
 // Valid form types
 const VALID_FORM_TYPES = [
-  'patient_onboarding',
-  'health_assessment',
-  'employer_assessment',
-  'insurance_assessment',
-  'condition_specific',
-  'custom',
+	'patient_onboarding',
+	'health_assessment',
+	'employer_assessment',
+	'insurance_assessment',
+	'condition_specific',
+	'provider_application',
+	'custom',
 ];
 
 /**

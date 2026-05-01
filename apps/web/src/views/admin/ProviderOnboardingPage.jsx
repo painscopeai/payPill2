@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import apiServerClient from '@/lib/apiServerClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,20 +10,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Search, Plus, Loader2, AlertCircle } from 'lucide-react';
 
-export default function ProviderOnboardingPage() {
-  // Manual Onboarding State
-  const [formData, setFormData] = useState({
-    name: '', category: '', email: '', phone: '', status: 'pending'
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+const TYPE_OPTIONS = [
+  { value: 'hospital', label: 'Hospital' },
+  { value: 'pharmacy', label: 'Pharmacy' },
+  { value: 'clinic', label: 'Clinic' },
+  { value: 'specialist', label: 'Specialist' },
+  { value: 'other', label: 'Other' },
+];
 
-  // Expanded Feature State
+function categoryLabelForType(type) {
+  const o = TYPE_OPTIONS.find((x) => x.value === type);
+  return o ? o.label : type;
+}
+
+export default function ProviderOnboardingPage() {
+  const [applicationId, setApplicationId] = useState(null);
+  const [applicationStatus, setApplicationStatus] = useState(null);
+  const [formData, setFormData] = useState({
+    organization_name: '',
+    type: '',
+    applicant_email: '',
+    phone: '',
+    specialty: '',
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
   const [searchUserId, setSearchUserId] = useState('');
   const [userProfile, setUserProfile] = useState(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
-
-  const [onboardingProgress, setOnboardingProgress] = useState(null);
-  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
 
   const [forms, setForms] = useState([]);
   const [isLoadingForms, setIsLoadingForms] = useState(false);
@@ -35,47 +50,48 @@ export default function ProviderOnboardingPage() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // 1) Fetch Onboarding Progress with Authentication Error Handling
-  const fetchOnboardingProgress = async () => {
-    setIsLoadingProgress(true);
+  const loadDraftApplication = useCallback(async () => {
     try {
-      const res = await apiServerClient.fetch('/onboarding/progress', {
+      const res = await apiServerClient.fetch('/admin/provider-applications?mine=1&limit=5', {
         headers: await authHeaders(),
       });
-      
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        if (res.status === 401) {
-          throw new Error('Authentication failed: Please log in again to view progress.');
-        }
-        throw new Error(errData.error || 'Failed to fetch onboarding progress.');
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load application');
       }
-      
       const data = await res.json();
-      setOnboardingProgress(data);
+      const first = data.items?.[0];
+      if (first) {
+        setApplicationId(first.id);
+        setApplicationStatus(first.status);
+        setFormData({
+          organization_name: first.organization_name || '',
+          type: first.type || '',
+          applicant_email: first.applicant_email || '',
+          phone: first.phone || '',
+          specialty: first.specialty || '',
+        });
+      } else {
+        setApplicationId(null);
+        setApplicationStatus(null);
+      }
     } catch (err) {
       toast.error(err.message);
-    } finally {
-      setIsLoadingProgress(false);
     }
-  };
+  }, []);
 
-  // 2) Fetch Forms List with 400 Error Handling
   const fetchFormsList = async () => {
     setIsLoadingForms(true);
     try {
-      const res = await apiServerClient.fetch('/forms?limit=50', {
+      const res = await apiServerClient.fetch('/forms?limit=50&form_type=provider_application', {
         headers: await authHeaders(),
       });
-      
+
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        if (res.status === 400) {
-          throw new Error('Could not load forms: Invalid request parameters.');
-        }
         throw new Error(errData.error || 'Failed to load forms list.');
       }
-      
+
       const data = await res.json();
       setForms(data.items || []);
     } catch (err) {
@@ -85,29 +101,22 @@ export default function ProviderOnboardingPage() {
     }
   };
 
-  // 3) Form Creation with Validation Error Handling (400)
   const handleCreateForm = async () => {
     setIsCreatingForm(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const payload = {
-        name: 'New Provider Evaluation',
-        category: 'provider',
-        created_by: user?.id || null,
-      };
-
       const res = await apiServerClient.fetch('/forms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          name: 'New Provider Evaluation',
+          form_type: 'provider_application',
+          description: 'Provider onboarding evaluation',
+        }),
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        if (res.status === 400) {
-          throw new Error(`Validation Error: ${errData.error || 'Missing required fields'}`);
-        }
-        throw new Error('Failed to create form.');
+        throw new Error(errData.error || 'Failed to create form.');
       }
 
       toast.success('Form created successfully!');
@@ -119,11 +128,10 @@ export default function ProviderOnboardingPage() {
     }
   };
 
-  // 4) User Profile Fetch with 404 Error Handling
   const handleSearchUser = async (e) => {
     e.preventDefault();
     if (!searchUserId.trim()) return;
-    
+
     setIsLoadingProfile(true);
     setUserProfile(null);
     try {
@@ -150,28 +158,93 @@ export default function ProviderOnboardingPage() {
   };
 
   useEffect(() => {
-    fetchOnboardingProgress();
+    loadDraftApplication();
     fetchFormsList();
-  }, []);
+  }, [loadDraftApplication]);
 
-  const handleSubmit = async (e) => {
+  const saveDraft = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    if (!formData.applicant_email?.trim()) {
+      toast.error('Applicant email is required');
+      return;
+    }
+    setIsSaving(true);
     try {
-      const { error } = await supabase.from('providers').insert({
-        name: formData.name,
-        category: formData.category,
-        email: formData.email || null,
-        phone: formData.phone || null,
-        status: formData.status || 'pending',
-      });
-      if (error) throw error;
-      toast.success('Provider onboarded successfully');
-      setFormData({ name: '', category: '', email: '', phone: '', status: 'pending' });
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(await authHeaders()),
+      };
+      const category = formData.type ? categoryLabelForType(formData.type) : null;
+      const body = {
+        applicant_email: formData.applicant_email.trim(),
+        organization_name: formData.organization_name?.trim() || null,
+        type: formData.type || 'unspecified',
+        category,
+        phone: formData.phone?.trim() || null,
+        specialty: formData.specialty?.trim() || null,
+      };
+
+      let res;
+      if (applicationId) {
+        res = await apiServerClient.fetch(`/admin/provider-applications/${applicationId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify(body),
+        });
+      } else {
+        res = await apiServerClient.fetch('/admin/provider-applications', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Save failed');
+      }
+      const json = await res.json();
+      const app = json.application;
+      setApplicationId(app.id);
+      setApplicationStatus(app.status);
+      toast.success('Draft saved');
     } catch (err) {
-      toast.error('Failed to onboard provider');
+      toast.error(err.message);
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
+    }
+  };
+
+  const submitForReview = async () => {
+    if (!applicationId) {
+      toast.error('Save a draft first');
+      return;
+    }
+    setIsSubmittingReview(true);
+    try {
+      const res = await apiServerClient.fetch(`/admin/provider-applications/${applicationId}/submit`, {
+        method: 'POST',
+        headers: await authHeaders(),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Submit failed');
+      }
+      const json = await res.json();
+      setApplicationStatus(json.application?.status);
+      toast.success('Application submitted for review');
+      setApplicationId(null);
+      setFormData({
+        organization_name: '',
+        type: '',
+        applicant_email: '',
+        phone: '',
+        specialty: '',
+      });
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 
@@ -179,22 +252,24 @@ export default function ProviderOnboardingPage() {
     <div className="space-y-8 max-w-4xl mx-auto p-4 md:p-8">
       <div>
         <h1 className="text-3xl font-bold font-display">Provider Onboarding</h1>
-        <p className="text-muted-foreground">Manage provider profiles, forms, and onboarding progress.</p>
+        <p className="text-muted-foreground">
+          Create a provider application (draft), save, then submit for admin review. Approved applications become
+          marketplace provider records.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* User Lookup Card */}
         <Card className="border-border shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">User Profile Lookup</CardTitle>
-            <CardDescription>Search for a user record by ID</CardDescription>
+            <CardDescription>Search for a user record by ID (reference only)</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSearchUser} className="flex gap-2">
-              <Input 
-                placeholder="Enter User ID..." 
-                value={searchUserId} 
-                onChange={(e) => setSearchUserId(e.target.value)} 
+              <Input
+                placeholder="Enter User ID..."
+                value={searchUserId}
+                onChange={(e) => setSearchUserId(e.target.value)}
                 className="bg-background"
               />
               <Button type="submit" disabled={isLoadingProfile} variant="secondary">
@@ -211,42 +286,37 @@ export default function ProviderOnboardingPage() {
           </CardContent>
         </Card>
 
-        {/* Onboarding Progress Card */}
         <Card className="border-border shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">Onboarding Progress</CardTitle>
-            <CardDescription>Current authentication context progress</CardDescription>
+            <CardTitle className="text-lg">Application status</CardTitle>
+            <CardDescription>Your current draft or last known state on this device</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button 
-              onClick={fetchOnboardingProgress} 
-              disabled={isLoadingProgress}
-              variant="outline" 
-              className="w-full mb-4"
-            >
-              {isLoadingProgress ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              {isLoadingProgress ? 'Loading...' : 'Refresh Progress'}
+            <Button onClick={loadDraftApplication} variant="outline" className="w-full mb-4">
+              Refresh draft
             </Button>
-            {onboardingProgress ? (
-              <div className="text-sm bg-muted p-3 rounded-md border border-border">
-                <p><strong>Current Step:</strong> {onboardingProgress.currentStep}</p>
-                <p><strong>Completed:</strong> {onboardingProgress.completedSteps?.length || 0} steps</p>
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground flex items-center gap-2 mt-2">
-                <AlertCircle className="w-4 h-4" /> No progress data available
-              </div>
-            )}
+            <div className="text-sm bg-muted p-3 rounded-md border border-border space-y-1">
+              <p>
+                <strong>Draft ID:</strong> {applicationId || '—'}
+              </p>
+              <p>
+                <strong>Status:</strong> {applicationStatus || (applicationId ? 'draft' : 'none')}
+              </p>
+              {!applicationId && (
+                <p className="text-muted-foreground flex items-center gap-2 mt-2">
+                  <AlertCircle className="w-4 h-4" /> Fill the form below and save to create a draft.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Forms Management Card */}
       <Card className="border-border shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-lg">Forms Management</CardTitle>
-            <CardDescription>Available onboarding forms</CardDescription>
+            <CardDescription>Templates with form type &quot;provider_application&quot;</CardDescription>
           </div>
           <div className="flex gap-2">
             <Button onClick={fetchFormsList} disabled={isLoadingForms} variant="outline" size="sm">
@@ -264,7 +334,9 @@ export default function ProviderOnboardingPage() {
               {forms.map((form) => (
                 <div key={form.id} className="flex justify-between items-center p-3 border border-border rounded-md bg-card">
                   <span className="font-medium text-sm">{form.name}</span>
-                  <span className="text-xs text-muted-foreground capitalize bg-muted px-2 py-1 rounded-full">{form.category}</span>
+                  <span className="text-xs text-muted-foreground capitalize bg-muted px-2 py-1 rounded-full">
+                    {form.form_type || form.category || '—'}
+                  </span>
                 </div>
               ))}
             </div>
@@ -274,43 +346,73 @@ export default function ProviderOnboardingPage() {
         </CardContent>
       </Card>
 
-      {/* Manual Onboarding Entry */}
       <Card className="border-border shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg">Manual Provider Entry</CardTitle>
-          <CardDescription>Add a new provider directly to the database</CardDescription>
+          <CardTitle className="text-lg">Provider application</CardTitle>
+          <CardDescription>Save as draft, then submit for review (emails sent when Resend + notify addresses are configured)</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={saveDraft} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Provider Name</Label>
-                <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="bg-background" />
+              <div className="space-y-2 md:col-span-2">
+                <Label>Organization / provider name</Label>
+                <Input
+                  required
+                  value={formData.organization_name}
+                  onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
+                  className="bg-background"
+                />
               </div>
               <div className="space-y-2">
-                <Label>Category</Label>
-                <Select value={formData.category} onValueChange={(v) => setFormData({...formData, category: v})}>
-                  <SelectTrigger className="bg-background"><SelectValue placeholder="Select Category" /></SelectTrigger>
+                <Label>Provider type</Label>
+                <Select
+                  value={formData.type || undefined}
+                  onValueChange={(v) => setFormData({ ...formData, type: v })}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Hospital">Hospital</SelectItem>
-                    <SelectItem value="Pharmacy">Pharmacy</SelectItem>
-                    <SelectItem value="Clinic">Clinic</SelectItem>
-                    <SelectItem value="Specialist">Specialist</SelectItem>
+                    {TYPE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Email</Label>
-                <Input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="bg-background" />
+                <Label>Applicant email</Label>
+                <Input
+                  type="email"
+                  required
+                  value={formData.applicant_email}
+                  onChange={(e) => setFormData({ ...formData, applicant_email: e.target.value })}
+                  className="bg-background"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Phone</Label>
-                <Input value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="bg-background" />
+                <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="bg-background" />
+              </div>
+              <div className="space-y-2">
+                <Label>Specialty (optional)</Label>
+                <Input value={formData.specialty} onChange={(e) => setFormData({ ...formData, specialty: e.target.value })} className="bg-background" />
               </div>
             </div>
-            <Button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground">
-              {isSubmitting ? 'Saving...' : 'Save Provider Record'}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button type="submit" disabled={isSaving} className="flex-1 bg-primary text-primary-foreground">
+                {isSaving ? 'Saving...' : 'Save draft'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={isSubmittingReview || !applicationId}
+                onClick={() => void submitForReview()}
+              >
+                {isSubmittingReview ? 'Submitting...' : 'Submit for review'}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
