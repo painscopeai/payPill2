@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { useAuth } from '@/contexts/AuthContext.jsx';
-import pb from '@/lib/pocketbaseClient.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -16,7 +15,6 @@ export default function AuthIndividualPage() {
   const { login, signup, isLoading, error } = useAuth();
   const [activeTab, setActiveTab] = useState('signin');
   const [localError, setLocalError] = useState('');
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
   const [signInData, setSignInData] = useState({ email: '', password: '' });
   const [signUpData, setSignUpData] = useState({
@@ -28,20 +26,6 @@ export default function AuthIndividualPage() {
     dateOfBirth: '',
     termsAccepted: false
   });
-
-  const checkEmailExists = async (email) => {
-    try {
-      const result = await pb.collection('users').getList(1, 1, {
-        filter: `email="${email}"`,
-        $autoCancel: false
-      });
-      return result.totalItems > 0;
-    } catch (err) {
-      // If the user doesn't have permission to list users, it might throw.
-      // We will rely on the create() method's 400 error in that case.
-      return false;
-    }
-  };
 
   const handleSignIn = async (e) => {
     e.preventDefault();
@@ -67,15 +51,7 @@ export default function AuthIndividualPage() {
       return;
     }
 
-    setIsCheckingEmail(true);
     try {
-      const emailExists = await checkEmailExists(signUpData.email);
-      if (emailExists) {
-        setLocalError('This email is already registered. Please log in or use a different email.');
-        setIsCheckingEmail(false);
-        return;
-      }
-
       const nameParts = signUpData.fullName.split(' ');
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || 'User';
@@ -97,13 +73,11 @@ export default function AuthIndividualPage() {
       navigate('/patient/dashboard');
     } catch (err) {
       setLocalError(err.message);
-    } finally {
-      setIsCheckingEmail(false);
     }
   };
 
   const displayError = localError || error;
-  const isSubmitting = isLoading || isCheckingEmail;
+  const isSubmitting = isLoading;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-muted/30 p-4">
@@ -233,7 +207,7 @@ export default function AuthIndividualPage() {
                   </div>
                   <Button type="submit" className="w-full rounded-xl h-11 mt-2 bg-orange-600 hover:bg-orange-700 text-white" disabled={isSubmitting}>
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    {isCheckingEmail ? 'Validating...' : 'Create Account'}
+                    Create Account
                   </Button>
                   <div className="text-center mt-4">
                     <Button variant="link" className="text-sm text-muted-foreground" type="button" onClick={() => setActiveTab('signin')}>

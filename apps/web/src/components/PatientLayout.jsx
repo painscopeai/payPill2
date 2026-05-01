@@ -1,19 +1,16 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext.jsx';
-import pb from '@/lib/pocketbaseClient.js';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Activity, Home, User, Sparkles, FileText, Calendar, Settings, LogOut, Menu, Bell } from 'lucide-react';
 
 export default function PatientLayout({ children }) {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
 
   const handleLogout = () => {
-    pb.authStore.clear();
-    navigate('/');
+    void logout();
   };
 
   const navItems = [

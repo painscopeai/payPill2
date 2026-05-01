@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { encryptData, decryptData } from '@/lib/encryption';
 import apiServerClient from '@/lib/apiServerClient';
 import { useAuth } from './AuthContext.jsx';
-import pb from '@/lib/pocketbaseClient.js';
 import { toast } from 'sonner';
 
 const OnboardingContext = createContext(null);
@@ -18,9 +17,9 @@ export const OnboardingProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [patientId, setPatientId] = useState(null);
 
-  // Extract and store patient ID from PocketBase auth
+  // Patient id from Supabase-backed auth profile
   useEffect(() => {
-    const id = pb.authStore.model?.id || currentUser?.id;
+    const id = currentUser?.id;
     if (id) {
       setPatientId(id);
     } else {
@@ -79,7 +78,7 @@ export const OnboardingProvider = ({ children }) => {
   }, [formData, currentStep, completedSteps, patientId]);
 
   const saveProgress = useCallback(async (showToast = true, explicitPatientId = null) => {
-    const activePatientId = explicitPatientId || patientId || pb.authStore.model?.id;
+    const activePatientId = explicitPatientId || patientId || currentUser?.id;
     
     console.log('[OnboardingContext] Preparing to save progress. patient_id:', activePatientId);
     
@@ -128,7 +127,7 @@ export const OnboardingProvider = ({ children }) => {
         if (showToast) toast.error('Failed to sync progress to server. Saved locally.');
       }
     }
-  }, [formData, currentStep, completedSteps, patientId]);
+  }, [formData, currentStep, completedSteps, patientId, currentUser?.id]);
 
   const updateFormData = (step, data) => {
     setFormData(prev => ({
@@ -156,7 +155,7 @@ export const OnboardingProvider = ({ children }) => {
   };
 
   const completeOnboarding = async (explicitPatientId = null) => {
-    const activePatientId = explicitPatientId || patientId || pb.authStore.model?.id;
+    const activePatientId = explicitPatientId || patientId || currentUser?.id;
     
     console.log('[OnboardingContext] Preparing to complete onboarding. patient_id:', activePatientId);
     
