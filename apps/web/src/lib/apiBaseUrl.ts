@@ -12,7 +12,7 @@ export function getApiBaseUrl(): string {
 		process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || process.env.VITE_API_BASE_URL?.trim();
 	if (!raw) return '/api';
 
-	let v = raw.replace(/\/$/, '');
+	const v = raw.replace(/\/$/, '');
 	if (!v) return '/api';
 
 	if (/^https?:\/\//i.test(v)) {
