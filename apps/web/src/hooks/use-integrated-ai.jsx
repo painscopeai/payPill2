@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { integratedAiClient } from '@/lib/integratedAiClient';
-import { pocketbaseClient } from '@/lib/pocketbaseClient';
+import { supabase } from '@/lib/supabaseClient';
 
 /**
  * @typedef {object} TextContentBlock
@@ -174,23 +174,24 @@ function useIntegratedAi() {
 	useEffect(() => {
 		async function loadHistory() {
 			try {
-				if (!pocketbaseClient.authStore.isValid) {
-					return [];
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+				if (!session) {
+					return;
 				}
-			
-				const records = await pocketbaseClient.collection('_integratedAiMessages').getFullList({
-					sort: 'created',
-				});
-			
+
+				const records = await integratedAiClient.fetch('/integrated-ai/history');
+
 				/** @type {HistoryMessage[]} */
 				const historyMessages = [];
-			
+
 				for (const record of records) {
 					if (record.role === MessageRole.User) {
 						historyMessages.push(mapUserMessage({ message: record.content }));
 						continue;
 					}
-			
+
 					historyMessages.push(...mapAssistantMessages({ message: record.content }));
 				}
 			

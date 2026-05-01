@@ -3,7 +3,7 @@ import { PassThrough, Readable } from 'node:stream';
 import dotenv from 'dotenv';
 import { NodeEnv } from '../constants/common.js';
 import logger from '../utils/logger.js';
-import pocketbaseClient from '../utils/pocketbaseClient.js';
+import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 
 dotenv.config();
 
@@ -149,28 +149,21 @@ const SquashableSSEEventTypes = new Set([
  */
 
 /**
- * Uploads images to PocketBase and returns their URLs.
+ * Returns data URLs for uploaded images (vision-capable proxy accepts data URLs).
  *
- * @param {{ files: Express.Multer.File[] }} params
+ * @param {{ images: Express.Multer.File[] }} params
  * @returns {Promise<string[]>}
  */
-export async function uploadImagesToPocketBase({ images }) {
-	const uploadPromises = images.map(async (file) => {
-		const formData = new FormData();
-		const blob = new Blob([file.buffer], { type: file.mimetype });
-		formData.append('file', blob, file.originalname);
-
-		const record = await pocketbaseClient.collection('_integratedAiImages').create(formData);
-
-		return pocketbaseClient.files.getURL(record, record.file);
+export async function uploadIntegratedAiImages({ images }) {
+	return images.map((file) => {
+		const base64 = file.buffer.toString('base64');
+		return `data:${file.mimetype};base64,${base64}`;
 	});
-
-	return Promise.all(uploadPromises);
 }
 
 /**
  * Sends a message to the AI proxy and pipes SSE events to the client.
- * Assistant message is saved to PocketBase when the stream ends.
+ * Assistant message is saved to Supabase when the stream ends.
  * This method should be used for text/text, image/text, image/image, text/image combinations.
  *
  * @param {{ userId: string, systemPrompt: string, userMessage: ContentBlock[] }} params
@@ -221,7 +214,7 @@ export async function stream({ userId, systemPrompt, userMessage }) {
 
 /**
  * Consumes an SSE stream branch, parses history-relevant events,
- * and saves the assistant message to PocketBase.
+ * and saves the assistant message to Supabase.
  *
  * @param {{ userId: string, stream: ReadableStream, userMessage: ContentBlock[] }} params
  * @returns {Promise<void>}
@@ -291,15 +284,17 @@ async function parseSSEEvents({ stream }) {
  * @returns {Promise<object>}
  */
 async function saveMessages({ userId, messages }) {
-	const batch = pocketbaseClient.createBatch();
-
-	messages.map(message => batch.collection('_integratedAiMessages').create({
-		...(userId && { userId }),
+	if (!userId) return;
+	const sb = getSupabaseAdmin();
+	const rows = messages.map((message) => ({
+		user_id: userId,
 		role: message.role,
 		content: message.content,
 	}));
-
-	await batch.send();
+	const { error } = await sb.from('integrated_ai_messages').insert(rows);
+	if (error) {
+		logger.error('[integrated-ai] saveMessages failed', error);
+	}
 }
 
 /**
@@ -313,15 +308,22 @@ export async function getHistory({ userId }) {
 		return [];
 	}
 
-	const records = await pocketbaseClient.collection('_integratedAiMessages').getFullList({
-		sort: 'created',
-		...(userId && { filter: pocketbaseClient.filter('userId = {:userId}', { userId }) }),
-	});
+	const sb = getSupabaseAdmin();
+	const { data: records, error } = await sb
+		.from('integrated_ai_messages')
+		.select('role, content')
+		.eq('user_id', userId)
+		.order('created_at', { ascending: true });
+
+	if (error) {
+		logger.error('[integrated-ai] getHistory failed', error);
+		return [];
+	}
 
 	/** @type {HistoryMessage[]} */
 	const historyMessages = [];
 
-	for (const record of records) {
+	for (const record of records || []) {
 		if (record.role === MessageRole.User) {
 			historyMessages.push(mapUserMessage({ message: record.content }));
 			continue;

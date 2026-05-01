@@ -32,7 +32,7 @@ export const RecommendationProvider = ({ children }) => {
       const response = await apiServerClient.fetch('/ai-recommendations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ focusArea })
+        body: JSON.stringify({ focus_area: focusArea }),
       });
       if (!response.ok) throw new Error('Generation failed');
       const data = await response.json();

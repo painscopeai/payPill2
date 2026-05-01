@@ -23,7 +23,21 @@ export function useAnalyticsSync(endpoint, options = {}) {
       const response = await apiServerClient.fetch(`${endpoint}${queryString}`);
       
       if (!response.ok) {
-        throw new Error(`Analytics fetch failed: ${response.statusText}`);
+        let detail = response.statusText?.trim();
+        if (!detail) detail = `HTTP ${response.status}`;
+        try {
+          const body = await response.clone().json();
+          if (body?.message && typeof body.message === 'string') detail = body.message;
+          else if (typeof body?.error === 'string') detail = body.error;
+        } catch {
+          try {
+            const text = await response.clone().text();
+            if (text?.length && text.length < 300) detail = text;
+          } catch {
+            /* ignore */
+          }
+        }
+        throw new Error(`Analytics fetch failed: ${detail}`);
       }
       
       const result = await response.json();

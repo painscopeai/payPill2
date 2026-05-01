@@ -23,7 +23,8 @@ export async function pocketbaseAuth(req, res, next) {
 		req.pocketbaseUserId = newToken.record.id;
 
 		return next();
-	} catch (error) {
-		return next(new Error(error.message));
+	} catch {
+		// Not a PocketBase-encoded session (e.g. Supabase JWT). Continue without PocketBase user.
+		return next();
 	}
 }

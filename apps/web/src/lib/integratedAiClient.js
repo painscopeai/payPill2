@@ -1,15 +1,5 @@
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
-
-function getPocketbaseToken() {
-	const pocketbaseToken = localStorage.getItem('pocketbase_auth');
-
-	if (pocketbaseToken) {
-		const bytes = new TextEncoder().encode(pocketbaseToken);
-		const binary = String.fromCharCode(...bytes);
-
-		return btoa(binary);
-	}
-}
+import { supabase } from '@/lib/supabaseClient';
 
 function apiUrl(path) {
 	const base = getApiBaseUrl();
@@ -17,16 +7,25 @@ function apiUrl(path) {
 	return `${base}${p}`;
 }
 
+async function authHeaders(extra) {
+	const headers = new Headers(extra);
+	if (!headers.has('Authorization')) {
+		const {
+			data: { session },
+		} = await supabase.auth.getSession();
+		if (session?.access_token) {
+			headers.set('Authorization', `Bearer ${session.access_token}`);
+		}
+	}
+	return headers;
+}
+
 const integratedAiClient = {
 	fetch: async (path, options = {}) => {
-		const pocketbaseToken = getPocketbaseToken();
-
+		const headers = await authHeaders(options.headers);
 		const response = await window.fetch(apiUrl(path), {
 			...options,
-			headers: {
-				...options.headers,
-				...(pocketbaseToken && { Authorization: `Bearer ${pocketbaseToken}` }),
-			},
+			headers,
 		});
 
 		if (!response.ok) {
@@ -38,17 +37,14 @@ const integratedAiClient = {
 	},
 
 	stream: async (path, { body, signal, images } = {}) => {
-		const pocketbaseToken = getPocketbaseToken();
-
-		const headers = {
+		const headers = await authHeaders({
 			Accept: 'text/event-stream',
-			...(pocketbaseToken && { Authorization: `Bearer ${pocketbaseToken}` }),
-		};
+		});
 
 		const formData = new FormData();
 		formData.append('message', JSON.stringify(body.message));
 
-		images.forEach((image) => {
+		(images || []).forEach((image) => {
 			formData.append('images', image);
 		});
 
