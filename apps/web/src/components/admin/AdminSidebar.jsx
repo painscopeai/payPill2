@@ -73,11 +73,16 @@ const sections = [
   }
 ];
 
-export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen }) {
+/**
+ * Module-level nav so React keeps the same component type across route changes.
+ * Defining this inside AdminSidebar recreated the component every render, which
+ * remounted the scrollable list and reset scroll to the top on each click.
+ */
+function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
   const location = useLocation();
   const { logout } = useAuth();
 
-  const SidebarContent = () => (
+  return (
     <div className="flex flex-col h-full bg-[hsl(var(--admin-sidebar-bg))] text-[hsl(var(--admin-sidebar-fg))]">
       <div className="p-4 flex items-center justify-between border-b border-[hsl(var(--admin-sidebar-fg))]/10 h-16 shrink-0">
         {!isCollapsed && (
@@ -148,7 +153,9 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen
       </div>
     </div>
   );
+}
 
+export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen }) {
   return (
     <>
       <aside 
@@ -157,7 +164,7 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen
           isCollapsed ? "w-20" : "w-64"
         )}
       >
-        <SidebarContent />
+        <AdminSidebarNav isCollapsed={isCollapsed} setIsMobileOpen={setIsMobileOpen} />
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="absolute -right-3 top-20 bg-[hsl(var(--admin-sidebar-bg))] text-[hsl(var(--admin-sidebar-fg))] border border-[hsl(var(--admin-sidebar-fg))]/15 rounded-full p-1 shadow-md hover:bg-[hsl(var(--admin-sidebar-hover))] z-50"
@@ -179,7 +186,7 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <SidebarContent />
+        <AdminSidebarNav isCollapsed={isCollapsed} setIsMobileOpen={setIsMobileOpen} />
       </aside>
     </>
   );
