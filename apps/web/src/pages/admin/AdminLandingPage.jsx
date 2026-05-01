@@ -4,17 +4,17 @@ import { useAuth } from '@/contexts/AuthContext.jsx';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 
 export default function AdminLandingPage() {
-	const { user, userRole, isLoading } = useAuth();
+	const { currentUser, userRole, isInitializing } = useAuth();
 	const navigate = useNavigate();
 
 	useEffect(() => {
-		if (isLoading) return;
-		if (user && userRole === 'admin') {
+		if (isInitializing) return;
+		if (currentUser && userRole === 'admin') {
 			navigate('/admin/dashboard', { replace: true });
 		} else {
 			navigate('/auth/admin', { replace: true });
 		}
-	}, [user, userRole, isLoading, navigate]);
+	}, [currentUser, userRole, isInitializing, navigate]);
 
 	return (
 		<div className="min-h-screen flex items-center justify-center bg-background">

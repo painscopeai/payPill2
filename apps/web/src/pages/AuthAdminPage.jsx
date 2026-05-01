@@ -13,7 +13,7 @@ import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 export default function AuthAdminPage() {
   const navigate = useNavigate();
-  const { login, signup, verifySignupEmail, isLoading, error, logout } = useAuth();
+  const { login, signup, verifySignupEmail, isAuthPending, error, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('signin');
   const [localError, setLocalError] = useState('');
   const [signupStep, setSignupStep] = useState('form');
@@ -105,7 +105,7 @@ export default function AuthAdminPage() {
   };
 
   const displayError = localError || error;
-  const isSubmitting = isLoading;
+  const isSubmitting = isAuthPending;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-muted/30 p-4">

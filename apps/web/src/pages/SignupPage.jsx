@@ -14,7 +14,7 @@ import Header from '@/components/Header.jsx';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 const SignupPage = () => {
-  const { signup, verifySignupEmail, isLoading } = useAuth();
+  const { signup, verifySignupEmail, isAuthPending } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     first_name: '',
@@ -125,7 +125,7 @@ const SignupPage = () => {
                 email={pendingVerifyEmail}
                 onVerify={handleVerifySignup}
                 onBack={() => setSignupStep('form')}
-                isLoading={isLoading}
+                isLoading={isAuthPending}
                 accentClassName="bg-primary hover:bg-primary/90"
               />
             ) : (

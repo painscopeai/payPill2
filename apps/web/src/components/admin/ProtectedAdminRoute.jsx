@@ -4,10 +4,10 @@ import { useAuth } from '@/contexts/AuthContext.jsx';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 
 export default function ProtectedAdminRoute({ children }) {
-  const { isAuthenticated, userRole, isLoading } = useAuth();
+  const { isAuthenticated, userRole, isInitializing } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  if (isInitializing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <LoadingSpinner size="lg" />

@@ -14,7 +14,7 @@ import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 export default function AuthInsurancePage() {
   const navigate = useNavigate();
-  const { login, signup, verifySignupEmail, logout, isLoading, error } = useAuth();
+  const { login, signup, verifySignupEmail, logout, isAuthPending, error } = useAuth();
   const [activeTab, setActiveTab] = useState('signin');
   const [localError, setLocalError] = useState('');
   const [signupStep, setSignupStep] = useState('form');
@@ -154,8 +154,8 @@ export default function AuthInsurancePage() {
                       value={signInData.password} onChange={e => setSignInData({...signInData, password: e.target.value})}
                     />
                   </div>
-                  <Button type="submit" className="w-full rounded-xl h-11 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  <Button type="submit" className="w-full rounded-xl h-11 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isAuthPending}>
+                    {isAuthPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Sign In
                   </Button>
                   <div className="text-center mt-4">
@@ -172,7 +172,7 @@ export default function AuthInsurancePage() {
                     email={pendingVerifyEmail}
                     onVerify={handleVerifySignup}
                     onBack={() => { setSignupStep('form'); setLocalError(''); }}
-                    isLoading={isLoading}
+                    isLoading={isAuthPending}
                     accentClassName="bg-emerald-600 hover:bg-emerald-700"
                   />
                 ) : (
@@ -249,8 +249,8 @@ export default function AuthInsurancePage() {
                       I accept the Terms & Conditions
                     </Label>
                   </div>
-                  <Button type="submit" className="w-full rounded-xl h-11 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  <Button type="submit" className="w-full rounded-xl h-11 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isAuthPending}>
+                    {isAuthPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Create Account
                   </Button>
                   <div className="text-center mt-4">

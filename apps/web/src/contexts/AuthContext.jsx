@@ -39,7 +39,10 @@ export const AuthProvider = ({ children }) => {
 	const [currentUser, setCurrentUser] = useState(null);
 	const [userRole, setUserRoleState] = useState(null);
 	const [session, setSession] = useState(null);
-	const [isLoading, setIsLoading] = useState(true);
+	/** True until first getSession + profile hydrate completes (route guards). */
+	const [isInitializing, setIsInitializing] = useState(true);
+	/** True only during login / signup / verify / setUserRole — not during bootstrap. */
+	const [isAuthPending, setIsAuthPending] = useState(false);
 	const [error, setError] = useState(null);
 	const navigate = useNavigate();
 
@@ -71,7 +74,7 @@ export const AuthProvider = ({ children }) => {
 				setUserRoleState(null);
 				setSession(null);
 			} finally {
-				if (!cancelled) setIsLoading(false);
+				if (!cancelled) setIsInitializing(false);
 			}
 		};
 
@@ -101,7 +104,7 @@ export const AuthProvider = ({ children }) => {
 	}, [applySession]);
 
 	const login = useCallback(async (email, password) => {
-		setIsLoading(true);
+		setIsAuthPending(true);
 		setError(null);
 		try {
 			const { data, error: signErr } = await supabase.auth.signInWithPassword({ email, password });
@@ -127,12 +130,12 @@ export const AuthProvider = ({ children }) => {
 			setError(msg);
 			throw err;
 		} finally {
-			setIsLoading(false);
+			setIsAuthPending(false);
 		}
 	}, [applySession]);
 
 	const signup = useCallback(async (email, password, userData, role) => {
-		setIsLoading(true);
+		setIsAuthPending(true);
 		setError(null);
 		try {
 			const meta = {
@@ -181,12 +184,12 @@ export const AuthProvider = ({ children }) => {
 			setError(errorMessage);
 			throw err instanceof Error ? err : new Error(errorMessage);
 		} finally {
-			setIsLoading(false);
+			setIsAuthPending(false);
 		}
 	}, [applySession]);
 
 	const verifySignupEmail = useCallback(async (email, token) => {
-		setIsLoading(true);
+		setIsAuthPending(true);
 		setError(null);
 		try {
 			const trimmed = (token || '').trim();
@@ -214,7 +217,7 @@ export const AuthProvider = ({ children }) => {
 			setError(errorMessage);
 			throw err instanceof Error ? err : new Error(errorMessage);
 		} finally {
-			setIsLoading(false);
+			setIsAuthPending(false);
 		}
 	}, [applySession]);
 
@@ -227,7 +230,7 @@ export const AuthProvider = ({ children }) => {
 	}, [navigate]);
 
 	const setUserRole = useCallback(async (role) => {
-		setIsLoading(true);
+		setIsAuthPending(true);
 		try {
 			const { data: { user } } = await supabase.auth.getUser();
 			if (!user?.id) return;
@@ -248,7 +251,7 @@ export const AuthProvider = ({ children }) => {
 			toast.error('Failed to update user role.');
 			throw err;
 		} finally {
-			setIsLoading(false);
+			setIsAuthPending(false);
 		}
 	}, []);
 
@@ -256,7 +259,8 @@ export const AuthProvider = ({ children }) => {
 		() => ({
 			currentUser,
 			userRole,
-			isLoading,
+			isInitializing,
+			isAuthPending,
 			error,
 			login,
 			logout,
@@ -265,7 +269,7 @@ export const AuthProvider = ({ children }) => {
 			setUserRole,
 			isAuthenticated: Boolean(session?.user),
 		}),
-		[currentUser, userRole, isLoading, error, session, login, logout, signup, verifySignupEmail, setUserRole],
+		[currentUser, userRole, isInitializing, isAuthPending, error, session, login, logout, signup, verifySignupEmail, setUserRole],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

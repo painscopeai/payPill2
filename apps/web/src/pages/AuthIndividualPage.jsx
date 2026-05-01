@@ -14,7 +14,7 @@ import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 export default function AuthIndividualPage() {
   const navigate = useNavigate();
-  const { login, signup, verifySignupEmail, logout, isLoading, error } = useAuth();
+  const { login, signup, verifySignupEmail, logout, isAuthPending, error } = useAuth();
   const [activeTab, setActiveTab] = useState('signin');
   const [localError, setLocalError] = useState('');
   const [signupStep, setSignupStep] = useState('form');
@@ -97,7 +97,7 @@ export default function AuthIndividualPage() {
   };
 
   const displayError = localError || error;
-  const isSubmitting = isLoading;
+  const isSubmitting = isAuthPending;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-muted/30 p-4">
