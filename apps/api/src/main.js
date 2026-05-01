@@ -39,7 +39,8 @@ process.on('SIGTERM', async () => {
 
 app.use(helmet());
 app.use(cors({
-	origin: process.env.CORS_ORIGIN,
+	// Reflect browser origin when unset (local dev + Vite picking another port).
+	origin: process.env.CORS_ORIGIN || true,
 	credentials: true,
 }));
 app.use(morgan('combined'));
