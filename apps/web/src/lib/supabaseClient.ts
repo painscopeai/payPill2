@@ -1,22 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-function env(name: string): string | undefined {
-	if (typeof process === 'undefined') return undefined;
-	return process.env[name]?.trim();
-}
-
+/**
+ * Must use literal `process.env.NEXT_PUBLIC_*` keys here — Next.js only inlines
+ * public env at build time when the property access is static (not `process.env[name]`).
+ */
 const url =
-	env('NEXT_PUBLIC_SUPABASE_URL') ||
-	env('VITE_SUPABASE_URL') ||
+	process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+	process.env.VITE_SUPABASE_URL?.trim() ||
 	'https://env-not-configured.invalid';
 const anonKey =
-	env('NEXT_PUBLIC_SUPABASE_ANON_KEY') ||
-	env('VITE_SUPABASE_ANON_KEY') ||
+	process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
+	process.env.VITE_SUPABASE_ANON_KEY?.trim() ||
 	'sb-placeholder-anon-key-not-configured';
 
 export const configured = Boolean(
-	(env('NEXT_PUBLIC_SUPABASE_URL') || env('VITE_SUPABASE_URL')) &&
-		(env('NEXT_PUBLIC_SUPABASE_ANON_KEY') || env('VITE_SUPABASE_ANON_KEY')),
+	(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || process.env.VITE_SUPABASE_URL?.trim()) &&
+		(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || process.env.VITE_SUPABASE_ANON_KEY?.trim()),
 );
 
 if (!configured) {
