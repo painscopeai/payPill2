@@ -79,9 +79,9 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-[hsl(var(--admin-sidebar-bg))] text-[hsl(var(--admin-sidebar-fg))]">
-      <div className="p-4 flex items-center justify-between border-b border-white/10 h-16 shrink-0">
+      <div className="p-4 flex items-center justify-between border-b border-[hsl(var(--admin-sidebar-fg))]/10 h-16 shrink-0">
         {!isCollapsed && (
-          <div className="flex items-center gap-2 font-display font-bold text-xl tracking-tight text-white">
+          <div className="flex items-center gap-2 font-display font-bold text-xl tracking-tight text-[hsl(var(--admin-sidebar-fg))]">
             <div className="w-8 h-8 rounded-lg bg-primary-gradient flex items-center justify-center shadow-sm">
               P
             </div>
@@ -89,7 +89,7 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen
           </div>
         )}
         {isCollapsed && (
-          <div className="w-8 h-8 mx-auto rounded-lg bg-primary-gradient flex items-center justify-center text-white font-bold shadow-sm">
+          <div className="w-8 h-8 mx-auto rounded-lg bg-primary-gradient flex items-center justify-center text-[hsl(var(--primary-foreground))] font-bold shadow-sm">
             P
           </div>
         )}
@@ -99,11 +99,11 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen
         {sections.map((section, sIdx) => (
           <div key={sIdx} className="space-y-1">
             {!isCollapsed && (
-              <h4 className="px-3 text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">
+              <h4 className="px-3 text-xs font-semibold text-[hsl(var(--admin-sidebar-fg))]/50 uppercase tracking-wider mb-2">
                 {section.title}
               </h4>
             )}
-            {isCollapsed && <div className="h-4 border-b border-white/10 mb-2 mx-4" />}
+            {isCollapsed && <div className="h-4 border-b border-[hsl(var(--admin-sidebar-fg))]/10 mb-2 mx-4" />}
             
             {section.items.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
@@ -116,11 +116,14 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group text-sm",
                     isActive 
-                      ? "bg-[hsl(var(--admin-sidebar-active))] text-white font-medium shadow-md" 
-                      : "text-white/70 hover:bg-[hsl(var(--admin-sidebar-hover))] hover:text-white"
+                      ? "bg-[hsl(var(--admin-sidebar-active))] text-[hsl(var(--admin-sidebar-fg))] font-medium shadow-md" 
+                      : "text-[hsl(var(--admin-sidebar-fg))]/75 hover:bg-[hsl(var(--admin-sidebar-hover))] hover:text-[hsl(var(--admin-sidebar-fg))]"
                   )}
                 >
-                  <item.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-white" : "text-white/70 group-hover:text-white")} />
+                  <item.icon className={cn(
+                    "w-4 h-4 shrink-0",
+                    isActive ? "text-[hsl(var(--admin-sidebar-fg))]" : "text-[hsl(var(--admin-sidebar-fg))]/75 group-hover:text-[hsl(var(--admin-sidebar-fg))]"
+                  )} />
                   {!isCollapsed && <span>{item.title}</span>}
                 </Link>
               );
@@ -129,12 +132,12 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen
         ))}
       </div>
 
-      <div className="p-4 border-t border-white/10 shrink-0">
+      <div className="p-4 border-t border-[hsl(var(--admin-sidebar-fg))]/10 shrink-0">
         <button
           type="button"
           onClick={() => void logout()}
           className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg w-full transition-all duration-200 text-sm text-white/70 hover:bg-destructive/20 hover:text-destructive",
+            "flex items-center gap-3 px-3 py-2 rounded-lg w-full transition-all duration-200 text-sm text-[hsl(var(--admin-sidebar-fg))]/75 hover:bg-destructive/20 hover:text-destructive",
             isCollapsed && "justify-center"
           )}
           title={isCollapsed ? "Logout" : undefined}
@@ -157,7 +160,7 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, isMobileOpen
         <SidebarContent />
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute -right-3 top-20 bg-[hsl(var(--admin-sidebar-bg))] text-white border border-white/10 rounded-full p-1 shadow-md hover:bg-[hsl(var(--admin-sidebar-hover))] z-50"
+          className="absolute -right-3 top-20 bg-[hsl(var(--admin-sidebar-bg))] text-[hsl(var(--admin-sidebar-fg))] border border-[hsl(var(--admin-sidebar-fg))]/15 rounded-full p-1 shadow-md hover:bg-[hsl(var(--admin-sidebar-hover))] z-50"
         >
           {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>

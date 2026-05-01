@@ -35,6 +35,15 @@
     --ring: 210 100% 40%;
     
     --radius: 0.75rem;
+
+    /* Admin layout shell (sidebar is dark in both themes so nav labels stay readable) */
+    --admin-bg: 210 20% 96%;
+    --admin-card: 0 0% 100%;
+    --admin-border: 214 32% 88%;
+    --admin-sidebar-bg: 222 47% 11%;
+    --admin-sidebar-fg: 210 40% 98%;
+    --admin-sidebar-hover: 217 33% 20%;
+    --admin-sidebar-active: 210 100% 38%;
   }
   
   .dark {
@@ -65,6 +74,14 @@
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 210 100% 55%;
+
+    --admin-bg: 222 47% 7%;
+    --admin-card: 222 47% 10%;
+    --admin-border: 217 33% 18%;
+    --admin-sidebar-bg: 222 47% 9%;
+    --admin-sidebar-fg: 210 40% 98%;
+    --admin-sidebar-hover: 222 47% 15%;
+    --admin-sidebar-active: 210 100% 45%;
   }
 }
 
@@ -95,5 +112,22 @@ html {
   
   .text-balance {
     text-wrap: balance;
+  }
+
+  .bg-primary-gradient {
+    background-image: linear-gradient(to bottom right, hsl(var(--primary)), hsl(210 100% 32%));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .admin-card-shadow {
+    box-shadow:
+      0 1px 3px 0 rgb(15 23 42 / 0.06),
+      0 1px 2px -1px rgb(15 23 42 / 0.06);
+  }
+
+  .dark .admin-card-shadow {
+    box-shadow:
+      0 1px 3px 0 rgb(0 0 0 / 0.35),
+      0 1px 2px -1px rgb(0 0 0 / 0.25);
   }
 }
