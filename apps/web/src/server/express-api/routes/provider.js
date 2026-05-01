@@ -1,139 +1,134 @@
-import { Router } from 'express';
-import pb from '../utils/pocketbaseClient.js';
+import { App } from '@tinyhttp/app';
 import logger from '../utils/logger.js';
-import { pocketbaseAuth } from '../middleware/pocketbase-auth.js';
+import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
+import { getBearerAuthContext } from '../utils/supabaseAuthExpress.js';
 
-const router = Router();
+const router = new App();
+const sb = () => getSupabaseAdmin();
 
-router.use(pocketbaseAuth);
+router.use(async (req, res, next) => {
+	const ctx = await getBearerAuthContext(req);
+	if (!ctx?.userId) {
+		return res.status(401).json({ error: 'Authentication required' });
+	}
+	req.providerUserId = ctx.userId;
+	next();
+});
 
-/**
- * GET /provider/patients
- * Fetch patients for authenticated provider
- */
 router.get('/patients', async (req, res) => {
-  const providerId = req.pocketbaseUserId;
+	const providerId = req.providerUserId;
 
-  // Fetch patient-provider relationships
-  const relationships = await pb.collection('patient_provider_relationships').getFullList({
-    filter: `provider_id = "${providerId}"`,
-  });
+	const { data: relationships, error } = await sb()
+		.from('patient_provider_relationships')
+		.select('*')
+		.eq('provider_id', providerId);
 
-  // Populate patient details
-  const patientsWithDetails = await Promise.all(
-    relationships.map(async (relationship) => {
-      try {
-        const user = await pb.collection('users').getOne(relationship.patient_id);
-        const healthProfile = await pb.collection('health_profile')
-          .getFirstListItem(`user_id = "${relationship.patient_id}"`)
-          .catch(() => null);
+	if (error) {
+		logger.error('[provider] patients', error);
+		return res.status(500).json({ error: 'Failed to load patients' });
+	}
 
-        return {
-          ...relationship,
-          patient_details: user,
-          health_summary: healthProfile || {},
-        };
-      } catch (error) {
-        logger.warn(`Failed to fetch patient details for ${relationship.patient_id}:`, error.message);
-        return relationship;
-      }
-    })
-  );
+	const patientsWithDetails = await Promise.all(
+		(relationships || []).map(async (relationship) => {
+			try {
+				const { data: user } = await sb()
+					.from('profiles')
+					.select('*')
+					.eq('id', relationship.patient_id)
+					.maybeSingle();
 
-  logger.info(`Fetched ${patientsWithDetails.length} patients for provider ${providerId}`);
+				const { data: steps } = await sb()
+					.from('patient_onboarding_steps')
+					.select('step, data')
+					.eq('user_id', relationship.patient_id)
+					.limit(20);
 
-  res.json(patientsWithDetails);
+				const health_summary = Object.fromEntries((steps || []).map((s) => [`step_${s.step}`, s.data]));
+
+				return {
+					...relationship,
+					patient_details: user,
+					health_summary,
+				};
+			} catch (e) {
+				logger.warn(`[provider] patient ${relationship.patient_id}: ${e.message}`);
+				return relationship;
+			}
+		}),
+	);
+
+	return res.json(patientsWithDetails);
 });
 
-/**
- * PUT /provider/patients/:id
- * Update patient health profile and create clinical notes
- */
 router.put('/patients/:id', async (req, res) => {
-  const { id } = req.params;
-  const { treatment_plan, notes } = req.body;
-  const providerId = req.pocketbaseUserId;
+	const { id } = req.params;
+	const { treatment_plan, notes } = req.body;
+	const providerId = req.providerUserId;
 
-  // Verify provider has access to this patient
-  const relationship = await pb.collection('patient_provider_relationships')
-    .getFirstListItem(`provider_id = "${providerId}" && patient_id = "${id}"`)
-    .catch(() => null);
+	const { data: relationship } = await sb()
+		.from('patient_provider_relationships')
+		.select('id')
+		.eq('provider_id', providerId)
+		.eq('patient_id', id)
+		.maybeSingle();
 
-  if (!relationship) {
-    return res.status(403).json({
-      error: 'You do not have access to this patient',
-    });
-  }
+	if (!relationship) {
+		return res.status(403).json({ error: 'You do not have access to this patient' });
+	}
 
-  // Update health profile
-  const healthProfile = await pb.collection('health_profile')
-    .getFirstListItem(`user_id = "${id}"`)
-    .catch(() => null);
+	if (notes) {
+		await sb().from('clinical_notes').insert({
+			user_id: id,
+			provider_id: providerId,
+			note_content: notes,
+			date_created: new Date().toISOString(),
+		});
+	}
 
-  const updateData = {};
-  if (treatment_plan) updateData.treatment_plan = treatment_plan;
-
-  let updatedProfile = healthProfile;
-  if (healthProfile && Object.keys(updateData).length > 0) {
-    updatedProfile = await pb.collection('health_profile').update(healthProfile.id, updateData);
-  }
-
-  // Create clinical notes
-  if (notes) {
-    await pb.collection('clinical_notes').create({
-      user_id: id,
-      provider_id: providerId,
-      note_content: notes,
-      date_created: new Date().toISOString(),
-    });
-  }
-
-  logger.info(`Updated patient ${id} by provider ${providerId}`);
-
-  res.json(updatedProfile);
+	return res.json({
+		patient_id: id,
+		treatment_plan: treatment_plan || null,
+		updated: true,
+	});
 });
 
-/**
- * POST /provider/notes
- * Create clinical notes for a patient
- */
 router.post('/notes', async (req, res) => {
-  const { user_id, appointment_id, note_content } = req.body;
-  const providerId = req.pocketbaseUserId;
+	const { user_id, appointment_id, note_content } = req.body;
+	const providerId = req.providerUserId;
 
-  if (!user_id || !note_content) {
-    return res.status(400).json({
-      error: 'Missing required fields: user_id, note_content',
-    });
-  }
+	if (!user_id || !note_content) {
+		return res.status(400).json({ error: 'Missing required fields: user_id, note_content' });
+	}
 
-  // Verify provider has access to this patient
-  const relationship = await pb.collection('patient_provider_relationships')
-    .getFirstListItem(`provider_id = "${providerId}" && patient_id = "${user_id}"`)
-    .catch(() => null);
+	const { data: relationship } = await sb()
+		.from('patient_provider_relationships')
+		.select('id')
+		.eq('provider_id', providerId)
+		.eq('patient_id', user_id)
+		.maybeSingle();
 
-  if (!relationship) {
-    return res.status(403).json({
-      error: 'You do not have access to this patient',
-    });
-  }
+	if (!relationship) {
+		return res.status(403).json({ error: 'You do not have access to this patient' });
+	}
 
-  const noteData = {
-    user_id,
-    provider_id: providerId,
-    appointment_id: appointment_id || '',
-    note_content,
-    date_created: new Date().toISOString(),
-  };
+	const { data: note, error } = await sb()
+		.from('clinical_notes')
+		.insert({
+			user_id,
+			provider_id: providerId,
+			appointment_id: appointment_id || null,
+			note_content,
+			date_created: new Date().toISOString(),
+		})
+		.select('id, date_created')
+		.single();
 
-  const clinicalNote = await pb.collection('clinical_notes').create(noteData);
+	if (error) {
+		logger.error('[provider] notes', error);
+		return res.status(500).json({ error: 'Failed to save note' });
+	}
 
-  logger.info(`Clinical note created: ${clinicalNote.id}`);
-
-  res.json({
-    id: clinicalNote.id,
-    date_created: clinicalNote.date_created,
-  });
+	return res.json({ id: note.id, date_created: note.date_created });
 });
 
 export default router;

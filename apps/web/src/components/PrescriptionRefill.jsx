@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Pill, RefreshCw, Clock, CheckCircle2, AlertCircle, Truck } from 'lucide-react';
 import { toast } from 'sonner';
-import pb from '@/lib/pocketbaseClient';
+import pb from '@/lib/supabaseMappedCollections';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePrescriptions } from '@/hooks/usePrescriptions.js';
 

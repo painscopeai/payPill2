@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, Calendar as CalendarIcon, Clock, User, Building, Star, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import pb from '@/lib/pocketbaseClient';
+import pb from '@/lib/supabaseMappedCollections';
 import apiServerClient from '@/lib/apiServerClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';

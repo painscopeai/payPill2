@@ -1,83 +1,65 @@
-import { Router } from 'express';
-import pb from '../utils/pocketbaseClient.js';
+import { App } from '@tinyhttp/app';
 import logger from '../utils/logger.js';
+import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 
-const router = Router();
+const router = new App();
+const sb = () => getSupabaseAdmin();
 
-/**
- * Haversine formula to calculate distance between two coordinates
- */
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+	const R = 6371;
+	const dLat = ((lat2 - lat1) * Math.PI) / 180;
+	const dLon = ((lon2 - lon1) * Math.PI) / 180;
+	const a =
+		Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+		Math.cos((lat1 * Math.PI) / 180) *
+			Math.cos((lat2 * Math.PI) / 180) *
+			Math.sin(dLon / 2) *
+			Math.sin(dLon / 2);
+	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	return R * c;
 }
 
-/**
- * GET /pharmacies
- * Search pharmacies by location and type
- */
 router.get('/', async (req, res) => {
-  const { location, latitude, longitude, type } = req.query;
+	const { location, latitude, longitude, type } = req.query;
 
-  let filter = '';
-  const filters = [];
+	let q = sb().from('pharmacies').select('*');
+	if (type) q = q.eq('type', String(type));
 
-  if (type) {
-    filters.push(`type = "${type}"`);
-  }
+	const { data: pharmacies, error } = await q;
+	if (error) {
+		logger.error('[pharmacies]', error);
+		return res.status(500).json({ error: 'Failed to load pharmacies' });
+	}
 
-  if (filters.length > 0) {
-    filter = filters.join(' && ');
-  }
+	const list = pharmacies || [];
 
-  const pharmacies = await pb.collection('pharmacies').getFullList({
-    filter: filter || undefined,
-  });
+	if (latitude && longitude) {
+		const lat = parseFloat(String(latitude));
+		const lon = parseFloat(String(longitude));
+		if (Number.isNaN(lat) || Number.isNaN(lon)) {
+			return res.status(400).json({ error: 'Invalid latitude or longitude values' });
+		}
+		const withDistance = list
+			.filter((p) => p.latitude != null && p.longitude != null)
+			.map((pharmacy) => ({
+				...pharmacy,
+				distance_km: calculateDistance(lat, lon, pharmacy.latitude, pharmacy.longitude),
+			}))
+			.sort((a, b) => a.distance_km - b.distance_km);
+		return res.json(withDistance);
+	}
 
-  // If latitude and longitude provided, calculate distances and sort
-  if (latitude && longitude) {
-    const lat = parseFloat(latitude);
-    const lon = parseFloat(longitude);
+	if (location) {
+		const loc = String(location).toLowerCase();
+		const filtered = list.filter(
+			(p) =>
+				(p.address && p.address.toLowerCase().includes(loc)) ||
+				(p.zip_code && String(p.zip_code).includes(String(location))),
+		);
+		return res.json(filtered);
+	}
 
-    if (isNaN(lat) || isNaN(lon)) {
-      return res.status(400).json({
-        error: 'Invalid latitude or longitude values',
-      });
-    }
-
-    const pharmaciesWithDistance = pharmacies
-      .map((pharmacy) => ({
-        ...pharmacy,
-        distance_km: calculateDistance(lat, lon, pharmacy.latitude, pharmacy.longitude),
-      }))
-      .sort((a, b) => a.distance_km - b.distance_km);
-
-    logger.info(`Found ${pharmaciesWithDistance.length} pharmacies`);
-    return res.json(pharmaciesWithDistance);
-  }
-
-  // If location (address/zip) provided, filter by location field
-  if (location) {
-    const filteredPharmacies = pharmacies.filter((p) =>
-      p.address?.toLowerCase().includes(location.toLowerCase()) ||
-      p.zip_code?.includes(location)
-    );
-
-    logger.info(`Found ${filteredPharmacies.length} pharmacies for location: ${location}`);
-    return res.json(filteredPharmacies);
-  }
-
-  logger.info(`Found ${pharmacies.length} pharmacies`);
-  res.json(pharmacies);
+	return res.json(list);
 });
 
 export default router;

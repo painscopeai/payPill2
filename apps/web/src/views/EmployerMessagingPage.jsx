@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, Send, FileText, Mail, Inbox, Clock, Paperclip, Reply } from 'lucide-react';
-import pb from '@/lib/pocketbaseClient.js';
+import pb from '@/lib/supabaseMappedCollections';
 import { toast } from 'sonner';
 
 export default function EmployerMessagingPage() {

@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Mail, Shield, Pill, Calendar } from 'lucide-react';
-import pb from '@/lib/pocketbaseClient';
+import pb from '@/lib/supabaseMappedCollections';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function CommunicationHub() {

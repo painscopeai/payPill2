@@ -1,12 +1,9 @@
 'use client';
 
-import { BrowserRouter } from 'react-router-dom';
-import AppRoutes from '@/AppRoutes.jsx';
+import dynamic from 'next/dynamic';
+
+const LegacyCatchAllInner = dynamic(() => import('./LegacyCatchAllInner'), { ssr: false });
 
 export default function CatchAllPage() {
-	return (
-		<BrowserRouter>
-			<AppRoutes />
-		</BrowserRouter>
-	);
+	return <LegacyCatchAllInner />;
 }

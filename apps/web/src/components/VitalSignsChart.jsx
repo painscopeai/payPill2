@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Download, AlertCircle } from 'lucide-react';
-import pb from '@/lib/pocketbaseClient';
+import pb from '@/lib/supabaseMappedCollections';
 import { useAuth } from '@/contexts/AuthContext';
 import Papa from 'papaparse';
 import { format, subDays } from 'date-fns';

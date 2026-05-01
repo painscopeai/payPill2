@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Users, Activity, DollarSign, TrendingUp, UserPlus, HeartPulse, FileText, ArrowRight, Settings, BarChart } from 'lucide-react';
-import pb from '@/lib/pocketbaseClient';
+import pb from '@/lib/supabaseMappedCollections';
 
 export default function EmployerDashboard() {
   const { currentUser } = useAuth();

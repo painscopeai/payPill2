@@ -1,153 +1,112 @@
-import { Router } from 'express';
-import pb from '../utils/pocketbaseClient.js';
+import { App } from '@tinyhttp/app';
 import logger from '../utils/logger.js';
-import { pocketbaseAuth } from '../middleware/pocketbase-auth.js';
+import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
+import { getBearerAuthContext } from '../utils/supabaseAuthExpress.js';
 
-const router = Router();
+const router = new App();
+const sb = () => getSupabaseAdmin();
 
-// Valid action types
 const VALID_ACTIONS = [
-  'CREATE',
-  'READ',
-  'UPDATE',
-  'DELETE',
-  'LOGIN',
-  'LOGOUT',
-  'EXPORT',
-  'IMPORT',
-  'SHARE',
-  'DOWNLOAD',
+	'CREATE',
+	'READ',
+	'UPDATE',
+	'DELETE',
+	'LOGIN',
+	'LOGOUT',
+	'EXPORT',
+	'IMPORT',
+	'SHARE',
+	'DOWNLOAD',
 ];
 
-// Valid resource types
 const VALID_RESOURCE_TYPES = [
-  'user',
-  'health_profile',
-  'prescription',
-  'appointment',
-  'recommendation',
-  'lab_result',
-  'vital_sign',
-  'health_goal',
-  'document',
-  'audit_log',
+	'user',
+	'health_profile',
+	'prescription',
+	'appointment',
+	'recommendation',
+	'lab_result',
+	'vital',
+	'health_goal',
+	'document',
+	'audit_log',
 ];
 
-/**
- * POST /audit-logs
- * Create an audit log entry
- */
 router.post('/', async (req, res) => {
-  const { user_id, action, resource_type, resource_id, ip_address, user_agent } = req.body;
+	const { user_id, action, resource_type, resource_id, ip_address, user_agent } = req.body;
 
-  // Validate required fields
-  if (!user_id) {
-    return res.status(400).json({
-      error: 'Missing required field: user_id',
-    });
-  }
+	if (!user_id) {
+		return res.status(400).json({ error: 'Missing required field: user_id' });
+	}
+	if (!action) {
+		return res.status(400).json({ error: 'Missing required field: action' });
+	}
+	if (!resource_type) {
+		return res.status(400).json({ error: 'Missing required field: resource_type' });
+	}
 
-  if (!action) {
-    return res.status(400).json({
-      error: 'Missing required field: action',
-    });
-  }
+	if (!VALID_ACTIONS.includes(String(action).toUpperCase())) {
+		return res.status(400).json({
+			error: `Invalid action. Must be one of: ${VALID_ACTIONS.join(', ')}`,
+		});
+	}
+	if (!VALID_RESOURCE_TYPES.includes(String(resource_type).toLowerCase())) {
+		return res.status(400).json({
+			error: `Invalid resource_type. Must be one of: ${VALID_RESOURCE_TYPES.join(', ')}`,
+		});
+	}
 
-  if (!resource_type) {
-    return res.status(400).json({
-      error: 'Missing required field: resource_type',
-    });
-  }
+	const row = {
+		user_id,
+		action: String(action).toUpperCase(),
+		resource_type: String(resource_type).toLowerCase(),
+		resource_id: resource_id || '',
+		changes: {},
+		ip_address: ip_address || '',
+		user_agent: user_agent || '',
+		status: 'success',
+	};
 
-  // Validate action
-  if (!VALID_ACTIONS.includes(action.toUpperCase())) {
-    return res.status(400).json({
-      error: `Invalid action. Must be one of: ${VALID_ACTIONS.join(', ')}`,
-    });
-  }
+	const { data: auditLog, error } = await sb().from('audit_logs').insert(row).select('id').single();
+	if (error) {
+		logger.error('[audit] insert', error);
+		return res.status(500).json({ error: 'Failed to create audit log' });
+	}
 
-  // Validate resource_type
-  if (!VALID_RESOURCE_TYPES.includes(resource_type.toLowerCase())) {
-    return res.status(400).json({
-      error: `Invalid resource_type. Must be one of: ${VALID_RESOURCE_TYPES.join(', ')}`,
-    });
-  }
-
-  // Create audit log
-  const auditLogData = {
-    user_id,
-    action: action.toUpperCase(),
-    resource_type: resource_type.toLowerCase(),
-    resource_id: resource_id || '',
-    ip_address: ip_address || '',
-    user_agent: user_agent || '',
-    timestamp: new Date().toISOString(),
-  };
-
-  const auditLog = await pb.collection('audit_logs').create(auditLogData);
-
-  logger.info(`Audit log created: ${auditLog.id} - ${action} on ${resource_type}`);
-
-  res.status(201).json({
-    success: true,
-    log_id: auditLog.id,
-  });
+	return res.status(201).json({ success: true, log_id: auditLog.id });
 });
 
-/**
- * GET /audit-logs
- * Fetch audit logs (admin only)
- */
-router.get('/', pocketbaseAuth, async (req, res) => {
-  const { user_id, action, start_date, end_date, limit } = req.query;
+router.get('/', async (req, res) => {
+	const ctx = await getBearerAuthContext(req);
+	if (!ctx?.isAdmin) {
+		return res.status(403).json({ error: 'Administrator role required' });
+	}
 
-  // Verify admin role
-  const authUser = await pb.collection('users').getOne(req.pocketbaseUserId);
-  if (authUser.role !== 'admin') {
-    throw new Error('Unauthorized: admin role required');
-  }
+	const { user_id, action, start_date, end_date, limit } = req.query;
+	let pageLimit = parseInt(String(limit), 10) || 100;
+	if (pageLimit > 1000) pageLimit = 1000;
+	if (pageLimit < 1) pageLimit = 1;
 
-  // Validate limit
-  let pageLimit = parseInt(limit) || 100;
-  if (pageLimit > 1000) pageLimit = 1000;
-  if (pageLimit < 1) pageLimit = 1;
+	let q = sb().from('audit_logs').select('*', { count: 'exact' }).order('created_at', { ascending: false }).limit(pageLimit);
 
-  // Build filter
-  const filters = [];
+	if (user_id) q = q.eq('user_id', user_id);
+	if (action) q = q.eq('action', String(action).toUpperCase());
+	if (start_date) q = q.gte('created_at', String(start_date));
+	if (end_date) q = q.lte('created_at', String(end_date));
 
-  if (user_id) {
-    filters.push(`user_id = "${user_id}"`);
-  }
+	const { data: items, error, count } = await q;
+	if (error) {
+		logger.error('[audit] list', error);
+		return res.status(500).json({ error: 'Failed to fetch audit logs' });
+	}
 
-  if (action) {
-    filters.push(`action = "${action.toUpperCase()}"`);
-  }
-
-  if (start_date) {
-    filters.push(`timestamp >= "${start_date}"`);
-  }
-
-  if (end_date) {
-    filters.push(`timestamp <= "${end_date}"`);
-  }
-
-  const filter = filters.length > 0 ? filters.join(' && ') : '';
-
-  // Fetch audit logs with pagination
-  const auditLogs = await pb.collection('audit_logs').getList(1, pageLimit, {
-    filter: filter || undefined,
-    sort: '-timestamp',
-  });
-
-  logger.info(`Fetched ${auditLogs.items.length} audit logs`);
-
-  res.json({
-    items: auditLogs.items,
-    page: auditLogs.page,
-    perPage: auditLogs.perPage,
-    totalItems: auditLogs.totalItems,
-    totalPages: auditLogs.totalPages,
-  });
+	return res.json({
+		items: items || [],
+		page: 1,
+		perPage: pageLimit,
+		totalItems: count ?? (items || []).length,
+		totalPages: 1,
+	});
 });
 
 export default router;

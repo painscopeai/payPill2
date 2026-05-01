@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import { ContentBlockType, stream, uploadIntegratedAiImages, getHistory } from '../api/integrated-ai.js';
 import { SystemPrompt } from '../constants/prompts.js';
 import { uploadFiles } from '../middleware/file-upload.js';
 import { integratedAiRateLimit } from '../middleware/integrated-ai-rate-limit.js';
 import { requireSupabaseUser } from '../middleware/requireSupabaseUser.js';
 
-const router = Router();
+const router = new App();
 
 router.use(requireSupabaseUser);
 

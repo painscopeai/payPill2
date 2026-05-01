@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 import logger from '../utils/logger.js';
 import { uploadFiles } from '../middleware/file-upload.js';
@@ -21,7 +21,7 @@ async function kbGet(id) {
 	return { ...data, ...(data.metadata || {}) };
 }
 
-const router = Router();
+const router = new App();
 
 /**
  * POST /knowledge-base/upload

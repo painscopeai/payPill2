@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import healthCheck from './health-check.js';
 import integratedAiRouter from './integrated-ai.js';
 import authRouter from './auth.js';
@@ -10,6 +10,7 @@ import prescriptionsRouter from './prescriptions.js';
 import refillsRouter from './refills.js';
 import providerRouter from './provider.js';
 import recommendationsRouter from './recommendations.js';
+import recommendationHistoryRouter from './recommendation-history.js';
 import healthGoalsRouter from './health-goals.js';
 import aiRecommendationsRouter from './ai-recommendations.js';
 import dataExportRouter from './data-export.js';
@@ -29,7 +30,7 @@ import knowledgeBaseRouter from './knowledge-base.js';
 import { checkAuth } from '../middleware/rbac.js';
 
 export default () => {
-  const router = Router();
+  const router = new App();
 
   // Health check endpoint
   router.get('/health', healthCheck);
@@ -68,6 +69,8 @@ export default () => {
 
   // Health recommendations (legacy)
   router.use('/recommendations', recommendationsRouter);
+
+  router.use('/recommendation-history', recommendationHistoryRouter);
 
   // AI-powered recommendations
   router.use('/ai-recommendations', aiRecommendationsRouter);

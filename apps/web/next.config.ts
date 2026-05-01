@@ -8,19 +8,14 @@ const nextConfig: NextConfig = {
 	reactStrictMode: true,
 	outputFileTracingRoot: path.join(__dirname, '../..'),
 	serverExternalPackages: [
-		'express',
-		'cors',
-		'helmet',
-		'morgan',
-		'multer',
-		'express-rate-limit',
+		'@tinyhttp/app',
+		'busboy',
 		'jsonwebtoken',
 		'pdf-parse',
 		'pdfkit',
 		'mammoth',
 		'csv-parse',
 		'axios',
-		'pocketbase',
 	],
 };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import pb from '@/lib/pocketbaseClient';
+import pb from '@/lib/supabaseMappedCollections';
 
 export function usePharmacies() {
   const [pharmacies, setPharmacies] = useState([]);

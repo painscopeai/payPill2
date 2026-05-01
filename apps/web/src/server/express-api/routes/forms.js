@@ -1,9 +1,9 @@
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 import logger from '../utils/logger.js';
 import { supabaseBearerUser } from '../middleware/supabase-bearer-user.js';
 
-const router = Router();
+const router = new App();
 const svc = () => getSupabaseAdmin();
 
 // Valid form types

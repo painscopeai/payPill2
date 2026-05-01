@@ -1,86 +1,73 @@
-import { Router } from 'express';
-import pb from '../utils/pocketbaseClient.js';
+import { App } from '@tinyhttp/app';
 import logger from '../utils/logger.js';
+import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 
-const router = Router();
+const router = new App();
+const sb = () => getSupabaseAdmin();
 
-/**
- * GET /health-goals
- * Fetch health goals for a user
- */
 router.get('/', async (req, res) => {
-  const { user_id } = req.query;
+	const { user_id } = req.query;
+	if (!user_id) {
+		return res.status(400).json({ error: 'Missing required query parameter: user_id' });
+	}
 
-  if (!user_id) {
-    return res.status(400).json({
-      error: 'Missing required query parameter: user_id',
-    });
-  }
+	const { data: healthGoals, error } = await sb()
+		.from('health_goals')
+		.select('*')
+		.eq('user_id', user_id)
+		.order('created_at', { ascending: false });
 
-  const healthGoals = await pb.collection('health_goals').getFullList({
-    filter: `user_id = "${user_id}"`,
-    sort: '-created',
-  });
+	if (error) {
+		logger.error('[health-goals] list', error);
+		return res.status(500).json({ error: 'Failed to load health goals' });
+	}
 
-  // Calculate progress for each goal
-  const goalsWithProgress = healthGoals.map((goal) => {
-    const targetDate = new Date(goal.target_date);
-    const now = new Date();
-    const totalDays = targetDate.getTime() - new Date(goal.created).getTime();
-    const elapsedDays = now.getTime() - new Date(goal.created).getTime();
-    const progressPercentage = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+	const goalsWithProgress = (healthGoals || []).map((goal) => {
+		const targetDate = new Date(goal.target_date);
+		const now = new Date();
+		const created = new Date(goal.created_at);
+		const totalDays = Math.max(1, targetDate.getTime() - created.getTime());
+		const elapsedDays = now.getTime() - created.getTime();
+		const progressPercentage = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+		return { ...goal, created: goal.created_at, progress_percentage: progressPercentage };
+	});
 
-    return {
-      ...goal,
-      progress_percentage: progressPercentage,
-    };
-  });
-
-  logger.info(`Fetched ${goalsWithProgress.length} health goals for user ${user_id}`);
-
-  res.json(goalsWithProgress);
+	return res.json(goalsWithProgress);
 });
 
-/**
- * POST /health-goals
- * Create a new health goal
- */
 router.post('/', async (req, res) => {
-  const { user_id, goal_name, goal_type, target_value, target_date } = req.body;
+	const { user_id, goal_name, goal_type, target_value, target_date } = req.body;
+	if (!user_id || !goal_name || !goal_type || !target_date) {
+		return res.status(400).json({
+			error: 'Missing required fields: user_id, goal_name, goal_type, target_date',
+		});
+	}
 
-  if (!user_id || !goal_name || !goal_type || !target_date) {
-    return res.status(400).json({
-      error: 'Missing required fields: user_id, goal_name, goal_type, target_date',
-    });
-  }
+	const targetDateTime = new Date(target_date);
+	if (targetDateTime <= new Date()) {
+		return res.status(400).json({ error: 'Target date must be in the future' });
+	}
 
-  // Validate target_date is in future
-  const targetDateTime = new Date(target_date);
-  const now = new Date();
-  if (targetDateTime <= now) {
-    return res.status(400).json({
-      error: 'Target date must be in the future',
-    });
-  }
+	const row = {
+		user_id,
+		goal_name,
+		goal_type,
+		target_value: target_value || '',
+		target_date,
+		status: 'active',
+	};
 
-  const goalData = {
-    user_id,
-    goal_name,
-    goal_type,
-    target_value: target_value || '',
-    target_date,
-    status: 'active',
-    created: new Date().toISOString(),
-  };
+	const { data: healthGoal, error } = await sb().from('health_goals').insert(row).select().single();
+	if (error) {
+		logger.error('[health-goals] create', error);
+		return res.status(500).json({ error: 'Failed to create health goal' });
+	}
 
-  const healthGoal = await pb.collection('health_goals').create(goalData);
-
-  logger.info(`Health goal created: ${healthGoal.id}`);
-
-  res.status(201).json({
-    id: healthGoal.id,
-    status: 'active',
-  });
+	return res.status(201).json({
+		id: healthGoal.id,
+		goal_name: healthGoal.goal_name,
+		status: healthGoal.status,
+	});
 });
 
 export default router;

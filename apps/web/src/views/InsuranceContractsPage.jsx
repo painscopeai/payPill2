@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Plus, Filter, MoreHorizontal, Download, FileText, CalendarDays } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import pb from '@/lib/pocketbaseClient.js';
+import pb from '@/lib/supabaseMappedCollections';
 import { toast } from 'sonner';
 
 export default function InsuranceContractsPage() {

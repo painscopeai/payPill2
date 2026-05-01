@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import axios from 'axios';
 import logger from '../utils/logger.js';
 import { requireSupabaseUser } from '../middleware/requireSupabaseUser.js';
@@ -9,7 +9,7 @@ import {
 	patientHasHealthSignals,
 } from '../utils/patientHealthFromOnboarding.js';
 
-const router = Router();
+const router = new App();
 
 router.use(requireSupabaseUser);
 

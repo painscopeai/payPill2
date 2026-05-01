@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import pb from '@/lib/pocketbaseClient.js';
+import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Activity, LogOut, User, Menu, Sparkles } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -12,8 +12,8 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    pb.authStore.clear();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     navigate('/');
   };
 

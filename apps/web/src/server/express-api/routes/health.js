@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import logger from '../utils/logger.js';
 import providers from '../data/providers.json' with { type: 'json' };
 
-const router = Router();
+const router = new App();
 
 /**
  * Haversine formula to calculate distance between two coordinates

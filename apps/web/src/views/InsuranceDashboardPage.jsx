@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Users, FileText, Heart, AlertCircle, Plus, ChevronRight, Activity, Clock } from 'lucide-react';
-import pb from '@/lib/pocketbaseClient.js';
+import pb from '@/lib/supabaseMappedCollections';
 
 export default function InsuranceDashboardPage() {
   const { currentUser } = useAuth();

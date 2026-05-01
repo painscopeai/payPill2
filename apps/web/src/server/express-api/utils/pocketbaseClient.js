@@ -1,81 +1,49 @@
-import dotenv from 'dotenv';
-dotenv.config();
-import Pocketbase from 'pocketbase';
+/**
+ * PocketBase was removed from the stack. This module remains as a no-op stub so
+ * any accidental import cannot crash the Node process (previously: eager health
+ * check + process.exit(1)). All data access must use Supabase via getSupabaseAdmin().
+ */
 import logger from './logger.js';
 
-const POCKETBASE_HOST = `https://${process.env.WEBSITE_DOMAIN}/hcgi/platform`;
-
-async function waitForHealth({ retries = 10, delayMs = 1000 } = {}) {
-    for (let i = 1; i <= retries; i++) {
-        const response = await fetch(`${POCKETBASE_HOST}/api/health`, { method: 'HEAD' });
-        if (response.ok) {
-            return;
-        }
-
-        logger.warn(`PocketBase not ready, retrying (${i}/${retries})...`);
-
-        await new Promise((r) => setTimeout(r, delayMs));
-    }
-
-    throw new Error(`PocketBase health check failed after ${retries} retries`);
+function warnStub(method) {
+	logger.warn(
+		`[pocketbaseClient] Stub invoked (${method}). PocketBase is retired — migrate this call to Supabase.`,
+	);
 }
 
-const pocketbaseClient = new Pocketbase(POCKETBASE_HOST);
+/** @returns {never} */
+function rejectRetired() {
+	return Promise.reject(
+		new Error('PocketBase has been removed from this application. Use Supabase instead.'),
+	);
+}
 
-pocketbaseClient.autoCancellation(false);
-
-let authPromise = null;
-
-pocketbaseClient.beforeSend = async function (url, options) {
-    if (url.includes('/api/collections/_superusers/auth-with-password')) {
-        return { url, options };
-    }
-
-    if (!pocketbaseClient.authStore.isValid && !authPromise) {
-        authPromise = pocketbaseClient.collection('_superusers').authWithPassword(
-            process.env.PB_SUPERUSER_EMAIL,
-            process.env.PB_SUPERUSER_PASSWORD,
-        ).finally(() => {
-            authPromise = null;
-        });
-    }
-
-    if (authPromise) {
-        await authPromise;
-    }
-
-    if (pocketbaseClient.authStore.isValid && pocketbaseClient.authStore.token) {
-        options.headers = options.headers || {};
-        options.headers['Authorization'] = pocketbaseClient.authStore.token;
-    }
-
-    return { url, options };
+const stub = {
+	collection() {
+		return {
+			getFullList: () => rejectRetired(),
+			getList: () => rejectRetired(),
+			getOne: () => rejectRetired(),
+			getFirstListItem: () => rejectRetired(),
+			create: () => rejectRetired(),
+			update: () => rejectRetired(),
+			delete: () => rejectRetired(),
+			authWithPassword: () => rejectRetired(),
+			authRefresh: () => rejectRetired(),
+		};
+	},
+	createBatch: () => ({
+		send: () => rejectRetired(),
+	}),
+	filter: () => '',
+	authStore: {
+		isValid: false,
+		token: '',
+		save: () => warnStub('authStore.save'),
+	},
+	beforeSend: undefined,
+	autoCancellation: () => {},
 };
 
-(async () => {
-    try {
-        await waitForHealth();
-
-        if (!pocketbaseClient.authStore.isValid && !authPromise) {
-            authPromise = pocketbaseClient.collection('_superusers').authWithPassword(
-                process.env.PB_SUPERUSER_EMAIL,
-                process.env.PB_SUPERUSER_PASSWORD,
-            ).finally(() => {
-                authPromise = null;
-            });
-        }
-        
-        if (authPromise) {
-            await authPromise;
-        }
-        
-        logger.info('PocketBase client initialized successfully');
-    } catch (err) {
-        logger.error('Failed to initialize PocketBase client:', err);
-
-        process.exit(1);
-    }
-})();
-
-export default pocketbaseClient;
-export { pocketbaseClient };
+export default stub;
+export { stub as pocketbaseClient };

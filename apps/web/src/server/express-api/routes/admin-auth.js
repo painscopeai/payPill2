@@ -1,9 +1,9 @@
 import 'dotenv/config';
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import logger from '../utils/logger.js';
 import { checkAuth, attachAuditLog } from '../middleware/rbac.js';
 
-const router = Router();
+const router = new App();
 
 /**
  * GET /admin/auth/me

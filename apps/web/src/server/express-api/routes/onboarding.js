@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import logger from '../utils/logger.js';
 import { validateStep, validateAllSteps } from '../utils/validation.js';
 import { requireSupabaseUser } from '../middleware/requireSupabaseUser.js';
 import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 import { internalApiUrl } from '../utils/internalApiUrl.js';
 
-const router = Router();
+const router = new App();
 
 router.use(requireSupabaseUser);
 

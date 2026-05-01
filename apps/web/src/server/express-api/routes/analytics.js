@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import logger from '../utils/logger.js';
 import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 
-const router = Router();
+const router = new App();
 
 const sb = () => getSupabaseAdmin();
 

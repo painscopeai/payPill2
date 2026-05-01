@@ -1,228 +1,181 @@
-import { Router } from 'express';
-import pb from '../utils/pocketbaseClient.js';
+import { App } from '@tinyhttp/app';
 import logger from '../utils/logger.js';
+import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 
-const router = Router();
+const router = new App();
+const sb = () => getSupabaseAdmin();
 
-/**
- * POST /prescriptions
- * Create a new prescription
- */
 router.post('/', async (req, res) => {
-  const { user_id, provider_id, medication_name, dosage, frequency, quantity, refills_remaining } = req.body;
+	const { user_id, provider_id, medication_name, dosage, frequency, quantity, refills_remaining } = req.body;
 
-  if (!user_id || !provider_id || !medication_name || !dosage || !frequency) {
-    return res.status(400).json({
-      error: 'Missing required fields: user_id, provider_id, medication_name, dosage, frequency',
-    });
-  }
+	if (!user_id || !provider_id || !medication_name || !dosage || !frequency) {
+		return res.status(400).json({
+			error: 'Missing required fields: user_id, provider_id, medication_name, dosage, frequency',
+		});
+	}
 
-  const prescriptionData = {
-    user_id,
-    provider_id,
-    medication_name,
-    dosage,
-    frequency,
-    quantity: quantity || 30,
-    refills_remaining: refills_remaining || 0,
-    status: 'active',
-    date_prescribed: new Date().toISOString(),
-  };
+	const row = {
+		user_id,
+		provider_id,
+		medication_name,
+		dosage,
+		frequency,
+		quantity: quantity || 30,
+		refills_remaining: refills_remaining || 0,
+		status: 'active',
+	};
 
-  const prescription = await pb.collection('prescriptions').create(prescriptionData);
+	const { data: prescription, error } = await sb().from('prescriptions').insert(row).select().single();
+	if (error) {
+		logger.error('[prescriptions] create', error);
+		return res.status(500).json({ error: 'Failed to create prescription' });
+	}
 
-  logger.info(`Prescription created: ${prescription.id}`);
-
-  res.status(201).json({
-    id: prescription.id,
-    medication_name: prescription.medication_name,
-    dosage: prescription.dosage,
-    status: 'active',
-  });
+	return res.status(201).json({
+		id: prescription.id,
+		medication_name: prescription.medication_name,
+		dosage: prescription.dosage,
+		status: 'active',
+	});
 });
 
-/**
- * GET /prescriptions
- * Fetch prescriptions for a user
- */
 router.get('/', async (req, res) => {
-  const { user_id } = req.query;
+	const { user_id } = req.query;
+	if (!user_id) {
+		return res.status(400).json({ error: 'Missing required query parameter: user_id' });
+	}
 
-  if (!user_id) {
-    throw new Error('Missing required query parameter: user_id');
-  }
+	const { data: items, error } = await sb()
+		.from('prescriptions')
+		.select('*')
+		.eq('user_id', user_id)
+		.limit(50);
 
-  const data = await pb.collection('prescriptions').getList(1, 50, {
-    filter: `user_id="${user_id}"`,
-  });
+	if (error) {
+		logger.error('[prescriptions] list', error);
+		return res.status(500).json({ error: 'Failed to list prescriptions' });
+	}
 
-  logger.info(`Fetched ${data.items.length} prescriptions for user ${user_id}`);
-
-  res.json(data.items);
+	return res.json(items || []);
 });
 
-/**
- * POST /prescriptions/refill
- * Request a refill for a prescription
- */
 router.post('/refill', async (req, res) => {
-  const { userId, prescriptionId, quantity, pharmacy, deliveryMethod, specialInstructions } = req.body;
+	const { userId, prescriptionId, quantity, pharmacy, deliveryMethod, specialInstructions } = req.body;
 
-  // Validate required fields
-  if (!userId || !prescriptionId) {
-    return res.status(400).json({
-      error: 'Missing required fields: userId, prescriptionId',
-    });
-  }
+	if (!userId || !prescriptionId) {
+		return res.status(400).json({ error: 'Missing required fields: userId, prescriptionId' });
+	}
 
-  // Fetch prescription
-  const prescription = await pb.collection('prescriptions').getOne(prescriptionId);
+	const { data: prescription, error: pErr } = await sb()
+		.from('prescriptions')
+		.select('*')
+		.eq('id', prescriptionId)
+		.maybeSingle();
 
-  // Validate prescription belongs to user
-  if (prescription.user_id !== userId) {
-    return res.status(400).json({
-      error: 'Prescription does not belong to this user',
-    });
-  }
+	if (pErr || !prescription) {
+		return res.status(404).json({ error: 'Prescription not found' });
+	}
+	if (prescription.user_id !== userId) {
+		return res.status(400).json({ error: 'Prescription does not belong to this user' });
+	}
+	if (prescription.status !== 'active') {
+		return res.status(400).json({ error: 'Prescription is not active' });
+	}
+	if ((prescription.refills_remaining || 0) <= 0) {
+		return res.status(400).json({ error: 'No refills remaining for this prescription' });
+	}
 
-  // Validate prescription is active
-  if (prescription.status !== 'active') {
-    return res.status(400).json({
-      error: 'Prescription is not active',
-    });
-  }
+	const refillRequestId = `REF-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-  // Validate refills remaining
-  if (prescription.refills_remaining <= 0) {
-    return res.status(400).json({
-      error: 'No refills remaining for this prescription',
-    });
-  }
+	const refillRow = {
+		user_id: userId,
+		prescription_id: prescriptionId,
+		refill_request_id: refillRequestId,
+		quantity: quantity || prescription.quantity,
+		pharmacy: pharmacy || '',
+		delivery_method: deliveryMethod || 'standard',
+		special_instructions: specialInstructions || '',
+		status: 'pending',
+	};
 
-  // Generate refill request ID
-  const refillRequestId = `REF-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+	const { error: rErr } = await sb().from('refill_requests').insert(refillRow);
+	if (rErr) {
+		logger.error('[prescriptions] refill insert', rErr);
+		return res.status(500).json({ error: 'Failed to create refill request' });
+	}
 
-  // Create refill request
-  const refillRequestData = {
-    user_id: userId,
-    prescription_id: prescriptionId,
-    refill_request_id: refillRequestId,
-    quantity: quantity || prescription.quantity,
-    pharmacy: pharmacy || '',
-    delivery_method: deliveryMethod || 'standard',
-    special_instructions: specialInstructions || '',
-    status: 'pending',
-    requested_at: new Date().toISOString(),
-  };
+	const { data: updatedPrescription, error: uErr } = await sb()
+		.from('prescriptions')
+		.update({ refills_remaining: (prescription.refills_remaining || 0) - 1 })
+		.eq('id', prescriptionId)
+		.select()
+		.single();
 
-  const refillRequest = await pb.collection('refill_requests').create(refillRequestData);
+	if (uErr) {
+		logger.warn('[prescriptions] refill update', uErr.message);
+	}
 
-  // Update prescription refills_remaining
-  const updatedPrescription = await pb.collection('prescriptions').update(prescriptionId, {
-    refills_remaining: prescription.refills_remaining - 1,
-  });
+	const estimatedDeliveryDate = new Date();
+	estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
 
-  // Send refill confirmation email
-  try {
-    const user = await pb.collection('users').getOne(userId);
-    await pb.sendEmail({
-      to: user.email,
-      subject: `Prescription Refill Requested - ${refillRequestId}`,
-      html: `
-        <h2>Refill Request Confirmed</h2>
-        <p><strong>Refill Request ID:</strong> ${refillRequestId}</p>
-        <p><strong>Medication:</strong> ${prescription.medication_name}</p>
-        <p><strong>Dosage:</strong> ${prescription.dosage}</p>
-        <p><strong>Quantity:</strong> ${quantity || prescription.quantity}</p>
-        <p><strong>Delivery Method:</strong> ${deliveryMethod || 'Standard'}</p>
-        <p><strong>Status:</strong> Pending</p>
-        <p>Your refill request has been submitted. You will receive a confirmation when it's ready for pickup or delivery.</p>
-      `,
-    });
-  } catch (error) {
-    logger.warn('Failed to send refill confirmation email:', error.message);
-  }
-
-  // Calculate estimated delivery date (3-5 business days)
-  const estimatedDeliveryDate = new Date();
-  estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
-
-  logger.info(`Refill request created: ${refillRequest.id}`);
-
-  res.status(201).json({
-    refillRequestId: refillRequestId,
-    prescriptionId: prescriptionId,
-    medication: prescription.medication_name,
-    dosage: prescription.dosage,
-    quantity: quantity || prescription.quantity,
-    status: 'pending',
-    estimatedDeliveryDate: estimatedDeliveryDate.toISOString().split('T')[0],
-    refillsRemaining: updatedPrescription.refills_remaining,
-  });
+	return res.status(201).json({
+		refillRequestId,
+		prescriptionId,
+		medication: prescription.medication_name,
+		dosage: prescription.dosage,
+		quantity: quantity || prescription.quantity,
+		status: 'pending',
+		estimatedDeliveryDate: estimatedDeliveryDate.toISOString().split('T')[0],
+		refillsRemaining: updatedPrescription?.refills_remaining ?? (prescription.refills_remaining || 0) - 1,
+	});
 });
 
-/**
- * PUT /prescriptions/:id/refill
- * Request a refill for a prescription (legacy endpoint)
- */
 router.put('/:id/refill', async (req, res) => {
-  const { id } = req.params;
-  const { pharmacy_id } = req.body;
+	const { id } = req.params;
+	const { pharmacy_id } = req.body;
 
-  if (!pharmacy_id) {
-    return res.status(400).json({
-      error: 'Missing required field: pharmacy_id',
-    });
-  }
+	if (!pharmacy_id) {
+		return res.status(400).json({ error: 'Missing required field: pharmacy_id' });
+	}
 
-  // Fetch prescription
-  const prescription = await pb.collection('prescriptions').getOne(id);
+	const { data: prescription, error: gErr } = await sb()
+		.from('prescriptions')
+		.select('*')
+		.eq('id', id)
+		.maybeSingle();
 
-  if (prescription.refills_remaining <= 0) {
-    return res.status(400).json({
-      error: 'No refills remaining for this prescription',
-    });
-  }
+	if (gErr || !prescription) {
+		return res.status(404).json({ error: 'Prescription not found' });
+	}
+	if ((prescription.refills_remaining || 0) <= 0) {
+		return res.status(400).json({ error: 'No refills remaining for this prescription' });
+	}
 
-  // Create refill request
-  const refillRequestData = {
-    prescription_id: id,
-    user_id: prescription.user_id,
-    pharmacy_id,
-    status: 'pending',
-    requested_at: new Date().toISOString(),
-  };
+	const { error: rErr } = await sb().from('refill_requests').insert({
+		prescription_id: id,
+		user_id: prescription.user_id,
+		pharmacy_id,
+		status: 'pending',
+	});
 
-  const refillRequest = await pb.collection('refill_requests').create(refillRequestData);
+	if (rErr) {
+		logger.error('[prescriptions] legacy refill', rErr);
+		return res.status(500).json({ error: 'Failed to create refill request' });
+	}
 
-  // Update prescription refills_remaining
-  const updatedPrescription = await pb.collection('prescriptions').update(id, {
-    refills_remaining: prescription.refills_remaining - 1,
-  });
+	await sb()
+		.from('prescriptions')
+		.update({ refills_remaining: (prescription.refills_remaining || 0) - 1 })
+		.eq('id', id);
 
-  // Send refill confirmation email
-  try {
-    const user = await pb.collection('users').getOne(prescription.user_id);
-    await pb.sendEmail({
-      to: user.email,
-      subject: 'Prescription Refill Requested',
-      html: `<p>Your refill request for ${prescription.medication_name} has been submitted to the pharmacy.</p>`,
-    });
-  } catch (error) {
-    logger.warn('Failed to send refill confirmation email:', error.message);
-  }
+	const estimatedDeliveryDate = new Date();
+	estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
 
-  // Calculate estimated delivery date (3-5 business days)
-  const estimatedDeliveryDate = new Date();
-  estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
-
-  logger.info(`Refill request created: ${refillRequest.id}`);
-
-  res.json({
-    refill_request_id: refillRequest.id,
-    status: 'pending',
-    estimated_delivery_date: estimatedDeliveryDate.toISOString().split('T')[0],
-  });
+	return res.json({
+		refill_request_id: id,
+		status: 'pending',
+		estimated_delivery_date: estimatedDeliveryDate.toISOString().split('T')[0],
+	});
 });
 
 export default router;

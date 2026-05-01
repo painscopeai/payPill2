@@ -1,9 +1,9 @@
-import { Router } from 'express';
+import { App } from '@tinyhttp/app';
 import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 import logger from '../utils/logger.js';
 import { checkPermission, attachAuditLog, HttpError } from '../middleware/rbac.js';
 
-const router = Router();
+const router = new App();
 router.use(attachAuditLog);
 
 const sb = () => getSupabaseAdmin();
