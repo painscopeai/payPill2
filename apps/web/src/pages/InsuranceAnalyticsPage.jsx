@@ -1,0 +1,125 @@
+import React from 'react';
+import { Helmet } from 'react-helmet';
+import Header from '@/components/Header.jsx';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { Download, RefreshCw, BarChart3, AlertTriangle, Lightbulb } from 'lucide-react';
+
+export default function InsuranceAnalyticsPage() {
+
+  const mlrTrend = [
+    { month: 'Jan', mlr: 82, benchmark: 85 },
+    { month: 'Feb', mlr: 81, benchmark: 85 },
+    { month: 'Mar', mlr: 84, benchmark: 85 },
+    { month: 'Apr', mlr: 86, benchmark: 85 },
+    { month: 'May', mlr: 83, benchmark: 85 },
+    { month: 'Jun', mlr: 79, benchmark: 85 },
+  ];
+
+  const financialAnalytics = [
+    { month: 'Jan', revenue: 5000, claims: 4100, admin: 400 },
+    { month: 'Feb', revenue: 5100, claims: 4131, admin: 410 },
+    { month: 'Mar', revenue: 5150, claims: 4326, admin: 415 },
+    { month: 'Apr', revenue: 5200, claims: 4472, admin: 420 },
+    { month: 'May', revenue: 5300, claims: 4399, admin: 425 },
+    { month: 'Jun', revenue: 5400, claims: 4266, admin: 430 },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <Helmet><title>Insurance Analytics - PayPill</title></Helmet>
+      <Header />
+      
+      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Advanced Analytics</h1>
+            <p className="text-muted-foreground">Financial, clinical, and operational intelligence.</p>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" className="gap-2"><RefreshCw className="h-4 w-4" /> Refresh</Button>
+            <Button className="gap-2"><Download className="h-4 w-4" /> Executive Report</Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="p-6">
+              <h3 className="font-semibold text-primary flex items-center gap-2 mb-2">
+                <BarChart3 className="h-4 w-4" /> MLR Performance
+              </h3>
+              <p className="text-3xl font-bold text-primary mb-1">81.3%</p>
+              <p className="text-sm text-foreground">Current Medical Loss Ratio across all active contracts. Running below the 85% industry benchmark.</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-orange-500/5 border-orange-500/20">
+            <CardContent className="p-6">
+              <h3 className="font-semibold text-orange-600 flex items-center gap-2 mb-2">
+                <AlertTriangle className="h-4 w-4" /> High-Risk Churn
+              </h3>
+              <p className="text-3xl font-bold text-orange-600 mb-1">2.4%</p>
+              <p className="text-sm text-foreground">Projected employer churn risk in Q3 based on utilization and satisfaction metrics.</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-emerald-500/5 border-emerald-500/20">
+            <CardContent className="p-6">
+              <h3 className="font-semibold text-emerald-600 flex items-center gap-2 mb-2">
+                <Lightbulb className="h-4 w-4" /> Preventive Impact
+              </h3>
+              <p className="text-3xl font-bold text-emerald-600 mb-1">$2.1M</p>
+              <p className="text-sm text-foreground">Estimated cost avoidance from early interventions and medication adherence programs YTD.</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <Card className="shadow-sm border-border/50">
+            <CardHeader>
+              <CardTitle>Medical Loss Ratio (MLR) Trend</CardTitle>
+              <CardDescription>Monthly progression vs Benchmark</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="w-full h-[350px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={mlrTrend} margin={{ top: 20, right: 20, left: -20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} domain={[60, 100]} />
+                    <Tooltip contentStyle={{ borderRadius: '8px' }} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                    <Area type="monotone" name="Actual MLR (%)" dataKey="mlr" stroke="hsl(var(--primary))" fill="hsl(var(--primary)/0.1)" strokeWidth={3} />
+                    <Area type="step" name="Benchmark (85%)" dataKey="benchmark" stroke="hsl(var(--destructive))" fill="none" strokeDasharray="5 5" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-border/50">
+            <CardHeader>
+              <CardTitle>Financial Analytics</CardTitle>
+              <CardDescription>Revenue vs Claims Paid vs Admin Costs ($K)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="w-full h-[350px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={financialAnalytics} margin={{ top: 20, right: 0, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{fill: 'hsl(var(--muted)/0.5)'}} contentStyle={{ borderRadius: '8px' }} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                    <Bar name="Premiums Revenue" dataKey="revenue" fill="hsl(var(--emerald-500))" radius={[4, 4, 0, 0]} />
+                    <Bar name="Claims Paid" dataKey="claims" stackId="a" fill="hsl(var(--destructive))" radius={[0, 0, 0, 0]} />
+                    <Bar name="Admin Costs" dataKey="admin" stackId="a" fill="hsl(var(--orange-500))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  );
+}

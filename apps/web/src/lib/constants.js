@@ -1,0 +1,14 @@
+export const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+export const BLOOD_TYPE_OPTIONS = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
+export const RELATION_OPTIONS = ['Parent', 'Spouse', 'Sibling', 'Friend', 'Guardian', 'Other'];
+export const CONDITION_STATUS_OPTIONS = ['Active', 'Inactive', 'Resolved'];
+export const SEVERITY_OPTIONS = ['Mild', 'Moderate', 'Severe', 'Life-threatening'];
+export const FREQUENCY_OPTIONS = ['Once daily', 'Twice daily', 'Three times daily', 'As needed', 'Other'];
+export const SMOKING_STATUS_OPTIONS = ['Never', 'Former', 'Current'];
+export const ALCOHOL_OPTIONS = ['None', 'Occasional', 'Moderate', 'Heavy'];
+export const EXERCISE_OPTIONS = ['Sedentary', 'Light', 'Moderate', 'Vigorous'];
+export const DIET_OPTIONS = ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian', 'Other'];
+export const SLEEP_QUALITY_OPTIONS = ['Poor', 'Fair', 'Good', 'Excellent'];
+export const PROVIDER_TYPE_OPTIONS = ['Primary Care', 'Cardiologist', 'Endocrinologist', 'Psychiatrist', 'Other'];
+export const COVERAGE_TYPE_OPTIONS = ['Individual', 'Family', 'Group'];
+export const CONTACT_METHOD_OPTIONS = ['Phone', 'Email', 'SMS'];

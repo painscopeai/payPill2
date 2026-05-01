@@ -1,0 +1,242 @@
+[
+  {
+    "id": 1,
+    "drug1": "Warfarin",
+    "drug2": "Aspirin",
+    "severity": "high",
+    "description": "Increased risk of bleeding when combined. Monitor INR closely and watch for signs of bleeding.",
+    "recommendation": "Use alternative antiplatelet agent or adjust warfarin dose. Monitor INR frequently."
+  },
+  {
+    "id": 2,
+    "drug1": "Metformin",
+    "drug2": "Contrast Dye",
+    "severity": "high",
+    "description": "Risk of lactic acidosis and acute kidney injury. Metformin should be held before and after contrast procedures.",
+    "recommendation": "Hold metformin 48 hours before and after contrast administration. Monitor renal function."
+  },
+  {
+    "id": 3,
+    "drug1": "ACE Inhibitors",
+    "drug2": "Potassium Supplements",
+    "severity": "high",
+    "description": "Risk of hyperkalemia (elevated potassium levels). Can cause cardiac arrhythmias.",
+    "recommendation": "Monitor potassium levels regularly. Avoid potassium supplements unless specifically indicated."
+  },
+  {
+    "id": 4,
+    "drug1": "Statins",
+    "drug2": "Gemfibrozil",
+    "severity": "high",
+    "description": "Increased risk of myopathy and rhabdomyolysis. Gemfibrozil inhibits statin metabolism.",
+    "recommendation": "Use alternative fibrate (fenofibrate) or reduce statin dose. Monitor CK levels."
+  },
+  {
+    "id": 5,
+    "drug1": "Digoxin",
+    "drug2": "Verapamil",
+    "severity": "high",
+    "description": "Verapamil increases digoxin levels, risk of digoxin toxicity and arrhythmias.",
+    "recommendation": "Monitor digoxin levels. May need to reduce digoxin dose. Use alternative calcium channel blocker if possible."
+  },
+  {
+    "id": 6,
+    "drug1": "Lithium",
+    "drug2": "NSAIDs",
+    "severity": "high",
+    "description": "NSAIDs reduce lithium clearance, increasing risk of lithium toxicity.",
+    "recommendation": "Avoid NSAIDs. Use acetaminophen for pain. Monitor lithium levels if NSAIDs are necessary."
+  },
+  {
+    "id": 7,
+    "drug1": "Warfarin",
+    "drug2": "NSAIDs",
+    "severity": "high",
+    "description": "Increased bleeding risk. NSAIDs inhibit platelet function and can displace warfarin from protein binding.",
+    "recommendation": "Avoid NSAIDs. Use acetaminophen instead. If NSAIDs necessary, use lowest dose for shortest duration."
+  },
+  {
+    "id": 8,
+    "drug1": "Methotrexate",
+    "drug2": "NSAIDs",
+    "severity": "high",
+    "description": "NSAIDs reduce methotrexate clearance, increasing toxicity risk.",
+    "recommendation": "Avoid NSAIDs. Use acetaminophen for pain. Monitor renal function and methotrexate levels."
+  },
+  {
+    "id": 9,
+    "drug1": "Clopidogrel",
+    "drug2": "Omeprazole",
+    "severity": "moderate",
+    "description": "Omeprazole inhibits clopidogrel activation, reducing its antiplatelet effect.",
+    "recommendation": "Use alternative PPI (pantoprazole) or H2 blocker. Monitor for stent thrombosis."
+  },
+  {
+    "id": 10,
+    "drug1": "Simvastatin",
+    "drug2": "Clarithromycin",
+    "severity": "high",
+    "description": "Clarithromycin inhibits simvastatin metabolism, increasing myopathy risk.",
+    "recommendation": "Use alternative antibiotic or statin. Monitor CK levels if combination necessary."
+  },
+  {
+    "id": 11,
+    "drug1": "Theophylline",
+    "drug2": "Ciprofloxacin",
+    "severity": "moderate",
+    "description": "Ciprofloxacin increases theophylline levels, risk of toxicity.",
+    "recommendation": "Monitor theophylline levels. May need dose reduction. Use alternative antibiotic if possible."
+  },
+  {
+    "id": 12,
+    "drug1": "Phenytoin",
+    "drug2": "Warfarin",
+    "severity": "high",
+    "description": "Complex interaction - phenytoin increases warfarin metabolism initially, then may increase warfarin levels.",
+    "recommendation": "Monitor INR closely. May need warfarin dose adjustment. Consider alternative anticonvulsant."
+  },
+  {
+    "id": 13,
+    "drug1": "Fluconazole",
+    "drug2": "Warfarin",
+    "severity": "moderate",
+    "description": "Fluconazole increases warfarin levels, increasing bleeding risk.",
+    "recommendation": "Monitor INR closely. May need warfarin dose reduction. Use alternative antifungal if possible."
+  },
+  {
+    "id": 14,
+    "drug1": "Rifampin",
+    "drug2": "Warfarin",
+    "severity": "high",
+    "description": "Rifampin induces warfarin metabolism, reducing anticoagulant effect.",
+    "recommendation": "Monitor INR closely. May need significant warfarin dose increase. Consider alternative TB therapy."
+  },
+  {
+    "id": 15,
+    "drug1": "Amiodarone",
+    "drug2": "Warfarin",
+    "severity": "high",
+    "description": "Amiodarone increases warfarin levels, increasing bleeding risk.",
+    "recommendation": "Monitor INR closely. Reduce warfarin dose by 30-50%. Monitor for bleeding."
+  },
+  {
+    "id": 16,
+    "drug1": "Cyclosporine",
+    "drug2": "NSAIDs",
+    "severity": "high",
+    "description": "NSAIDs reduce cyclosporine clearance and increase nephrotoxicity risk.",
+    "recommendation": "Avoid NSAIDs. Use acetaminophen. Monitor renal function and cyclosporine levels."
+  },
+  {
+    "id": 17,
+    "drug1": "Tacrolimus",
+    "drug2": "NSAIDs",
+    "severity": "high",
+    "description": "NSAIDs increase nephrotoxicity risk with tacrolimus.",
+    "recommendation": "Avoid NSAIDs. Use acetaminophen. Monitor renal function and tacrolimus levels."
+  },
+  {
+    "id": 18,
+    "drug1": "Quinolones",
+    "drug2": "Theophylline",
+    "severity": "moderate",
+    "description": "Quinolones increase theophylline levels, risk of toxicity.",
+    "recommendation": "Monitor theophylline levels. May need dose reduction. Use alternative antibiotic if possible."
+  },
+  {
+    "id": 19,
+    "drug1": "Erythromycin",
+    "drug2": "Theophylline",
+    "severity": "moderate",
+    "description": "Erythromycin increases theophylline levels, risk of toxicity.",
+    "recommendation": "Monitor theophylline levels. May need dose reduction. Use alternative antibiotic if possible."
+  },
+  {
+    "id": 20,
+    "drug1": "Phenobarbital",
+    "drug2": "Warfarin",
+    "severity": "high",
+    "description": "Phenobarbital induces warfarin metabolism, reducing anticoagulant effect.",
+    "recommendation": "Monitor INR closely. May need warfarin dose increase. Consider alternative sedative."
+  },
+  {
+    "id": 21,
+    "drug1": "Carbamazepine",
+    "drug2": "Warfarin",
+    "severity": "high",
+    "description": "Carbamazepine induces warfarin metabolism, reducing anticoagulant effect.",
+    "recommendation": "Monitor INR closely. May need warfarin dose increase. Consider alternative anticonvulsant."
+  },
+  {
+    "id": 22,
+    "drug1": "St. John's Wort",
+    "drug2": "Warfarin",
+    "severity": "high",
+    "description": "St. John's Wort induces warfarin metabolism, reducing anticoagulant effect.",
+    "recommendation": "Avoid St. John's Wort. Monitor INR closely if patient insists on use."
+  },
+  {
+    "id": 23,
+    "drug1": "Ketoconazole",
+    "drug2": "Simvastatin",
+    "severity": "high",
+    "description": "Ketoconazole inhibits simvastatin metabolism, increasing myopathy risk.",
+    "recommendation": "Use alternative antifungal or statin. Monitor CK levels if combination necessary."
+  },
+  {
+    "id": 24,
+    "drug1": "Itraconazole",
+    "drug2": "Simvastatin",
+    "severity": "high",
+    "description": "Itraconazole inhibits simvastatin metabolism, increasing myopathy risk.",
+    "recommendation": "Use alternative antifungal or statin. Monitor CK levels if combination necessary."
+  },
+  {
+    "id": 25,
+    "drug1": "Protease Inhibitors",
+    "drug2": "Simvastatin",
+    "severity": "high",
+    "description": "Protease inhibitors inhibit simvastatin metabolism, increasing myopathy risk.",
+    "recommendation": "Use pravastatin or rosuvastatin instead. Monitor CK levels."
+  },
+  {
+    "id": 26,
+    "drug1": "Venlafaxine",
+    "drug2": "MAOIs",
+    "severity": "high",
+    "description": "Risk of serotonin syndrome. Potentially life-threatening condition.",
+    "recommendation": "Avoid combination. Wait 14 days after MAOI before starting venlafaxine, or 7 days after venlafaxine before starting MAOI."
+  },
+  {
+    "id": 27,
+    "drug1": "Tramadol",
+    "drug2": "SSRIs",
+    "severity": "moderate",
+    "description": "Risk of serotonin syndrome.",
+    "recommendation": "Monitor for serotonin syndrome symptoms. Use lowest effective doses. Consider alternative pain medication."
+  },
+  {
+    "id": 28,
+    "drug1": "Dextromethorphan",
+    "drug2": "MAOIs",
+    "severity": "high",
+    "description": "Risk of serotonin syndrome. Potentially life-threatening condition.",
+    "recommendation": "Avoid combination. Use alternative cough suppressant."
+  },
+  {
+    "id": 29,
+    "drug1": "Alcohol",
+    "drug2": "Benzodiazepines",
+    "severity": "high",
+    "description": "Increased CNS depression, respiratory depression, and overdose risk.",
+    "recommendation": "Avoid alcohol completely while taking benzodiazepines. Educate patient on risks."
+  },
+  {
+    "id": 30,
+    "drug1": "Alcohol",
+    "drug2": "Opioids",
+    "severity": "high",
+    "description": "Increased CNS depression, respiratory depression, and overdose risk.",
+    "recommendation": "Avoid alcohol completely while taking opioids. Educate patient on risks."
+  }
+]
