@@ -45,8 +45,10 @@ export function useAnalyticsSync(endpoint, options = {}) {
       setLastUpdated(new Date());
     } catch (err) {
       console.error(`Error fetching analytics from ${endpoint}:`, err);
-      setError(err.message);
-      toast.error('Failed to sync analytics data');
+      if (showLoading) {
+        setError(err.message);
+        toast.error('Failed to sync analytics data');
+      }
     } finally {
       setIsLoading(false);
     }
