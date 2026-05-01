@@ -22,17 +22,30 @@ function mapProfileToCurrentUser(profile, authUser) {
 	};
 }
 
+/** Dedupe concurrent profile loads (login + onAuthStateChange often fire together). */
+const profileInflight = new Map();
+
 async function fetchProfileWithRetry(userId, authEmail) {
-	const delays = [0, 100, 200, 350, 500];
-	for (const ms of delays) {
-		if (ms) await new Promise((r) => setTimeout(r, ms));
-		const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-		if (error) throw error;
-		if (data) return mapProfileToCurrentUser(data, { email: authEmail });
-	}
-	throw new Error(
-		'Could not load your profile. Ensure Supabase migrations are applied (supabase/migrations) and try again.',
-	);
+	let pending = profileInflight.get(userId);
+	if (pending) return pending;
+
+	pending = (async () => {
+		const delays = [0, 100, 200, 350, 500, 800];
+		for (const ms of delays) {
+			if (ms) await new Promise((r) => setTimeout(r, ms));
+			const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+			if (error) throw error;
+			if (data) return mapProfileToCurrentUser(data, { email: authEmail });
+		}
+		throw new Error(
+			'Could not load your profile. Ensure Supabase migrations are applied (supabase/migrations) and try again.',
+		);
+	})();
+
+	profileInflight.set(userId, pending);
+	return pending.finally(() => {
+		if (profileInflight.get(userId) === pending) profileInflight.delete(userId);
+	});
 }
 
 export const AuthProvider = ({ children }) => {
@@ -80,21 +93,28 @@ export const AuthProvider = ({ children }) => {
 
 		boot();
 
-		const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+		// Never await heavy work inside onAuthStateChange — it shares locks with GoTrue and can deadlock
+		// (see @supabase/gotrue-js storage lock warnings + stuck Sign In spinners). Defer hydration.
+		const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
 			if (cancelled) return;
-			try {
-				if (nextSession?.user) await applySession(nextSession);
-				else {
-					setSession(null);
-					setCurrentUser(null);
-					setUserRoleState(null);
-				}
-			} catch (err) {
-				console.error('[AuthContext] Auth state change error:', err);
-				setCurrentUser(null);
-				setUserRoleState(null);
-				setSession(null);
-			}
+			window.setTimeout(() => {
+				if (cancelled) return;
+				void (async () => {
+					try {
+						if (nextSession?.user) await applySession(nextSession);
+						else {
+							setSession(null);
+							setCurrentUser(null);
+							setUserRoleState(null);
+						}
+					} catch (err) {
+						console.error('[AuthContext] Auth state change error:', err);
+						setCurrentUser(null);
+						setUserRoleState(null);
+						setSession(null);
+					}
+				})();
+			}, 0);
 		});
 
 		return () => {
@@ -109,20 +129,7 @@ export const AuthProvider = ({ children }) => {
 		try {
 			const { data, error: signErr } = await supabase.auth.signInWithPassword({ email, password });
 			if (signErr) throw signErr;
-			let user = await applySession(data.session);
-			if (user && !user.role) {
-				const { data: updated, error: upErr } = await supabase
-					.from('profiles')
-					.update({ role: 'individual' })
-					.eq('id', user.id)
-					.select()
-					.single();
-				if (!upErr && updated) {
-					user = mapProfileToCurrentUser(updated, data.user);
-					setCurrentUser(user);
-					setUserRoleState(user.role);
-				}
-			}
+			const user = await applySession(data.session);
 			return user;
 		} catch (err) {
 			console.error('[AuthContext] Login error:', err);
