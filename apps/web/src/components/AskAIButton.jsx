@@ -41,7 +41,8 @@ export default function AskAIButton() {
               <Sparkles className="h-5 w-5 text-primary" /> Generate Recommendations
             </DialogTitle>
             <DialogDescription>
-              Our AI will analyze your health profile to provide personalized, evidence-based recommendations.
+              Our AI uses your onboarding profile plus health records added in the last 3 days. Pick a focus—every
+              recommendation will follow that category.
             </DialogDescription>
           </DialogHeader>
 

@@ -8,10 +8,54 @@ import {
 	buildPatientDataFromOnboardingRows,
 	patientHasHealthSignals,
 } from '../utils/patientHealthFromOnboarding.js';
+import {
+	normalizeFocusArea,
+	focusAreaLabel,
+	getFocusInstructionBlock,
+	AI_SAFETY_FOOTER,
+} from '../utils/aiRecommendationFocus.js';
 
 const router = new App();
 
 router.use(requireSupabaseUser);
+
+/** Rolling window: records created in the last N days (default 3). */
+const HEALTH_RECORDS_RECENT_DAYS = 3;
+
+async function fetchRecentHealthRecords(userId, days = HEALTH_RECORDS_RECENT_DAYS) {
+	const sb = getSupabaseAdmin();
+	const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
+	const sinceIso = new Date(sinceMs).toISOString();
+	const { data, error } = await sb
+		.from('patient_health_records')
+		.select('record_type, title, record_date, status, provider_or_facility, notes, created_at')
+		.eq('user_id', userId)
+		.gte('created_at', sinceIso)
+		.order('created_at', { ascending: false })
+		.limit(50);
+	if (error) {
+		throw new Error(error.message);
+	}
+	return data || [];
+}
+
+function formatRecentRecordsForPrompt(records) {
+	if (!records?.length) return '';
+	const lines = [
+		`=== HEALTH RECORDS (app-entered, last ${HEALTH_RECORDS_RECENT_DAYS} days) ===`,
+		'',
+	];
+	for (const r of records) {
+		lines.push(`- [${r.record_type}] ${r.title || 'Untitled'}`);
+		if (r.record_date) lines.push(`  Record date: ${r.record_date}`);
+		if (r.status) lines.push(`  Status: ${r.status}`);
+		if (r.provider_or_facility) lines.push(`  Provider/facility: ${r.provider_or_facility}`);
+		if (r.notes) lines.push(`  Notes: ${String(r.notes).slice(0, 800)}`);
+		lines.push(`  Logged at: ${r.created_at}`);
+		lines.push('');
+	}
+	return lines.join('\n');
+}
 
 async function fetchPatientDataFromSupabase(userId) {
 	const sb = getSupabaseAdmin();
@@ -121,8 +165,11 @@ function formatPatientDataForPrompt(patientData) {
 router.post('/', async (req, res) => {
 	const userId = req.user.id;
 	const { focus_area, include_history } = req.body;
+	const focusKey = normalizeFocusArea(focus_area);
 
-	logger.info(`[ai-recommendations] POST request from user: ${userId}`);
+	logger.info(
+		`[ai-recommendations] POST user=${userId} focus=${focusKey} (${focusAreaLabel(focusKey)})`,
+	);
 
 	const geminiApiKey = process.env.GEMINI_API_KEY;
 	if (!geminiApiKey) {
@@ -133,32 +180,63 @@ router.post('/', async (req, res) => {
 	}
 
 	let patientData;
+	let recentRecords = [];
 	try {
 		patientData = await fetchPatientDataFromSupabase(userId);
+		recentRecords = await fetchRecentHealthRecords(userId);
 	} catch (error) {
-		logger.error(`[ai-recommendations] Error loading onboarding data: ${error.message}`);
+		logger.error(`[ai-recommendations] Error loading patient data: ${error.message}`);
 		return res.status(500).json({ error: 'Failed to load patient health data' });
 	}
 
-	if (!patientHasHealthSignals(patientData)) {
+	if (!patientHasHealthSignals(patientData, recentRecords.length)) {
 		return res.status(400).json({
 			error: 'Insufficient patient data',
 			message:
-				'Complete onboarding or add health information before requesting AI recommendations.',
+				'Complete onboarding or add health information (or a record in the last few days) before requesting AI recommendations.',
 		});
 	}
 
-	const patientDataText = formatPatientDataForPrompt(patientData);
+	const recordsBlock = formatRecentRecordsForPrompt(recentRecords);
+	const patientDataText =
+		formatPatientDataForPrompt(patientData) + (recordsBlock ? `\n${recordsBlock}` : '');
 
-	const systemPrompt = `You are a healthcare AI assistant for PayPill specializing in personalized health insights and recommendations. You have access to the user's complete health profile including conditions, medications, vitals, lifestyle, and family history. Your role is to: (1) Analyze medication interactions and safety concerns, (2) Recommend generic alternatives for current medications with cost savings estimates, (3) Suggest preventive care based on conditions, age, and risk factors, (4) Provide lifestyle and wellness recommendations based on health data, (5) Identify medication adherence issues and suggest solutions, (6) Recommend nearby healthcare providers (pharmacists, physiotherapists, specialists) based on user's conditions and location, (7) Provide evidence-based clinical guidance referencing current research and guidelines. Additionally, analyze user health data including: health profile, current medications, pre-existing conditions, lifestyle habits, health goals, and vital signs trends. Generate personalized, actionable health recommendations in categories: medication management, preventive care, lifestyle changes, lab tests, specialist referrals, vaccinations, and health screenings. Provide evidence-based insights with clear reasoning. Format recommendations clearly with priority levels (high/medium/low) and actionable next steps. Always prioritize patient safety, be empathetic, and recommend consulting healthcare providers for major decisions.`;
+	const focusBlock = getFocusInstructionBlock(focusKey);
 
-	const userPrompt = `Analyze this patient's health profile and generate personalized health recommendations:\n\n${patientDataText}\n\nFocus Area: ${focus_area || 'comprehensive'}\nInclude History: ${include_history || false}\n\nGenerate 5-10 personalized health recommendations. Return ONLY a valid JSON array with this structure:\n[\n  {\n    "title": "Recommendation title",\n    "description": "Detailed description",\n    "priority": "high|medium|low",\n    "relatedConditions": ["condition1"],\n    "suggestedActions": ["action1"],\n    "sources": ["source1"],\n    "confidenceScore": 0.85\n  }\n]`;
+	const systemPrompt = `You are PayPill's health education assistant. Use only the patient data provided in the user message. ${AI_SAFETY_FOOTER}`;
+
+	const userPrompt = `${focusBlock}
+
+Selected category (must match all recommendations): "${focusAreaLabel(focusKey)}"
+
+Patient data:
+${patientDataText}
+
+Additional context: include_history flag from client = ${Boolean(include_history)} (prefer recent data and onboarding + records above).
+
+Generate 5-10 personalized recommendations; EVERY recommendation must clearly relate to the selected focus category above.
+
+Return ONLY a valid JSON array with this structure:
+[
+  {
+    "title": "Recommendation title",
+    "description": "Detailed description",
+    "priority": "high|medium|low",
+    "relatedConditions": ["condition1"],
+    "suggestedActions": ["action1"],
+    "sources": ["source1"],
+    "confidenceScore": 0.85
+  }
+]`;
 
 	let geminiResponse;
 	try {
 		geminiResponse = await axios.post(
 			`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
 			{
+				systemInstruction: {
+					parts: [{ text: systemPrompt }],
+				},
 				contents: [
 					{
 						parts: [{ text: userPrompt }],
@@ -220,6 +298,9 @@ router.post('/', async (req, res) => {
 
 	return res.json({
 		success: true,
+		focus_area: focusKey,
+		focus_label: focusAreaLabel(focusKey),
+		recent_records_included: recentRecords.length,
 		recommendations: formattedRecommendations,
 		generatedAt: new Date().toISOString(),
 	});

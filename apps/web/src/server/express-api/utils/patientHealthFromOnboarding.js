@@ -132,10 +132,11 @@ export function buildPatientDataFromOnboardingRows(userId, rows) {
 	return patientData;
 }
 
-export function patientHasHealthSignals(patientData) {
-	if (!patientData) return false;
+export function patientHasHealthSignals(patientData, recentHealthRecordCount = 0) {
+	if (!patientData) return recentHealthRecordCount > 0;
 	const summaryLen = (patientData.rawOnboardingSummary || '').length;
 	return (
+		recentHealthRecordCount > 0 ||
 		patientData.conditions.length > 0 ||
 		patientData.medications.length > 0 ||
 		patientData.allergies.length > 0 ||
