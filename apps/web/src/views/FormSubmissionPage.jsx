@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import apiServerClient from '@/lib/apiServerClient';
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -112,6 +111,9 @@ export default function FormSubmissionPage() {
     }
 
     setIsSubmitting(true);
+    const controller = new AbortController();
+    const timeoutMs = 45_000;
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
     try {
       const completionTime = Math.round((Date.now() - startTime) / 1000);
       const body = {
@@ -122,15 +124,26 @@ export default function FormSubmissionPage() {
       if (applicationToken) {
         body.provider_application_token = applicationToken;
       }
-      await apiServerClient.fetch(`/forms/${formId}/responses`, {
+      const base = getApiBaseUrl().replace(/\/$/, '');
+      const res = await fetch(`${base}/forms/${formId}/responses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || res.statusText || 'Submit failed');
+      }
       setIsSubmitted(true);
     } catch (err) {
-      toast.error('Failed to submit form. Please try again.');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast.error(`Request timed out after ${timeoutMs / 1000}s. Try again.`);
+      } else {
+        toast.error(err instanceof Error ? err.message : 'Failed to submit form.');
+      }
     } finally {
+      window.clearTimeout(timeoutId);
       setIsSubmitting(false);
     }
   };

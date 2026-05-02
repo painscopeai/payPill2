@@ -10,7 +10,8 @@ export default function AdminLayout({ children }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const { pathname } = useLocation();
   /** Forms builder & related routes need full main width — max-w-7xl leaves huge gutters and starves the editor at 100% zoom. */
-  const fullWidthStudio = pathname.startsWith('/admin/forms');
+  const fullWidthStudio =
+    pathname.startsWith('/admin/forms') || pathname.startsWith('/admin/form-responses');
 
   return (
     <div className="min-h-screen bg-[hsl(var(--admin-bg))] flex font-sans">

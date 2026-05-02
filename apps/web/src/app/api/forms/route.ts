@@ -18,6 +18,9 @@ export async function GET(request: NextRequest) {
 	const pageLimit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
 	const status = url.searchParams.get('status') || undefined;
 	const form_type = url.searchParams.get('form_type') || undefined;
+	const includeResponseStats =
+		url.searchParams.get('include_response_stats') === '1' ||
+		url.searchParams.get('include_response_stats') === 'true';
 
 	if (form_type && !(VALID_FORM_TYPES as readonly string[]).includes(form_type)) {
 		return NextResponse.json(
@@ -39,7 +42,35 @@ export async function GET(request: NextRequest) {
 		const total = count ?? 0;
 		const items = (formRows || []).map((row: Record<string, unknown>) =>
 			mergeSettingsIntoForm(row),
-		);
+		) as Record<string, unknown>[];
+
+		if (includeResponseStats) {
+			const { data: statsRows, error: statsErr } = await sb
+				.from('form_response_stats')
+				.select('form_id, response_count, last_submitted_at');
+			if (statsErr) throw statsErr;
+			const byFormId = new Map<
+				string,
+				{ response_count: number; last_submitted_at: string | null }
+			>();
+			for (const s of statsRows || []) {
+				const row = s as {
+					form_id: string;
+					response_count: number | string;
+					last_submitted_at: string | null;
+				};
+				byFormId.set(row.form_id, {
+					response_count: Number(row.response_count) || 0,
+					last_submitted_at: row.last_submitted_at,
+				});
+			}
+			for (const item of items) {
+				const id = item.id as string | undefined;
+				const st = id ? byFormId.get(id) : undefined;
+				item.response_count = st?.response_count ?? 0;
+				item.last_submitted_at = st?.last_submitted_at ?? null;
+			}
+		}
 
 		return NextResponse.json({
 			items,

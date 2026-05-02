@@ -26,6 +26,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { QuestionBuilder } from '@/components/admin/forms/QuestionBuilder.jsx';
 import { FormPreviewMode } from '@/components/admin/forms/FormPreviewMode.jsx';
 import { FormTemplatesModal } from '@/components/admin/forms/FormTemplatesModal.jsx';
@@ -44,10 +52,12 @@ import {
   Trash2,
   Rocket,
   Loader2,
+  Share2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
+import { publicFormUrl } from '@/lib/publicFormUrl';
 
 async function formsAuthHeaders() {
   const {
@@ -79,6 +89,7 @@ export default function FormBuilderPage() {
   const [duplicateBusy, setDuplicateBusy] = useState(false);
   const [creatingBlank, setCreatingBlank] = useState(false);
   const [deletingForm, setDeletingForm] = useState(false);
+  const [publishLinkDialogOpen, setPublishLinkDialogOpen] = useState(false);
 
   const loadForm = useCallback(async (id) => {
     setIsLoading(true);
@@ -288,6 +299,7 @@ export default function FormBuilderPage() {
       setQuestions(data.questions || []);
       await fetchForms();
       toast.success('Form published — respondents can open the public link');
+      setPublishLinkDialogOpen(true);
     } catch (err) {
       toast.error(err.message || 'Failed to publish');
     } finally {
@@ -563,6 +575,19 @@ export default function FormBuilderPage() {
                   <Button size="sm" variant="secondary" type="button" disabled={isSaving} onClick={() => void handlePublish()}>
                     <Rocket className="h-4 w-4" /> Publish
                   </Button>
+                  {activeForm.status === 'published' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(publicFormUrl(activeForm.id));
+                        toast.success('Public form link copied');
+                      }}
+                    >
+                      <Share2 className="mr-1 h-4 w-4" /> Copy link
+                    </Button>
+                  ) : null}
                   <Button size="sm" variant="outline" type="button" asChild>
                     <Link to={`/admin/forms/${activeForm.id}/responses`}>
                       <Send className="mr-1 h-4 w-4" /> Responses
@@ -791,6 +816,40 @@ export default function FormBuilderPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={publishLinkDialogOpen} onOpenChange={setPublishLinkDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Form published</DialogTitle>
+            <DialogDescription>
+              Share this link with respondents. It opens the public questionnaire (same page used for onboarding invites).
+            </DialogDescription>
+          </DialogHeader>
+          {activeForm ? (
+            <div className="space-y-3">
+              <Input readOnly value={publicFormUrl(activeForm.id)} className="font-mono text-xs" />
+              <DialogFooter className="gap-2 sm:justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setPublishLinkDialogOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(publicFormUrl(activeForm.id));
+                    toast.success('Link copied');
+                  }}
+                >
+                  <Share2 className="mr-2 h-4 w-4" /> Copy link
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <FormTemplatesModal
         isOpen={showTemplates}
