@@ -15,6 +15,7 @@ import {
 	AI_SAFETY_FOOTER,
 } from '../utils/aiRecommendationFocus.js';
 import { buildCompactGeminiContext } from '../utils/compactGeminiContext.js';
+import { buildGeminiGenerateContentUrl } from '../utils/geminiModel.js';
 
 const router = new App();
 
@@ -126,7 +127,7 @@ Return ONLY a valid JSON array with this structure:
 	let geminiResponse;
 	try {
 		geminiResponse = await axios.post(
-			`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+			buildGeminiGenerateContentUrl(geminiApiKey),
 			{
 				systemInstruction: {
 					parts: [{ text: systemPrompt }],

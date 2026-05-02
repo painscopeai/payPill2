@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { getBearerUserId } from '@/server/auth/getBearerUserId';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { buildGeminiGenerateContentUrl, GEMINI_GENERATE_MODEL_ID } from '@/server/express-api/utils/geminiModel.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
 	const t0 = Date.now();
 	try {
 		const r = await axios.post(
-			`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+			buildGeminiGenerateContentUrl(key),
 			{
 				contents: [{ parts: [{ text: 'Reply with exactly: OK' }] }],
 			},
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest) {
 
 		return NextResponse.json({
 			...base,
+			modelId: GEMINI_GENERATE_MODEL_ID,
 			supabaseReadMs,
 			supabaseReadOk,
 			supabaseError,
@@ -86,7 +88,9 @@ export async function GET(request: NextRequest) {
 			},
 			summary: ok
 				? `Gemini responded in ${ms}ms. If “Generate” still hangs, the bottleneck is likely the full request path (large prompt, insert, or legacy handler)—not basic Gemini connectivity.`
-				: `Gemini did not return usable content (HTTP ${r.status}). Fix key, billing, or model access first.`,
+				: r.status === 404
+					? `HTTP 404: model "${GEMINI_GENERATE_MODEL_ID}" not found for this API. Set GEMINI_MODEL to a current ID (see ai.google.dev/models) or leave unset to use gemini-2.0-flash.`
+					: `Gemini did not return usable content (HTTP ${r.status}). Check key, billing, or model access.`,
 		});
 	} catch (e: unknown) {
 		const err = e as { code?: string; message?: string; response?: { status?: number; data?: unknown } };
