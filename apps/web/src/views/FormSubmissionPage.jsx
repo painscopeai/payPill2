@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import apiServerClient from '@/lib/apiServerClient';
+import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -49,7 +50,12 @@ export default function FormSubmissionPage() {
   useEffect(() => {
     const fetchForm = async () => {
       try {
-        const res = await apiServerClient.fetch(`/forms/${formId}`);
+        const base = getApiBaseUrl().replace(/\/$/, '');
+        const res = await fetch(`${base}/public/forms/${formId}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || res.statusText || 'Failed to load form');
+        }
         const data = await res.json();
         setForm(data);
         setQuestions(data.questions || []);

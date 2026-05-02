@@ -22,7 +22,7 @@ const VALID_FORM_TYPES = [
  * Create a new form
  */
 router.post('/', supabaseBearerUser, async (req, res) => {
-  const { name, form_type, description } = req.body;
+  const { name, form_type, description, category, settings } = req.body;
 
   logger.info('[forms] POST / - Creating new form');
   logger.debug(`[forms] Request body: ${JSON.stringify(req.body)}`);
@@ -86,6 +86,12 @@ router.post('/', supabaseBearerUser, async (req, res) => {
     status: 'draft',
     created_at: new Date().toISOString(),
   };
+  if (category !== undefined && category !== null) {
+    formData.category = typeof category === 'string' ? category : String(category);
+  }
+  if (settings !== undefined && typeof settings === 'object' && settings !== null && !Array.isArray(settings)) {
+    formData.settings = settings;
+  }
 
   logger.debug(`[forms] POST / - Form data to create: ${JSON.stringify(formData)}`);
 
@@ -250,14 +256,14 @@ router.get('/:formId', supabaseBearerUser, async (req, res) => {
  */
 router.put('/:formId', supabaseBearerUser, async (req, res) => {
   const { formId } = req.params;
-  const { name, description, form_type, status } = req.body;
+  const { name, description, form_type, status, category, settings } = req.body;
 
   logger.info(`[forms] PUT /:formId - Updating form: ${formId}`);
 
   const updateData = {};
 
   if (name) updateData.name = name;
-  if (description) updateData.description = description;
+  if (description !== undefined) updateData.description = description;
   if (form_type) {
     if (!VALID_FORM_TYPES.includes(form_type)) {
       logger.warn(`[forms] PUT /:formId - Invalid form_type: ${form_type}`);
@@ -268,6 +274,10 @@ router.put('/:formId', supabaseBearerUser, async (req, res) => {
     updateData.form_type = form_type;
   }
   if (status) updateData.status = status;
+  if (category !== undefined) updateData.category = category;
+  if (settings !== undefined && typeof settings === 'object' && settings !== null && !Array.isArray(settings)) {
+    updateData.settings = settings;
+  }
 
   if (Object.keys(updateData).length === 0) {
     logger.warn(`[forms] PUT /:formId - No fields to update for form ${formId}`);
@@ -339,7 +349,9 @@ router.delete('/:formId', supabaseBearerUser, async (req, res) => {
  */
 router.post('/:formId/questions', supabaseBearerUser, async (req, res) => {
   const { formId } = req.params;
-  const { question_text, question_type, options, required, order } = req.body;
+  const { question_text, question_type, required, order } = req.body;
+  const rawOpts = req.body.options ?? req.body.options_json;
+  const options = Array.isArray(rawOpts) ? rawOpts : [];
 
   logger.info(`[forms] POST /:formId/questions - Adding question to form: ${formId}`);
 
@@ -372,13 +384,18 @@ router.post('/:formId/questions', supabaseBearerUser, async (req, res) => {
       nextOrder = (existingQuestions || []).length + 1;
     }
 
+    const cfgRaw = req.body.config ?? req.body.validation_json;
+    const config =
+      cfgRaw && typeof cfgRaw === 'object' && !Array.isArray(cfgRaw) ? cfgRaw : {};
+
     const questionData = {
       form_id: formId,
       question_text,
       question_type,
-      options: options || [],
+      options,
       required: required !== false,
       order: nextOrder,
+      config,
       created_at: new Date().toISOString(),
     };
 
@@ -409,7 +426,8 @@ router.post('/:formId/questions', supabaseBearerUser, async (req, res) => {
  */
 router.put('/:formId/questions/:questionId', supabaseBearerUser, async (req, res) => {
   const { formId, questionId } = req.params;
-  const { question_text, question_type, options, required, order } = req.body;
+  const { question_text, question_type, required, order } = req.body;
+  const rawOpts = req.body.options !== undefined ? req.body.options : req.body.options_json;
 
   logger.info(`[forms] PUT /:formId/questions/:questionId - Updating question: ${questionId}`);
 
@@ -427,11 +445,15 @@ router.put('/:formId/questions/:questionId', supabaseBearerUser, async (req, res
 
     const updateData = {};
 
-    if (question_text) updateData.question_text = question_text;
+    if (question_text !== undefined) updateData.question_text = question_text;
     if (question_type) updateData.question_type = question_type;
-    if (options) updateData.options = options;
+    if (rawOpts !== undefined) updateData.options = Array.isArray(rawOpts) ? rawOpts : [];
     if (required !== undefined) updateData.required = required;
     if (order !== undefined) updateData.sort_order = order;
+    const cfgRaw = req.body.config ?? req.body.validation_json;
+    if (cfgRaw !== undefined && typeof cfgRaw === 'object' && !Array.isArray(cfgRaw)) {
+      updateData.config = cfgRaw;
+    }
 
     if (Object.keys(updateData).length === 0) {
       logger.warn(`[forms] PUT /:formId/questions/:questionId - No fields to update`);

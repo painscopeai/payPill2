@@ -4,8 +4,11 @@ import { withTimeout } from '@/lib/withTimeout';
 
 warnIfApiLikelyBroken();
 
-/** Cold serverless + admin APIs can exceed short limits; keep under typical Vercel max. */
-const FETCH_TIMEOUT_MS = 60_000;
+/** Cold serverless + admin APIs can exceed short limits; configurable via env (default 120s). */
+const FETCH_TIMEOUT_MS = Math.min(
+	600_000,
+	Math.max(10_000, Number(process.env.NEXT_PUBLIC_API_FETCH_TIMEOUT_MS) || 120_000),
+);
 const SESSION_WAIT_MS = 8_000;
 
 const apiServerClient = {
