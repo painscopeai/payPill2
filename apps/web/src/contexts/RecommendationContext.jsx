@@ -8,24 +8,22 @@ export const RecommendationProvider = ({ children }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
-  /** GET /ai-recommendations — saved list load / refresh */
-  const [isListLoading, setIsListLoading] = useState(false);
-  /** POST — Gemini generation only (do not tie to list fetch) */
+  /** POST — Gemini generation only */
   const [isGenerating, setIsGenerating] = useState(false);
 
+  /** Silent background fetch — Insights page should not block on list load */
   const fetchRecommendations = useCallback(async () => {
-    setIsListLoading(true);
     try {
       const response = await apiServerClient.fetch('/ai-recommendations');
       if (response.ok) {
         const data = await response.json();
         setRecommendations(Array.isArray(data) ? data : (data.recommendations || []));
+      } else {
+        toast.error('Could not load saved recommendations');
       }
     } catch (error) {
       console.error('Failed to fetch recommendations:', error);
       toast.error('Failed to load recommendations');
-    } finally {
-      setIsListLoading(false);
     }
   }, []);
 
@@ -108,7 +106,6 @@ export const RecommendationProvider = ({ children }) => {
       recommendations,
       history,
       stats,
-      isListLoading,
       isGenerating,
       fetchRecommendations,
       generateRecommendations,

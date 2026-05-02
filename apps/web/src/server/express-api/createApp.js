@@ -46,7 +46,9 @@ export function createApp() {
 	const app = new App({
 		onError: (err, req, res) => errorMiddleware(err, req, res, () => {}),
 	});
-	app.set('trust proxy', true);
+	// Boolean `true` throws in proxy-addr on recent tinyhttp (unsupported trust argument).
+	// One hop matches typical reverse proxies (e.g. Vercel).
+	app.set('trust proxy', 1);
 	app.set('networkExtensions', true);
 	app.set('bindAppToReqRes', true);
 

@@ -4,11 +4,11 @@ import { useRecommendations } from '@/contexts/RecommendationContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Activity, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Sparkles, Activity, CheckCircle2, XCircle } from 'lucide-react';
 import AskAIButton from '@/components/AskAIButton';
 
 export default function AIRecommendationsPage() {
-  const { recommendations, fetchRecommendations, isListLoading, acceptRecommendation, declineRecommendation } =
+  const { recommendations, fetchRecommendations, acceptRecommendation, declineRecommendation } =
     useRecommendations();
 
   useEffect(() => {
@@ -38,25 +38,14 @@ export default function AIRecommendationsPage() {
       {recommendations.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            {isListLoading ? (
-              <>
-                <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
-                <h3 className="text-xl font-semibold">Loading saved recommendations</h3>
-                <p className="text-muted-foreground max-w-md mt-2 text-sm">
-                  Fetching your plan from the server—AI analysis only runs when you click Generate in the dialog.
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="bg-primary/10 p-4 rounded-full mb-4">
-                  <Sparkles className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold">No recommendations yet</h3>
-                <p className="text-muted-foreground max-w-md mt-2 mb-6">
-                  Use &quot;Ask AI for Recommendation&quot; to generate your first plan after choosing a focus area.
-                </p>
-              </>
-            )}
+            <div className="bg-primary/10 p-4 rounded-full mb-4">
+              <Sparkles className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-xl font-semibold">No recommendations yet</h3>
+            <p className="text-muted-foreground max-w-md mt-2 mb-6">
+              Saved recommendations appear here after you generate them. If you already created some, they load in the
+              background when you open this page.
+            </p>
           </CardContent>
         </Card>
       ) : (
