@@ -307,7 +307,8 @@ export async function approveProviderApplication(
 		address: '',
 		category: existing.category?.trim() || null,
 		status: 'active',
-		verification_status: 'pending',
+		/** Admin approval completes onboarding review — show as verified in Provider Management. */
+		verification_status: 'verified',
 		telemedicine_available: false,
 	};
 

@@ -150,7 +150,7 @@ export async function notifyApplicantApproved(params: {
 <p style="font-size:14px;color:#444;">If the button does not work, copy this link into your browser:<br/><a href="${escapeHtml(origin)}">${escapeHtml(origin)}</a></p>
 <p style="font-size:13px;color:#666;">Sign in with the same email you used on your application to access your provider tools when your account is connected.</p>
 <p style="font-size:13px;color:#666;">Your provider reference (for support): <code>${escapeHtml(params.providerId)}</code></p>
-<p style="font-size:13px;color:#666;">Profile verification may still show as pending while we complete our checks.</p>
+<p style="font-size:13px;color:#666;">Your provider profile is verified for PayPill.</p>
 <p>— PayPill</p>`,
 	});
 }
