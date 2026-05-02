@@ -14,15 +14,16 @@ import {
 	getFocusInstructionBlock,
 	AI_SAFETY_FOOTER,
 } from '../utils/aiRecommendationFocus.js';
+import { buildCompactGeminiContext } from '../utils/compactGeminiContext.js';
 
 const router = new App();
 
 router.use(requireSupabaseUser);
 
-/** Rolling window: records created in the last N days (default 3). */
-const HEALTH_RECORDS_RECENT_DAYS = 3;
+/** Only records from the last 24 hours (keeps prompt small and recent). */
+const HEALTH_RECORDS_LOOKBACK_DAYS = 1;
 
-async function fetchRecentHealthRecords(userId, days = HEALTH_RECORDS_RECENT_DAYS) {
+async function fetchRecentHealthRecords(userId, days = HEALTH_RECORDS_LOOKBACK_DAYS) {
 	const sb = getSupabaseAdmin();
 	const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
 	const sinceIso = new Date(sinceMs).toISOString();
@@ -32,29 +33,11 @@ async function fetchRecentHealthRecords(userId, days = HEALTH_RECORDS_RECENT_DAY
 		.eq('user_id', userId)
 		.gte('created_at', sinceIso)
 		.order('created_at', { ascending: false })
-		.limit(50);
+		.limit(30);
 	if (error) {
 		throw new Error(error.message);
 	}
 	return data || [];
-}
-
-function formatRecentRecordsForPrompt(records) {
-	if (!records?.length) return '';
-	const lines = [
-		`=== HEALTH RECORDS (app-entered, last ${HEALTH_RECORDS_RECENT_DAYS} days) ===`,
-		'',
-	];
-	for (const r of records) {
-		lines.push(`- [${r.record_type}] ${r.title || 'Untitled'}`);
-		if (r.record_date) lines.push(`  Record date: ${r.record_date}`);
-		if (r.status) lines.push(`  Status: ${r.status}`);
-		if (r.provider_or_facility) lines.push(`  Provider/facility: ${r.provider_or_facility}`);
-		if (r.notes) lines.push(`  Notes: ${String(r.notes).slice(0, 800)}`);
-		lines.push(`  Logged at: ${r.created_at}`);
-		lines.push('');
-	}
-	return lines.join('\n');
 }
 
 async function fetchPatientDataFromSupabase(userId) {
@@ -70,93 +53,6 @@ async function fetchPatientDataFromSupabase(userId) {
 	}
 
 	return buildPatientDataFromOnboardingRows(userId, rows || []);
-}
-
-function formatPatientDataForPrompt(patientData) {
-	const lines = [];
-
-	lines.push('=== PATIENT HEALTH PROFILE ===');
-	lines.push('');
-
-	if (patientData.profile) {
-		if (patientData.profile.age) lines.push(`Age: ${patientData.profile.age}`);
-		if (patientData.profile.gender) lines.push(`Gender: ${patientData.profile.gender}`);
-		lines.push('');
-	}
-
-	if (patientData.conditions.length > 0) {
-		lines.push('Current Medical Conditions:');
-		patientData.conditions.forEach((c) => {
-			lines.push(`  - ${c.name} (${c.status})`);
-		});
-		lines.push('');
-	}
-
-	if (patientData.medications.length > 0) {
-		lines.push('Current Medications:');
-		patientData.medications.forEach((m) => {
-			lines.push(`  - ${m.name} ${m.dosage || ''} (${m.frequency || 'as directed'})`);
-		});
-		lines.push('');
-	}
-
-	if (patientData.allergies.length > 0) {
-		lines.push('Allergies:');
-		patientData.allergies.forEach((a) => {
-			lines.push(`  - ${a.allergen} (${a.severity}): ${a.reaction || 'Not specified'}`);
-		});
-		lines.push('');
-	}
-
-	if (patientData.labHistory.length > 0) {
-		lines.push('Recent Lab Results:');
-		patientData.labHistory.slice(0, 10).forEach((l) => {
-			lines.push(`  - ${l.testName}: ${l.result} ${l.unit || ''} (${l.testDate})`);
-		});
-		lines.push('');
-	}
-
-	if (patientData.medicalHistory.length > 0) {
-		lines.push('Medical History:');
-		patientData.medicalHistory.slice(0, 5).forEach((h) => {
-			lines.push(`  - ${h.event} (${h.date}): ${h.description || 'No details'}`);
-		});
-		lines.push('');
-	}
-
-	if (Object.keys(patientData.lifestyle || {}).length > 0) {
-		const L = patientData.lifestyle;
-		lines.push('Lifestyle Factors:');
-		if (L.smokingStatus) lines.push(`  - Smoking: ${L.smokingStatus}`);
-		if (L.alcoholConsumption) lines.push(`  - Alcohol: ${L.alcoholConsumption}`);
-		if (L.exerciseLevel) lines.push(`  - Exercise: ${L.exerciseLevel}`);
-		if (L.sleepQuality) lines.push(`  - Sleep: ${L.sleepQuality}`);
-		if (L.diet) lines.push(`  - Diet: ${L.diet}`);
-		if (L.stress) lines.push(`  - Stress Level: ${L.stress}`);
-		lines.push('');
-	}
-
-	if (patientData.immunizations.length > 0) {
-		lines.push('Immunizations:');
-		patientData.immunizations.forEach((i) => {
-			lines.push(`  - ${i.vaccine} (${i.date}): ${i.status}`);
-		});
-		lines.push('');
-	}
-
-	if (patientData.vitals && Object.keys(patientData.vitals).length > 0) {
-		lines.push('Vital signs & measurements:');
-		lines.push(JSON.stringify(patientData.vitals));
-		lines.push('');
-	}
-
-	if (patientData.rawOnboardingSummary) {
-		lines.push('=== Onboarding questionnaire (detailed) ===');
-		lines.push(patientData.rawOnboardingSummary);
-		lines.push('');
-	}
-
-	return lines.join('\n');
 }
 
 /**
@@ -193,13 +89,11 @@ router.post('/', async (req, res) => {
 		return res.status(400).json({
 			error: 'Insufficient patient data',
 			message:
-				'Complete onboarding or add health information (or a record in the last few days) before requesting AI recommendations.',
+				'Complete onboarding or add a health record in the last 24 hours before requesting AI recommendations.',
 		});
 	}
 
-	const recordsBlock = formatRecentRecordsForPrompt(recentRecords);
-	const patientDataText =
-		formatPatientDataForPrompt(patientData) + (recordsBlock ? `\n${recordsBlock}` : '');
+	const patientDataText = buildCompactGeminiContext(patientData, recentRecords);
 
 	const focusBlock = getFocusInstructionBlock(focusKey);
 
@@ -212,9 +106,9 @@ Selected category (must match all recommendations): "${focusAreaLabel(focusKey)}
 Patient data:
 ${patientDataText}
 
-Additional context: include_history flag from client = ${Boolean(include_history)} (prefer recent data and onboarding + records above).
+Additional context: include_history flag from client = ${Boolean(include_history)}.
 
-Generate 5-10 personalized recommendations; EVERY recommendation must clearly relate to the selected focus category above.
+Generate exactly 5 personalized recommendations (no more than 5). EVERY recommendation must clearly relate to the selected focus category above. Keep each description concise (under 120 words).
 
 Return ONLY a valid JSON array with this structure:
 [
@@ -243,11 +137,18 @@ Return ONLY a valid JSON array with this structure:
 					},
 				],
 			},
-			{ headers: { 'Content-Type': 'application/json' } },
+			{
+				headers: { 'Content-Type': 'application/json' },
+				/** Stay under Vercel maxDuration; fail fast if Gemini hangs */
+				timeout: 420000,
+			},
 		);
 	} catch (err) {
+		const isTimeout = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err.message));
 		logger.error(`[ai-recommendations] Gemini request failed: ${err.message}`);
-		return res.status(502).json({ error: 'AI provider request failed' });
+		return res.status(isTimeout ? 504 : 502).json({
+			error: isTimeout ? 'AI request timed out' : 'AI provider request failed',
+		});
 	}
 
 	if (!geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
@@ -277,11 +178,12 @@ Return ONLY a valid JSON array with this structure:
 			suggestedActions: Array.isArray(rec.suggestedActions) ? rec.suggestedActions : [],
 			sources: Array.isArray(rec.sources) ? rec.sources : [],
 			confidenceScore: typeof rec.confidenceScore === 'number' ? rec.confidenceScore : 0.5,
-		}));
+		}))
+		.slice(0, 5);
 
 	const sb = getSupabaseAdmin();
-	for (const rec of formattedRecommendations) {
-		const { error: insErr } = await sb.from('patient_recommendations').insert({
+	if (formattedRecommendations.length > 0) {
+		const rows = formattedRecommendations.map((rec) => ({
 			user_id: userId,
 			title: rec.title,
 			description: rec.description,
@@ -290,9 +192,10 @@ Return ONLY a valid JSON array with this structure:
 			suggested_actions: rec.suggestedActions,
 			sources: rec.sources,
 			confidence_score: rec.confidenceScore,
-		});
-		if (insErr) {
-			logger.warn(`[ai-recommendations] Could not persist recommendation: ${insErr.message}`);
+		}));
+		const { error: bulkErr } = await sb.from('patient_recommendations').insert(rows);
+		if (bulkErr) {
+			logger.warn(`[ai-recommendations] Bulk insert failed: ${bulkErr.message}`);
 		}
 	}
 

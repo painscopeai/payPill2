@@ -41,7 +41,7 @@ export default function AskAIButton() {
               <Sparkles className="h-5 w-5 text-primary" /> Generate Recommendations
             </DialogTitle>
             <DialogDescription>
-              Our AI uses your onboarding profile plus health records added in the last 3 days. Pick a focus—every
+              Our AI summarizes your onboarding profile and health records from the last 24 hours. Pick a focus—every
               recommendation will follow that category.
             </DialogDescription>
           </DialogHeader>

@@ -6,8 +6,8 @@ import { dispatchFromNextRequest } from '@/server/api/dispatchLegacyApi';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-/** Gemini generation can exceed default function limits; GET is fast. */
-export const maxDuration = 120;
+/** Align with project Functions default (e.g. 500s); GET remains fast. */
+export const maxDuration = 500;
 
 /**
  * GET — native Supabase (avoids tinyhttp + proxy-addr on cold paths).
