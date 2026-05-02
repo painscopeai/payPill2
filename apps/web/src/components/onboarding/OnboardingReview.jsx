@@ -5,6 +5,7 @@ import OnboardingWizard from './OnboardingWizard.jsx';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import apiServerClient from '@/lib/apiServerClient';
 
 export default function OnboardingReview() {
   const { completeOnboarding } = useOnboarding();
@@ -19,6 +20,24 @@ export default function OnboardingReview() {
       return false;
     }
     try {
+      const saveRes = await apiServerClient.fetch('/onboarding/save-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          step: 14,
+          data: {
+            consent_accuracy: !!consent.accuracy,
+            consent_processing: !!consent.processing,
+            consent_hipaa: !!consent.hipaa,
+            completed_at_ack: new Date().toISOString(),
+          },
+        }),
+      });
+      if (!saveRes.ok) {
+        const err = await saveRes.json().catch(() => ({}));
+        toast.error(err.error || 'Could not save final step');
+        return false;
+      }
       await completeOnboarding(currentUser.id);
       return true;
     } catch (err) {

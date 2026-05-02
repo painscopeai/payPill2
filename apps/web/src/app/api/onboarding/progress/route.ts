@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
 	for (const row of rows || []) {
 		const stepNum = row.step as number;
 		completedSteps.push(stepNum);
-		formData[`step_${stepNum}`] = { ...(row.data as object), updated_at: row.updated_at };
+		const payload = { ...(row.data as object), updated_at: row.updated_at };
+		formData[`step${stepNum}`] = payload;
+		formData[`step_${stepNum}`] = payload;
 
 		if (row.updated_at) {
 			const recordTime = new Date(row.updated_at as string).getTime();
@@ -44,12 +46,16 @@ export async function GET(request: NextRequest) {
 		}
 	}
 
+	const distinctSteps = [...new Set(completedSteps)].sort((a, b) => a - b);
 	let currentStep = 1;
-	for (let i = 1; i <= 13; i++) {
-		if (!completedSteps.includes(i)) {
+	for (let i = 1; i <= 14; i++) {
+		if (!distinctSteps.includes(i)) {
 			currentStep = i;
 			break;
 		}
+	}
+	if (distinctSteps.length >= 14) {
+		currentStep = 14;
 	}
 
 	return NextResponse.json({

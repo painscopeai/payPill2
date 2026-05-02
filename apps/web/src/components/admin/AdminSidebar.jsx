@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Building2, ShieldCheck, 
   CreditCard, Activity, FileText, Brain, Settings,
   LogOut, ChevronLeft, ChevronRight, ListTodo, ClipboardList, BookOpen, ScrollText, FileSpreadsheet,
-  PieChart, TrendingUp, BarChart3, LineChart, Tags
+  PieChart, TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import apiServerClient from '@/lib/apiServerClient';
@@ -59,6 +59,7 @@ const sections = [
       { title: 'Management', path: '/admin/providers', icon: Building2 },
       { title: 'Onboarding', path: '/admin/provider-onboarding', icon: FileText },
       { title: 'Provider types', path: '/admin/provider-types', icon: Tags },
+      { title: 'Appointment options', path: '/admin/appointment-options', icon: CalendarClock },
       { title: 'Bulk Upload', path: '/admin/bulk-provider-upload', icon: FileSpreadsheet },
     ]
   },
@@ -67,6 +68,7 @@ const sections = [
     items: [
       { title: 'Forms Builder', path: '/admin/forms', icon: FileText },
       { title: 'Form Responses', path: '/admin/form-responses', icon: ClipboardList },
+      { title: 'Profile reference data', path: '/admin/profile-reference-data', icon: Library },
       { title: 'Knowledge Base', path: '/admin/knowledge-base', icon: BookOpen },
       { title: 'AI Logs', path: '/admin/ai-logs', icon: Brain },
     ]

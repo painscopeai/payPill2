@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
 	}
 
 	const stepNum = parseInt(String(step), 10);
-	if (Number.isNaN(stepNum) || stepNum < 1 || stepNum > 13) {
+	if (Number.isNaN(stepNum) || stepNum < 1 || stepNum > 14) {
 		return NextResponse.json(
-			{ error: 'Invalid step number. Must be between 1 and 13.' },
+			{ error: 'Invalid step number. Must be between 1 and 14.' },
 			{ status: 400 },
 		);
 	}

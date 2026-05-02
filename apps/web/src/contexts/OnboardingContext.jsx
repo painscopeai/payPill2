@@ -141,7 +141,7 @@ export const OnboardingProvider = ({ children }) => {
       setCompletedSteps(prev => [...prev, currentStep]);
     }
     await saveProgress(false);
-    setCurrentStep(prev => Math.min(prev + 1, 13));
+    setCurrentStep(prev => Math.min(prev + 1, 14));
   };
 
   const previousStep = () => {

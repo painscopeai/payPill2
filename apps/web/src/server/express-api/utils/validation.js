@@ -1,186 +1,212 @@
 /**
- * Validation rules for onboarding steps
- * Each step has required fields and optional fields
+ * Validation rules for patient onboarding (14-step PayPill UI).
+ * Must stay aligned with components under components/onboarding/.
  */
 
 const stepValidation = {
-  1: {
-    name: 'Personal Information',
-    required: ['first_name', 'last_name', 'date_of_birth', 'gender'],
-    optional: ['middle_name', 'phone_number'],
-  },
-  2: {
-    name: 'Contact Information',
-    required: ['email', 'address', 'city', 'state', 'zip_code'],
-    optional: ['apartment_number', 'country'],
-  },
-  3: {
-    name: 'Insurance Information',
-    required: ['insurance_provider', 'policy_number'],
-    optional: ['group_number', 'member_id', 'copay_amount'],
-  },
-  4: {
-    name: 'Medical Conditions',
-    required: [],
-    optional: ['conditions'],
-  },
-  5: {
-    name: 'Current Medications',
-    required: [],
-    optional: ['medications'],
-  },
-  6: {
-    name: 'Allergies',
-    required: [],
-    optional: ['allergies', 'allergy_severity'],
-  },
-  7: {
-    name: 'Family Medical History',
-    required: [],
-    optional: ['family_history'],
-  },
-  8: {
-    name: 'Lifestyle Information',
-    required: [],
-    optional: ['smoking_status', 'alcohol_consumption', 'exercise_level', 'sleep_quality'],
-  },
-  9: {
-    name: 'Vital Signs',
-    required: [],
-    optional: ['height', 'weight', 'blood_pressure', 'heart_rate', 'temperature'],
-  },
-  10: {
-    name: 'Health Goals',
-    required: [],
-    optional: ['health_goals'],
-  },
-  11: {
-    name: 'Pharmacy Preferences',
-    required: [],
-    optional: ['preferred_pharmacy', 'pharmacy_location'],
-  },
-  12: {
-    name: 'Healthcare Providers',
-    required: [],
-    optional: ['primary_care_provider', 'specialists'],
-  },
-  13: {
-    name: 'Review & Confirm',
-    required: ['confirmed'],
-    optional: ['additional_notes'],
-  },
+	1: {
+		name: 'Welcome & Profile Setup',
+		required: ['first_name', 'last_name', 'phone', 'terms_acceptance'],
+		optional: [
+			'preferred_username',
+			'preferred_language',
+			'communication_preference',
+			'privacy_preferences',
+			'account_two_factor',
+		],
+	},
+	2: {
+		name: 'Demographics',
+		required: ['date_of_birth', 'sex_assigned_at_birth'],
+		optional: [
+			'age',
+			'gender_identity',
+			'marital_status',
+			'ethnicity',
+			'race',
+			'blood_group',
+			'genotype',
+			'pregnancy_status',
+			'breastfeeding_status',
+			'menstrual_status',
+			'menopause_status',
+			'disability_slugs',
+		],
+	},
+	3: {
+		name: 'Body Measurements & Vitals',
+		required: [],
+		optional: [
+			'height',
+			'weight',
+			'height_unit',
+			'weight_unit',
+			'bmi',
+			'resting_heart_rate',
+			'blood_pressure_systolic',
+			'blood_pressure_diastolic',
+			'oxygen_saturation',
+			'body_temperature',
+			'respiratory_rate',
+			'blood_sugar_baseline',
+			'waist_circumference',
+			'hip_circumference',
+		],
+	},
+	4: {
+		name: 'Pre-existing Conditions',
+		required: [],
+		optional: ['conditions_by_category', 'conditions_notes', 'conditions_list'],
+	},
+	5: {
+		name: 'Current Medications',
+		required: [],
+		optional: ['medications_list', 'medication_tags'],
+	},
+	6: {
+		name: 'Allergies',
+		required: [],
+		optional: ['allergies_list', 'allergy_details', 'allergy_type_slugs', 'allergy_severity'],
+	},
+	7: {
+		name: 'Family Medical History',
+		required: [],
+		optional: ['family_history', 'family_conditions_slugs'],
+	},
+	8: {
+		name: 'Surgical History',
+		required: [],
+		optional: ['surgeries'],
+	},
+	9: {
+		name: 'Immunizations',
+		required: [],
+		optional: ['immunizations', 'immunization_selected', 'immunization_slugs'],
+	},
+	10: {
+		name: 'Lab History',
+		required: [],
+		optional: ['labs', 'lab_selected', 'lab_slugs'],
+	},
+	11: {
+		name: 'Lifestyle & Habits',
+		required: [],
+		optional: [
+			'lifestyle',
+			'exercise_level',
+			'smoking_status',
+			'alcohol_use',
+			'substance_use',
+			'diet_pattern',
+			'sleep_quality',
+			'stress_level',
+		],
+	},
+	12: {
+		name: 'Healthcare Providers',
+		required: [],
+		optional: ['providers', 'provider_notes', 'primary_provider_type', 'specialist_type', 'facility_type'],
+	},
+	13: {
+		name: 'Health Insurance',
+		required: [],
+		optional: ['insurance', 'insurance_coverage_type', 'insurance_carrier', 'coverage_notes', 'coverage_areas_slugs'],
+	},
+	14: {
+		name: 'Review & Consents',
+		required: [],
+		optional: ['consent_accuracy', 'consent_processing', 'consent_hipaa'],
+	},
 };
 
+function hasTruthy(d, field) {
+	const v = d[field];
+	if (v === true) return true;
+	if (typeof v === 'string' && v.trim() !== '') return true;
+	return false;
+}
+
 /**
- * Validate step data
- * @param {number} step - Step number (1-13)
- * @param {object} data - Data to validate
- * @returns {object} - { valid: boolean, errors: array }
+ * @param {number} step - Step number (1-14)
+ * @param {object} data
  */
 export function validateStep(step, data) {
-  const errors = [];
+	const errors = [];
+	const d = data && typeof data === 'object' ? data : {};
 
-  // Validate step number
-  if (!stepValidation[step]) {
-    return {
-      valid: false,
-      errors: [`Invalid step number: ${step}. Must be between 1 and 13.`],
-    };
-  }
+	if (!stepValidation[step]) {
+		return {
+			valid: false,
+			errors: [`Invalid step number: ${step}. Must be between 1 and 14.`],
+		};
+	}
 
-  const validation = stepValidation[step];
+	const validation = stepValidation[step];
 
-  // Check required fields
-  for (const field of validation.required) {
-    if (!data[field]) {
-      errors.push(`Missing required field: ${field}`);
-    }
-  }
+	for (const field of validation.required) {
+		if (field === 'terms_acceptance') {
+			if (!d[field]) {
+				errors.push(`Missing required field: ${field}`);
+			}
+			continue;
+		}
+		if (!hasTruthy(d, field)) {
+			errors.push(`Missing required field: ${field}`);
+		}
+	}
 
-  // Validate specific field formats
-  if (step === 1) {
-    if (data.date_of_birth) {
-      const dob = new Date(data.date_of_birth);
-      if (isNaN(dob.getTime())) {
-        errors.push('Invalid date_of_birth format. Use YYYY-MM-DD.');
-      }
-      const age = new Date().getFullYear() - dob.getFullYear();
-      if (age < 0 || age > 150) {
-        errors.push('Invalid age. Must be between 0 and 150.');
-      }
-    }
-  }
+	if (step === 1 && d.phone && typeof d.phone === 'string' && d.phone.trim().length < 7) {
+		errors.push('phone appears invalid');
+	}
 
-  if (step === 2) {
-    if (data.email && !isValidEmail(data.email)) {
-      errors.push('Invalid email format.');
-    }
-    if (data.zip_code && !isValidZipCode(data.zip_code)) {
-      errors.push('Invalid zip code format.');
-    }
-  }
+	if (step === 2 && d.date_of_birth) {
+		const dob = new Date(d.date_of_birth);
+		if (isNaN(dob.getTime())) {
+			errors.push('Invalid date_of_birth format. Use YYYY-MM-DD.');
+		} else {
+			const age = new Date().getFullYear() - dob.getFullYear();
+			if (age < 0 || age > 120) {
+				errors.push('Invalid age range for date of birth.');
+			}
+		}
+	}
 
-  if (step === 3) {
-    if (data.copay_amount && isNaN(parseFloat(data.copay_amount))) {
-      errors.push('copay_amount must be a valid number.');
-    }
-  }
+	if (step === 3) {
+		if (d.height && isNaN(parseFloat(String(d.height)))) {
+			errors.push('height must be a valid number.');
+		}
+		if (d.weight && isNaN(parseFloat(String(d.weight)))) {
+			errors.push('weight must be a valid number.');
+		}
+	}
 
-  if (step === 9) {
-    if (data.height && isNaN(parseFloat(data.height))) {
-      errors.push('height must be a valid number.');
-    }
-    if (data.weight && isNaN(parseFloat(data.weight))) {
-      errors.push('weight must be a valid number.');
-    }
-    if (data.heart_rate && isNaN(parseInt(data.heart_rate))) {
-      errors.push('heart_rate must be a valid number.');
-    }
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+	return {
+		valid: errors.length === 0,
+		errors,
+	};
 }
 
 /**
- * Validate email format
- */
-function isValidEmail(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
-/**
- * Validate US zip code format
- */
-function isValidZipCode(zipCode) {
-  const zipRegex = /^\d{5}(-\d{4})?$/;
-  return zipRegex.test(zipCode);
-}
-
-/**
- * Validate all onboarding steps
- * @param {object} allData - Complete onboarding data
- * @returns {object} - { valid: boolean, errors: object }
+ * @param {object} allData - Keys step1..step14 or step_1..step_14
  */
 export function validateAllSteps(allData) {
-  const errors = {};
+	const errors = {};
 
-  for (let step = 1; step <= 13; step++) {
-    const stepData = allData[`step_${step}`] || {};
-    const validation = validateStep(step, stepData);
+	for (let step = 1; step <= 13; step++) {
+		const stepData =
+			allData[`step${step}`] ||
+			allData[`step_${step}`] ||
+			{};
+		const validation = validateStep(step, stepData);
+		if (!validation.valid) {
+			errors[`step${step}`] = validation.errors;
+		}
+	}
 
-    if (!validation.valid) {
-      errors[`step_${step}`] = validation.errors;
-    }
-  }
-
-  return {
-    valid: Object.keys(errors).length === 0,
-    errors,
-  };
+	return {
+		valid: Object.keys(errors).length === 0,
+		errors,
+	};
 }
 
 export { stepValidation };

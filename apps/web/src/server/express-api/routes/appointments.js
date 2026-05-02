@@ -47,11 +47,14 @@ router.post('/', async (req, res) => {
 
 	const { data: provider, error: pErr } = await sb()
 		.from('providers')
-		.select('id')
+		.select('id, status, verification_status')
 		.eq('id', provider_id)
 		.maybeSingle();
 	if (pErr || !provider) {
 		return res.status(400).json({ error: 'Provider not found' });
+	}
+	if (provider.status !== 'active' || provider.verification_status !== 'verified') {
+		return res.status(400).json({ error: 'Provider is not available for booking' });
 	}
 
 	const row = {
@@ -106,11 +109,14 @@ router.post('/book', async (req, res) => {
 
 	const { data: provider, error: pErr } = await sb()
 		.from('providers')
-		.select('id, provider_name, name, address, email')
+		.select('id, provider_name, name, address, email, status, verification_status')
 		.eq('id', providerId)
 		.maybeSingle();
 	if (pErr || !provider) {
 		return res.status(400).json({ error: 'Provider not found' });
+	}
+	if (provider.status !== 'active' || provider.verification_status !== 'verified') {
+		return res.status(400).json({ error: 'Provider is not available for booking' });
 	}
 
 	const confirmationNumber = `APT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
