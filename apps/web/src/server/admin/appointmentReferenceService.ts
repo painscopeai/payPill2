@@ -193,10 +193,166 @@ export async function deactivateInsuranceOption(id: string): Promise<InsuranceOp
 	return updateInsuranceOption(id, { active: false });
 }
 
+export type CopayMatrixRow = {
+	id: string;
+	visit_type_id: string;
+	insurance_option_id: string;
+	copay_estimate: number;
+	list_price: number | null;
+	active: boolean;
+	created_at: string;
+	updated_at: string;
+};
+
+/** Active matrix row + optional list price; server-only resolution for booking. */
+export type CopayMatrixCatalogEntry = {
+	visit_type_id: string;
+	insurance_option_id: string;
+	copay_estimate: number;
+	list_price: number | null;
+};
+
+export async function getVisitTypeBySlug(slug: string): Promise<VisitTypeRow | null> {
+	const s = normalizeSlug(slug || '');
+	if (!s) return null;
+	const { data, error } = await sb().from('visit_types').select('*').eq('slug', s).maybeSingle();
+	if (error) throw error;
+	return (data as VisitTypeRow) || null;
+}
+
+/**
+ * Resolve estimated copay: active matrix cell → insurance default copay → 0.
+ */
+export async function resolveCopayEstimate(input: {
+	visitTypeId: string;
+	insuranceOptionId: string;
+}): Promise<{ copay_estimate: number; list_price: number | null; source: 'matrix' | 'insurance_fallback' | 'zero' }> {
+	const { visitTypeId, insuranceOptionId } = input;
+	const { data: matrixRow, error: mErr } = await sb()
+		.from('appointment_copay_matrix')
+		.select('copay_estimate, list_price')
+		.eq('visit_type_id', visitTypeId)
+		.eq('insurance_option_id', insuranceOptionId)
+		.eq('active', true)
+		.maybeSingle();
+	if (mErr) throw mErr;
+
+	if (matrixRow) {
+		const r = matrixRow as { copay_estimate: number; list_price: number | null };
+		return {
+			copay_estimate: Number(r.copay_estimate),
+			list_price: r.list_price != null ? Number(r.list_price) : null,
+			source: 'matrix',
+		};
+	}
+
+	const ins = await getInsuranceOption(insuranceOptionId);
+	if (ins?.copay_estimate != null) {
+		return {
+			copay_estimate: Number(ins.copay_estimate),
+			list_price: null,
+			source: 'insurance_fallback',
+		};
+	}
+
+	return { copay_estimate: 0, list_price: null, source: 'zero' };
+}
+
+/** Admin: all matrix rows (optionally inactive). */
+export async function listCopayMatrix(includeInactive: boolean): Promise<CopayMatrixRow[]> {
+	let q = sb().from('appointment_copay_matrix').select('*');
+	if (!includeInactive) {
+		q = q.eq('active', true);
+	}
+	q = q.order('created_at', { ascending: true });
+	const { data, error } = await q;
+	if (error) throw error;
+	return (data || []) as CopayMatrixRow[];
+}
+
+export async function getCopayMatrixRow(id: string): Promise<CopayMatrixRow | null> {
+	const { data, error } = await sb().from('appointment_copay_matrix').select('*').eq('id', id).maybeSingle();
+	if (error) throw error;
+	return (data as CopayMatrixRow) || null;
+}
+
+export async function createCopayMatrix(input: {
+	visit_type_id: string;
+	insurance_option_id: string;
+	copay_estimate: number;
+	list_price?: number | null;
+	active?: boolean;
+}): Promise<CopayMatrixRow> {
+	const vt = await getVisitType(input.visit_type_id);
+	const io = await getInsuranceOption(input.insurance_option_id);
+	if (!vt) throw Object.assign(new Error('visit type not found'), { status: 400 });
+	if (!io) throw Object.assign(new Error('insurance option not found'), { status: 400 });
+
+	const row = {
+		visit_type_id: input.visit_type_id,
+		insurance_option_id: input.insurance_option_id,
+		copay_estimate: Number(input.copay_estimate),
+		list_price:
+			input.list_price === undefined || input.list_price === null ? null : Number(input.list_price),
+		active: input.active !== false,
+		updated_at: new Date().toISOString(),
+	};
+	const { data, error } = await sb().from('appointment_copay_matrix').insert(row).select('*').single();
+	if (error) {
+		if (error.code === '23505') {
+			throw Object.assign(new Error('A row for this visit type and insurance already exists'), {
+				status: 409,
+			});
+		}
+		throw error;
+	}
+	return data as CopayMatrixRow;
+}
+
+export async function updateCopayMatrix(
+	id: string,
+	patch: Partial<{
+		copay_estimate: number;
+		list_price: number | null;
+		active: boolean;
+	}>,
+): Promise<CopayMatrixRow> {
+	const existing = await getCopayMatrixRow(id);
+	if (!existing) throw Object.assign(new Error('Not found'), { status: 404 });
+	const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+	if (patch.copay_estimate !== undefined) updates.copay_estimate = Number(patch.copay_estimate);
+	if (patch.list_price !== undefined) updates.list_price = patch.list_price;
+	if (patch.active !== undefined) updates.active = patch.active;
+	const { data, error } = await sb()
+		.from('appointment_copay_matrix')
+		.update(updates)
+		.eq('id', id)
+		.select('*')
+		.single();
+	if (error) throw error;
+	return data as CopayMatrixRow;
+}
+
+/** Public catalog: active matrix rows for client-side copay display (advisory). */
+export async function listCopayMatrixCatalog(): Promise<CopayMatrixCatalogEntry[]> {
+	const { data, error } = await sb()
+		.from('appointment_copay_matrix')
+		.select('visit_type_id, insurance_option_id, copay_estimate, list_price')
+		.eq('active', true);
+	if (error) throw error;
+	return ((data || []) as CopayMatrixCatalogEntry[]).map((r) => ({
+		visit_type_id: r.visit_type_id,
+		insurance_option_id: r.insurance_option_id,
+		copay_estimate: Number(r.copay_estimate),
+		list_price: r.list_price != null ? Number(r.list_price) : null,
+	}));
+}
+
 /** Catalog for patient booking UI (server-side read). */
 export async function getAppointmentCatalog(): Promise<{
 	visitTypes: VisitTypeRow[];
 	insuranceOptions: InsuranceOptionRow[];
+	copayMatrix: CopayMatrixCatalogEntry[];
 	providers: Array<{
 		id: string;
 		name: string;
@@ -205,14 +361,16 @@ export async function getAppointmentCatalog(): Promise<{
 		specialty: string | null;
 		email: string | null;
 		address: string | null;
+		scheduling_url: string | null;
 	}>;
 }> {
-	const [visitTypes, insuranceOptions, providersRes] = await Promise.all([
+	const [visitTypes, insuranceOptions, copayMatrix, providersRes] = await Promise.all([
 		listVisitTypes(false),
 		listInsuranceOptions(false),
+		listCopayMatrixCatalog(),
 		sb()
 			.from('providers')
-			.select('id, name, provider_name, type, specialty, email, address')
+			.select('id, name, provider_name, type, specialty, email, address, scheduling_url')
 			.eq('status', 'active')
 			.eq('verification_status', 'verified')
 			.order('name', { ascending: true }),
@@ -226,10 +384,12 @@ export async function getAppointmentCatalog(): Promise<{
 		specialty: string | null;
 		email: string | null;
 		address: string | null;
+		scheduling_url: string | null;
 	};
 	return {
 		visitTypes,
 		insuranceOptions,
+		copayMatrix,
 		providers: (providersRes.data || []) as Prov[],
 	};
 }

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
 import apiServerClient from '@/lib/apiServerClient';
+import { supabase } from '@/lib/supabaseClient';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/admin/DataTable.jsx';
@@ -17,14 +18,28 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { PROVIDER_PENDING_QUEUE_CHANGED_EVENT } from '@/lib/providerApplicationPendingQueue.js';
 
 export default function ProvidersManagementPage() {
+  const authHeaders = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const [schedDialog, setSchedDialog] = useState(false);
+  const [schedRow, setSchedRow] = useState(null);
+  const [schedUrl, setSchedUrl] = useState('');
+  const [schedSaving, setSchedSaving] = useState(false);
 
   const [applications, setApplications] = useState([]);
   const [appsLoading, setAppsLoading] = useState(true);
@@ -137,12 +152,61 @@ export default function ProvidersManagementPage() {
     }
   };
 
+  const saveSchedulingUrl = async () => {
+    if (!schedRow?.id) return;
+    setSchedSaving(true);
+    try {
+      const trimmed = schedUrl.trim();
+      const res = await apiServerClient.fetch(`/admin/providers/${schedRow.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({
+          scheduling_url: trimmed === '' ? null : trimmed,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Update failed');
+      }
+      toast.success('Scheduling link saved');
+      setSchedDialog(false);
+      setSchedRow(null);
+      const { items } = await adminPagedList('providers', 1, 20, {
+        searchColumn: searchTerm ? 'name' : undefined,
+        searchTerm: searchTerm || undefined,
+      });
+      setData(items);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSchedSaving(false);
+    }
+  };
+
   const columns = [
     { key: 'name', label: 'Provider Name' },
     { key: 'category', label: 'Category' },
     { key: 'email', label: 'Email' },
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
     { key: 'verification_status', label: 'Verification', render: (r) => <StatusBadge status={r.verification_status} /> },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row) => (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setSchedRow(row);
+            setSchedUrl(row.scheduling_url || '');
+            setSchedDialog(true);
+          }}
+        >
+          Scheduling link
+        </Button>
+      ),
+    },
   ];
 
   const appColumns = [
@@ -210,6 +274,34 @@ export default function ProvidersManagementPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={schedDialog} onOpenChange={setSchedDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Provider scheduling link</DialogTitle>
+            <DialogDescription>
+              Cal.com or other booking URL shown to patients and in confirmation emails. Use https://
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="sched-url">Scheduling URL</Label>
+            <Input
+              id="sched-url"
+              value={schedUrl}
+              onChange={(e) => setSchedUrl(e.target.value)}
+              placeholder="https://cal.com/your-org/visit"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSchedDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void saveSchedulingUrl()} disabled={schedSaving}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>

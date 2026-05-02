@@ -5,6 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -17,6 +24,17 @@ import {
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { toast } from 'sonner';
 import { Plus, Loader2, Pencil, Ban } from 'lucide-react';
+
+/** Same rules as server `normalizeSlug` / slug column: lowercase letters, digits, hyphen, underscore. */
+function insuranceSlugFromLabel(raw) {
+  const s = String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-+/g, '-');
+  return s || 'insurance';
+}
 
 export default function AppointmentOptionsPage() {
   const authHeaders = async () => {
@@ -61,7 +79,6 @@ export default function AppointmentOptionsPage() {
   const [insSaving, setInsSaving] = useState(false);
   const [insEditing, setInsEditing] = useState(null);
   const [insForm, setInsForm] = useState({
-    slug: '',
     label: '',
     sort_order: 0,
     active: true,
@@ -87,10 +104,44 @@ export default function AppointmentOptionsPage() {
     }
   }, []);
 
+  const [cmLoading, setCmLoading] = useState(true);
+  const [copayMatrix, setCopayMatrix] = useState([]);
+  const [cmDialog, setCmDialog] = useState(false);
+  const [cmSaving, setCmSaving] = useState(false);
+  const [cmEditing, setCmEditing] = useState(null);
+  const [cmForm, setCmForm] = useState({
+    visit_type_id: '',
+    insurance_option_id: '',
+    copay_estimate: '',
+    list_price: '',
+    active: true,
+  });
+
+  const loadCopayMatrix = useCallback(async () => {
+    setCmLoading(true);
+    try {
+      const res = await apiServerClient.fetch('/admin/copay-matrix?include_inactive=1', {
+        headers: await authHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load copay matrix');
+      }
+      const data = await res.json();
+      setCopayMatrix(data.items || []);
+    } catch (e) {
+      toast.error(e.message);
+      setCopayMatrix([]);
+    } finally {
+      setCmLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadVisitTypes();
     void loadInsurance();
-  }, [loadVisitTypes, loadInsurance]);
+    void loadCopayMatrix();
+  }, [loadVisitTypes, loadInsurance, loadCopayMatrix]);
 
   const saveVisitType = async () => {
     setVtSaving(true);
@@ -180,12 +231,18 @@ export default function AppointmentOptionsPage() {
         }
         toast.success('Insurance option updated');
       } else {
+        const labelTrim = insForm.label.trim();
+        if (!labelTrim) {
+          toast.error('Enter a label');
+          return;
+        }
+        const slug = insuranceSlugFromLabel(labelTrim);
         const res = await apiServerClient.fetch('/admin/insurance-options', {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            slug: insForm.slug,
-            label: insForm.label,
+            slug,
+            label: labelTrim,
             sort_order: Number(insForm.sort_order) || 0,
             active: insForm.active,
             copay_estimate: copay,
@@ -203,6 +260,86 @@ export default function AppointmentOptionsPage() {
       toast.error(e.message);
     } finally {
       setInsSaving(false);
+    }
+  };
+
+  const labelForVisitId = (id) => visitTypes.find((v) => v.id === id)?.label || id;
+  const labelForInsuranceId = (id) => insurance.find((o) => o.id === id)?.label || id;
+
+  const saveCopayMatrix = async () => {
+    setCmSaving(true);
+    try {
+      const headers = { 'Content-Type': 'application/json', ...(await authHeaders()) };
+      const copay = Number(cmForm.copay_estimate);
+      if (Number.isNaN(copay)) {
+        toast.error('Copay must be a number');
+        return;
+      }
+      const listRaw = cmForm.list_price === '' || cmForm.list_price == null ? null : Number(cmForm.list_price);
+      const listPrice = listRaw !== null && !Number.isNaN(listRaw) ? listRaw : null;
+
+      if (cmEditing) {
+        const res = await apiServerClient.fetch(`/admin/copay-matrix/${cmEditing.id}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            copay_estimate: copay,
+            list_price: listPrice,
+            active: cmForm.active,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Update failed');
+        }
+        toast.success('Copay row updated');
+      } else {
+        if (!cmForm.visit_type_id || !cmForm.insurance_option_id) {
+          toast.error('Select visit type and insurance');
+          return;
+        }
+        const res = await apiServerClient.fetch('/admin/copay-matrix', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            visit_type_id: cmForm.visit_type_id,
+            insurance_option_id: cmForm.insurance_option_id,
+            copay_estimate: copay,
+            list_price: listPrice,
+            active: cmForm.active,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Create failed');
+        }
+        toast.success('Copay row created');
+      }
+      setCmDialog(false);
+      await loadCopayMatrix();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setCmSaving(false);
+    }
+  };
+
+  const deactivateCopayRow = async (row) => {
+    if (!window.confirm('Deactivate this copay rule?')) return;
+    try {
+      const res = await apiServerClient.fetch(`/admin/copay-matrix/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ active: false }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Update failed');
+      }
+      toast.success('Copay rule deactivated');
+      await loadCopayMatrix();
+    } catch (e) {
+      toast.error(e.message);
     }
   };
 
@@ -280,7 +417,6 @@ export default function AppointmentOptionsPage() {
             onClick={() => {
               setInsEditing(row);
               setInsForm({
-                slug: row.slug,
                 label: row.label,
                 sort_order: row.sort_order ?? 0,
                 active: row.active !== false,
@@ -315,9 +451,10 @@ export default function AppointmentOptionsPage() {
       </div>
 
       <Tabs defaultValue="visit-types" className="w-full">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="visit-types">Visit types</TabsTrigger>
           <TabsTrigger value="insurance">Insurance</TabsTrigger>
+          <TabsTrigger value="copay-matrix">Copay matrix</TabsTrigger>
         </TabsList>
 
         <TabsContent value="visit-types" className="space-y-4 mt-4">
@@ -351,7 +488,6 @@ export default function AppointmentOptionsPage() {
               onClick={() => {
                 setInsEditing(null);
                 setInsForm({
-                  slug: '',
                   label: '',
                   sort_order: 0,
                   active: true,
@@ -375,7 +511,209 @@ export default function AppointmentOptionsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="copay-matrix" className="space-y-4 mt-4">
+          <div className="flex justify-end">
+            <Button
+              onClick={() => {
+                setCmEditing(null);
+                setCmForm({
+                  visit_type_id: visitTypes[0]?.id || '',
+                  insurance_option_id: insurance[0]?.id || '',
+                  copay_estimate: '',
+                  list_price: '',
+                  active: true,
+                });
+                setCmDialog(true);
+              }}
+              className="gap-2"
+              disabled={visitTypes.length === 0 || insurance.length === 0}
+            >
+              <Plus className="w-4 h-4" />
+              Add copay rule
+            </Button>
+          </div>
+          <Card className="border-none shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle>Insurance × visit type</CardTitle>
+              <CardDescription>
+                Estimated copay per combination. Missing pairs fall back to the insurance default copay on booking.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                columns={[
+                  {
+                    key: 'visit_type_id',
+                    label: 'Visit type',
+                    render: (r) => labelForVisitId(r.visit_type_id),
+                  },
+                  {
+                    key: 'insurance_option_id',
+                    label: 'Insurance',
+                    render: (r) => labelForInsuranceId(r.insurance_option_id),
+                  },
+                  {
+                    key: 'copay_estimate',
+                    label: 'Est. copay ($)',
+                    render: (r) => Number(r.copay_estimate).toFixed(2),
+                  },
+                  {
+                    key: 'list_price',
+                    label: 'List price ($)',
+                    render: (r) => (r.list_price != null ? Number(r.list_price).toFixed(2) : '—'),
+                  },
+                  {
+                    key: 'active',
+                    label: 'Active',
+                    render: (r) => (r.active ? 'Yes' : 'No'),
+                  },
+                  {
+                    key: 'actions',
+                    label: 'Actions',
+                    render: (row) => (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setCmEditing(row);
+                            setCmForm({
+                              visit_type_id: row.visit_type_id,
+                              insurance_option_id: row.insurance_option_id,
+                              copay_estimate: String(row.copay_estimate ?? ''),
+                              list_price:
+                                row.list_price != null && row.list_price !== ''
+                                  ? String(row.list_price)
+                                  : '',
+                              active: row.active !== false,
+                            });
+                            setCmDialog(true);
+                          }}
+                        >
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                        {row.active ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => void deactivateCopayRow(row)}
+                          >
+                            <Ban className="w-4 h-4 mr-1" />
+                            Deactivate
+                          </Button>
+                        ) : null}
+                      </div>
+                    ),
+                  },
+                ]}
+                data={copayMatrix}
+                isLoading={cmLoading || vtLoading || insLoading}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={cmDialog} onOpenChange={setCmDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{cmEditing ? 'Edit copay rule' : 'New copay rule'}</DialogTitle>
+            <DialogDescription>
+              {cmEditing
+                ? 'Visit type and insurance cannot be changed; deactivate and create a new rule if needed.'
+                : 'Pick one visit type and one insurance plan for this estimate.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            {!cmEditing ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Visit type</Label>
+                  <Select
+                    value={cmForm.visit_type_id || undefined}
+                    onValueChange={(v) => setCmForm({ ...cmForm, visit_type_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {visitTypes.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Insurance</Label>
+                  <Select
+                    value={cmForm.insurance_option_id || undefined}
+                    onValueChange={(v) => setCmForm({ ...cmForm, insurance_option_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {insurance.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            ) : null}
+            <div className="space-y-2">
+              <Label>Estimated copay (USD)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={cmForm.copay_estimate}
+                onChange={(e) => setCmForm({ ...cmForm, copay_estimate: e.target.value })}
+                className="bg-background"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>List price (USD, optional)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={cmForm.list_price}
+                onChange={(e) => setCmForm({ ...cmForm, list_price: e.target.value })}
+                placeholder="Cash / retail reference"
+                className="bg-background"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="cm-active"
+                checked={cmForm.active}
+                onChange={(e) => setCmForm({ ...cmForm, active: e.target.checked })}
+                className="h-4 w-4 rounded border"
+              />
+              <Label htmlFor="cm-active">Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCmDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void saveCopayMatrix()} disabled={cmSaving}>
+              {cmSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {cmEditing ? 'Save' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={vtDialog} onOpenChange={setVtDialog}>
         <DialogContent>
@@ -442,20 +780,12 @@ export default function AppointmentOptionsPage() {
           <DialogHeader>
             <DialogTitle>{insEditing ? 'Edit insurance option' : 'New insurance option'}</DialogTitle>
             <DialogDescription>
-              {insEditing ? 'Slug cannot be changed.' : 'Slug is permanent (lowercase, letters, numbers, hyphen).'}
+              {insEditing
+                ? 'The URL slug is fixed after creation.'
+                : 'The slug is generated automatically from the label (you do not need to enter it).'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="space-y-2">
-              <Label>Slug</Label>
-              <Input
-                value={insForm.slug}
-                onChange={(e) => setInsForm({ ...insForm, slug: e.target.value })}
-                disabled={!!insEditing}
-                placeholder="e.g. aetna"
-                className="bg-background"
-              />
-            </div>
             <div className="space-y-2">
               <Label>Label</Label>
               <Input

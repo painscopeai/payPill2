@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Calendar, MapPin, CheckCircle2, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
+import { normalizeAppointmentTime } from '@/lib/appointmentDateTime';
 
 export default function BookingPage() {
   const { currentUser } = useAuth();
@@ -23,6 +24,7 @@ export default function BookingPage() {
   const [visitTypes, setVisitTypes] = useState([]);
   const [insuranceOptions, setInsuranceOptions] = useState([]);
   const [providers, setProviders] = useState([]);
+  const [copayMatrix, setCopayMatrix] = useState([]);
 
   const [formData, setFormData] = useState({
     providerId: '',
@@ -31,7 +33,6 @@ export default function BookingPage() {
     appointmentTime: '',
     reason: '',
     insuranceOptionId: '',
-    copayAmount: 0,
   });
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export default function BookingPage() {
         setVisitTypes(data.visitTypes || []);
         setInsuranceOptions(data.insuranceOptions || []);
         setProviders(data.providers || []);
+        setCopayMatrix(data.copayMatrix || []);
 
         const firstVt = data.visitTypes?.[0];
         const firstIns = data.insuranceOptions?.[0];
@@ -58,8 +60,6 @@ export default function BookingPage() {
           appointmentType: firstVt?.slug || '',
           insuranceOptionId: firstIns?.id || '',
           providerId: firstProv?.id || '',
-          copayAmount:
-            firstIns?.copay_estimate != null ? Number(firstIns.copay_estimate) : 0,
         }));
       } catch (e) {
         if (!cancelled) toast.error(e.message);
@@ -82,12 +82,38 @@ export default function BookingPage() {
     [providers, formData.providerId],
   );
 
-  useEffect(() => {
-    if (!selectedInsurance) return;
-    const copay =
-      selectedInsurance.copay_estimate != null ? Number(selectedInsurance.copay_estimate) : 0;
-    setFormData((prev) => ({ ...prev, copayAmount: copay }));
-  }, [selectedInsurance]);
+  const selectedVisitTypeId = useMemo(
+    () => visitTypes.find((v) => v.slug === formData.appointmentType)?.id,
+    [visitTypes, formData.appointmentType],
+  );
+
+  /** Advisory only — server recomputes on submit */
+  const advisoryPricing = useMemo(() => {
+    const ins = selectedInsurance;
+    if (!ins) {
+      return { copay: 0, listPrice: null };
+    }
+    if (selectedVisitTypeId && formData.insuranceOptionId && copayMatrix.length > 0) {
+      const cell = copayMatrix.find(
+        (m) =>
+          m.visit_type_id === selectedVisitTypeId &&
+          m.insurance_option_id === formData.insuranceOptionId,
+      );
+      if (cell) {
+        return {
+          copay: Number(cell.copay_estimate),
+          listPrice: cell.list_price != null ? Number(cell.list_price) : null,
+        };
+      }
+    }
+    const fallback = ins.copay_estimate != null ? Number(ins.copay_estimate) : 0;
+    return { copay: fallback, listPrice: null };
+  }, [
+    selectedInsurance,
+    selectedVisitTypeId,
+    formData.insuranceOptionId,
+    copayMatrix,
+  ]);
 
   const handleBook = async (e) => {
     e.preventDefault();
@@ -101,6 +127,15 @@ export default function BookingPage() {
     }
     if (!formData.appointmentType) {
       toast.error('Select a visit type.');
+      return;
+    }
+    if (!formData.insuranceOptionId) {
+      toast.error('Select an insurance option.');
+      return;
+    }
+    const timeNormalized = normalizeAppointmentTime(formData.appointmentTime);
+    if (!timeNormalized) {
+      toast.error('Enter a valid preferred time.');
       return;
     }
     setLoading(true);
@@ -121,11 +156,11 @@ export default function BookingPage() {
           providerName: pname,
           appointmentType: formData.appointmentType,
           appointmentDate: formData.appointmentDate,
-          appointmentTime: formData.appointmentTime,
+          appointmentTime: timeNormalized,
           location: location || undefined,
           reason: formData.reason,
           insuranceInfo: insLabel,
-          copayAmount: formData.copayAmount,
+          insuranceOptionId: formData.insuranceOptionId,
         }),
       });
 
@@ -147,6 +182,8 @@ export default function BookingPage() {
   };
 
   const visitTypeLabel = (slug) => visitTypes.find((v) => v.slug === slug)?.label || slug;
+
+  const schedulingUrl = selectedProvider?.scheduling_url?.trim() || '';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -224,6 +261,7 @@ export default function BookingPage() {
                           <Select
                             value={formData.insuranceOptionId || undefined}
                             onValueChange={(v) => setFormData({ ...formData, insuranceOptionId: v })}
+                            required
                             disabled={insuranceOptions.length === 0}
                           >
                             <SelectTrigger>
@@ -272,11 +310,38 @@ export default function BookingPage() {
                         />
                       </div>
 
-                      <div className="bg-muted/30 p-4 rounded-lg border flex justify-between items-center">
-                        <span className="font-medium">Estimated Copay</span>
-                        <span className="text-xl font-bold text-primary">
-                          ${Number(formData.copayAmount || 0).toFixed(2)}
-                        </span>
+                      {schedulingUrl ? (
+                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+                          <p className="text-sm font-medium">Scheduling / video link</p>
+                          <p className="text-xs text-muted-foreground">
+                            Your provider uses an external calendar. You can open their scheduling page anytime.
+                          </p>
+                          <Button type="button" variant="outline" size="sm" className="gap-2" asChild>
+                            <a href={schedulingUrl} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                              Open scheduling link
+                            </a>
+                          </Button>
+                        </div>
+                      ) : null}
+
+                      <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">Estimated copay</span>
+                          <span className="text-xl font-bold text-primary">
+                            ${Number(advisoryPricing.copay || 0).toFixed(2)}
+                          </span>
+                        </div>
+                        {advisoryPricing.listPrice != null ? (
+                          <div className="flex justify-between items-center text-sm text-muted-foreground">
+                            <span>Reference list price</span>
+                            <span>${Number(advisoryPricing.listPrice).toFixed(2)}</span>
+                          </div>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground pt-1">
+                          Estimate only; final amount determined at check-in. Your plan and visit type may
+                          change this figure.
+                        </p>
                       </div>
                     </>
                   )}
@@ -285,7 +350,10 @@ export default function BookingPage() {
                   <Button type="button" variant="outline" onClick={() => navigate(-1)}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={loading || catalogLoading || providers.length === 0}>
+                  <Button
+                    type="submit"
+                    disabled={loading || catalogLoading || providers.length === 0}
+                  >
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Confirm Booking
                   </Button>
@@ -300,8 +368,8 @@ export default function BookingPage() {
                 </div>
                 <h2 className="text-3xl font-bold">Booking Confirmed!</h2>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                  Your appointment with {confirmation?.provider} has been scheduled. A confirmation email has been sent
-                  to you.
+                  Your appointment with {confirmation?.provider} has been scheduled. When email is configured,
+                  confirmations are sent to you and your provider.
                 </p>
 
                 <div className="bg-muted/20 border rounded-xl p-6 max-w-md mx-auto text-left space-y-4">
@@ -321,6 +389,14 @@ export default function BookingPage() {
                       <p className="font-medium">{visitTypeLabel(formData.appointmentType)}</p>
                     </div>
                   </div>
+                  {confirmation?.copayAmount != null ? (
+                    <div className="text-sm border-t pt-3">
+                      <span className="text-muted-foreground">Estimated copay (saved): </span>
+                      <span className="font-semibold">
+                        ${Number(confirmation.copayAmount).toFixed(2)}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="pt-4 border-t">
                     <p className="text-sm text-muted-foreground text-center">
                       Confirmation #:{' '}
@@ -329,6 +405,16 @@ export default function BookingPage() {
                       </span>
                     </p>
                   </div>
+                  {schedulingUrl ? (
+                    <div className="pt-2">
+                      <Button variant="outline" size="sm" className="gap-2 w-full" asChild>
+                        <a href={schedulingUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                          Provider scheduling link
+                        </a>
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               </CardContent>
               <CardFooter className="justify-center gap-4 pt-4">
