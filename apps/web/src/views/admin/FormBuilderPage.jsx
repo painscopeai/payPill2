@@ -417,8 +417,8 @@ export default function FormBuilderPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-[linear-gradient(160deg,hsl(var(--muted)/0.35)_0%,hsl(var(--background))_45%,hsl(var(--muted)/0.2)_100%)]">
-      <div className="flex w-72 shrink-0 flex-col border-r border-border/80 bg-card/95 shadow-sm backdrop-blur-sm">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(160deg,hsl(var(--muted)/0.35)_0%,hsl(var(--background))_45%,hsl(var(--muted)/0.2)_100%)] lg:min-h-[calc(100dvh-6.5rem)]">
+      <div className="flex w-56 shrink-0 flex-col border-r border-border/80 bg-card/95 shadow-sm backdrop-blur-sm sm:w-64 xl:w-72">
         <div className="space-y-3 border-b border-border/80 p-4">
           <Button
             className="w-full gap-2 shadow-sm"
@@ -500,35 +500,35 @@ export default function FormBuilderPage() {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col bg-transparent">
+      <div className="flex min-w-0 min-h-0 flex-1 flex-col bg-transparent">
         {activeForm ? (
           <>
-            <header className="shrink-0 border-b border-border/80 bg-card/95 px-4 py-3 shadow-sm backdrop-blur-sm">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <Input
-                    value={activeForm.name}
-                    onChange={(e) => setActiveForm({ ...activeForm, name: e.target.value })}
-                    className="h-10 border-transparent bg-transparent px-1 font-display text-xl font-semibold tracking-tight hover:border-border focus:border-primary md:text-2xl"
-                    placeholder="Form name"
-                  />
-                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <header className="shrink-0 border-b border-border/80 bg-card/95 px-3 py-3 shadow-sm backdrop-blur-sm sm:px-4">
+              {/* Stack title + meta row; never put long hint and full toolbar in one flex row (causes ~0 width / one-word wrapping at 100% zoom). */}
+              <div className="flex flex-col gap-3">
+                <Input
+                  value={activeForm.name}
+                  onChange={(e) => setActiveForm({ ...activeForm, name: e.target.value })}
+                  className="h-10 w-full max-w-full border-transparent bg-transparent px-1 font-display text-xl font-semibold tracking-tight hover:border-border focus:border-primary md:text-2xl"
+                  placeholder="Form name"
+                />
+                <div className="flex flex-col gap-3 min-[1100px]:flex-row min-[1100px]:items-start min-[1100px]:justify-between min-[1100px]:gap-4">
+                  <p className="text-xs leading-relaxed text-muted-foreground min-[1100px]:max-w-[26rem]">
                     {isSaving ? (
-                      <>
+                      <span className="inline-flex items-center gap-1.5">
                         <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
                         Saving…
-                      </>
+                      </span>
                     ) : (
-                      <>
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
-                        <span className="min-w-0">
-                          Edits are kept in this session only — <span className="font-medium text-foreground/80">Save</span> to update the server.
+                      <span className="inline-flex items-start gap-1.5">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                        <span>
+                          Session-only edits — use <span className="font-medium text-foreground/90">Save</span> to sync to the server.
                         </span>
-                      </>
+                      </span>
                     )}
                   </p>
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2 min-[1100px]:max-w-[52%] min-[1100px]:justify-end xl:max-w-none">
                   <Button variant="ghost" size="sm" type="button" onClick={() => setActiveTab('theme')}>
                     <Palette className="h-4 w-4" /> Theme
                   </Button>
@@ -570,10 +570,11 @@ export default function FormBuilderPage() {
                   </Button>
                 </div>
               </div>
+              </div>
             </header>
 
-            <section className="shrink-0 border-b border-border/60 bg-muted/25 px-4 py-4">
-              <div className="mx-auto max-w-3xl">
+            <section className="shrink-0 border-b border-border/60 bg-muted/25 px-3 py-4 sm:px-4">
+              <div className="mx-auto w-full max-w-6xl">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Form details</p>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
@@ -628,9 +629,9 @@ export default function FormBuilderPage() {
               </div>
             </section>
 
-            <div className="flex flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto bg-[radial-gradient(ellipse_at_top,hsl(var(--muted)/0.5)_0%,transparent_55%)] p-4 md:p-8">
-                <div className="mx-auto max-w-3xl space-y-6 pb-32">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+              <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-[radial-gradient(ellipse_at_top,hsl(var(--muted)/0.5)_0%,transparent_55%)] p-3 sm:p-5 md:p-8">
+                <div className="mx-auto w-full max-w-4xl space-y-6 pb-32 xl:max-w-5xl 2xl:max-w-6xl">
                   <div className="rounded-2xl border border-border/80 border-t-[6px] border-t-primary bg-card p-6 shadow-md ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
                     <Input
                       value={activeForm.name}
@@ -685,7 +686,7 @@ export default function FormBuilderPage() {
               </div>
 
               {activeForm && activeTab !== 'questions' && (
-                <div className="flex w-80 shrink-0 animate-in slide-in-from-right-8 flex-col border-l border-border bg-card duration-200">
+                <div className="flex w-full max-w-[min(20rem,92vw)] shrink-0 animate-in slide-in-from-right-8 flex-col border-l border-border bg-card duration-200 sm:max-w-none md:w-72 lg:w-80">
                   <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
                     <h3 className="font-medium">{activeTab === 'theme' ? 'Theme' : 'Settings'}</h3>
                     <Button variant="ghost" size="icon" type="button" className="h-8 w-8" onClick={() => setActiveTab('questions')}>
@@ -785,7 +786,7 @@ export default function FormBuilderPage() {
             </div>
           </>
         ) : (
-          <div className="text-muted-foreground flex flex-1 items-center justify-center">
+          <div className="flex min-h-[12rem] flex-1 items-center justify-center px-4 text-center text-muted-foreground">
             Select a form or create a new one
           </div>
         )}
