@@ -12,6 +12,7 @@ const COLLECTION_TO_TABLE = {
 	prescriptions: 'prescriptions',
 	refill_requests: 'refill_requests',
 	health_goals: 'health_goals',
+	patient_health_records: 'patient_health_records',
 	lab_results: 'lab_results',
 	patient_provider_relationships: 'patient_provider_relationships',
 	provider_profiles: 'providers',
