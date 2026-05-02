@@ -27,6 +27,7 @@ import { Loader2, MailPlus, Pencil } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { StatusBadge } from '@/components/admin/StatusBadge.jsx';
+import { labelForOnboardingFormType } from '@/lib/providerOnboardingInviteFormTypes';
 
 /** Used only if provider_types API returns nothing (e.g. migration not applied). */
 const FALLBACK_TYPE_OPTIONS = [
@@ -519,14 +520,20 @@ export default function ProviderOnboardingPage() {
                 <SelectContent>
                   {templateForms.length === 0 ? (
                     <div className="px-2 py-3 text-sm text-muted-foreground">
-                      No published provider application forms. Create and publish one in Forms Builder.
+                      No matching published forms (provider application or health assessment). Publish a form in Forms
+                      Builder — any supported type appears here automatically.
                     </div>
                   ) : (
-                    templateForms.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.name || f.id}
-                      </SelectItem>
-                    ))
+                    templateForms.map((f) => {
+                      const typeHint = f.form_type ? labelForOnboardingFormType(f.form_type) : '';
+                      const primary = f.name || f.id;
+                      const label = typeHint ? `${primary} · ${typeHint}` : primary;
+                      return (
+                        <SelectItem key={f.id} value={f.id}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })
                   )}
                 </SelectContent>
               </Select>
