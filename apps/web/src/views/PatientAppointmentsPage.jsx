@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Clock, MapPin, Video, Plus, Loader2 } from 'lucide-react';
+import { Clock, MapPin, Video, Plus, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 function formatDisplayTime(raw) {
@@ -49,40 +49,70 @@ function statusLabel(status) {
   return status || 'Scheduled';
 }
 
+/** Normalize legacy / various API shapes to a flat array of appointments */
+function normalizeAppointmentList(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload.appointments)) return payload.appointments;
+  if (Array.isArray(payload.items)) return payload.items;
+  return [];
+}
+
 export default function PatientAppointmentsPage() {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const { currentUser, isInitializing } = useAuth();
   const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
     if (!currentUser?.id) {
       setRows([]);
+      setLoadError(null);
       setLoading(false);
       return;
     }
+
     setLoading(true);
+    setLoadError(null);
+
     try {
       const res = await apiServerClient.fetch(
         `/appointments?user_id=${encodeURIComponent(currentUser.id)}`,
       );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to load appointments');
+
+      const text = await res.text();
+      let payload;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        throw new Error('Invalid response from server. Try again.');
       }
-      const data = await res.json();
-      setRows(Array.isArray(data) ? data : []);
+
+      if (!res.ok) {
+        const msg =
+          (payload && typeof payload === 'object' && payload.error) ||
+          `Could not load appointments (${res.status})`;
+        throw new Error(typeof msg === 'string' ? msg : 'Failed to load appointments');
+      }
+
+      const list = normalizeAppointmentList(payload);
+      setRows(list);
     } catch (e) {
-      toast.error(e.message);
+      const msg = e instanceof Error ? e.message : 'Failed to load appointments';
+      setLoadError(msg);
       setRows([]);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   }, [currentUser?.id]);
 
   useEffect(() => {
+    if (isInitializing) return;
     void load();
-  }, [load]);
+  }, [isInitializing, load]);
 
   const { upcoming, past } = useMemo(() => {
     const today = startOfTodayLocal();
@@ -130,6 +160,8 @@ export default function PatientAppointmentsPage() {
     return d?.specialty || d?.type || apt.type || '';
   };
 
+  const pageLoading = isInitializing || loading;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Helmet>
@@ -146,10 +178,18 @@ export default function PatientAppointmentsPage() {
         </Button>
       </div>
 
-      {loading ? (
+      {pageLoading ? (
         <div className="flex flex-1 items-center justify-center py-24 text-muted-foreground">
           <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-          Loading appointments…
+          {isInitializing ? 'Loading account…' : 'Loading appointments…'}
+        </div>
+      ) : loadError ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 py-16 text-center px-4">
+          <p className="text-muted-foreground max-w-md">{loadError}</p>
+          <Button type="button" variant="outline" className="gap-2" onClick={() => void load()}>
+            <RefreshCw className="h-4 w-4" />
+            Try again
+          </Button>
         </div>
       ) : (
         <Tabs defaultValue="upcoming" className="w-full flex-1">
@@ -160,7 +200,16 @@ export default function PatientAppointmentsPage() {
 
           <TabsContent value="upcoming" className="space-y-4">
             {upcoming.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No upcoming appointments.</p>
+              <Card className="border-dashed">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <p className="text-base mb-2">No upcoming appointments</p>
+                  <p className="text-sm mb-4">Book a visit with a verified provider when you&apos;re ready.</p>
+                  <Button type="button" onClick={() => navigate('/patient/booking')} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Book an appointment
+                  </Button>
+                </CardContent>
+              </Card>
             ) : (
               upcoming.map((apt) => {
                 const tele = isTelehealthApt(apt);
@@ -230,7 +279,12 @@ export default function PatientAppointmentsPage() {
 
           <TabsContent value="past" className="space-y-4">
             {past.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No past visits yet.</p>
+              <Card className="border-dashed">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <p className="text-base">No past visits yet</p>
+                  <p className="text-sm mt-2">Completed and cancelled appointments will appear here.</p>
+                </CardContent>
+              </Card>
             ) : (
               past.map((apt) => (
                 <Card key={apt.id} className="shadow-sm border-border/50 opacity-90">
