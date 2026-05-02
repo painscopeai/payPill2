@@ -3,12 +3,41 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sparkles, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import apiServerClient from '@/lib/apiServerClient';
 import { useRecommendations } from '@/contexts/RecommendationContext';
 
 export default function AskAIButton() {
   const { generateRecommendations, recommendations, isGenerating } = useRecommendations();
   const [open, setOpen] = useState(false);
   const [focusArea, setFocusArea] = useState('general');
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
+
+  const runConnectionTest = async () => {
+    setIsDiagnosing(true);
+    try {
+      const res = await apiServerClient.fetch('/ai-recommendations/diagnostic');
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || 'Diagnostic request failed');
+        return;
+      }
+      console.info('[ai-diagnostic]', data);
+      const g = data.gemini;
+      if (data.geminiKeyConfigured === false) {
+        toast.error('GEMINI_API_KEY is not configured on the server.');
+      } else if (g?.ok) {
+        toast.success(`Gemini OK (${g.ms}ms). See console for full JSON.`);
+      } else {
+        toast.error(g?.timedOut ? 'Gemini timed out (probe).' : (g?.message || 'Gemini probe failed. Check console.'));
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : 'Diagnostic failed');
+    } finally {
+      setIsDiagnosing(false);
+    }
+  };
 
   const handleGenerate = async () => {
     try {
@@ -63,19 +92,37 @@ export default function AskAIButton() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={isGenerating}>
-              Cancel
-            </Button>
-            <Button onClick={handleGenerate} disabled={isGenerating}>
-              {isGenerating ? (
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={runConnectionTest}
+              disabled={isGenerating || isDiagnosing}
+            >
+              {isDiagnosing ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Analyzing...
+                  <Loader2 className="h-3 w-3 mr-2 animate-spin" /> Testing…
                 </>
               ) : (
-                'Generate Now'
+                'Test AI connection'
               )}
             </Button>
+            <div className="flex gap-2 w-full sm:w-auto justify-end">
+              <Button variant="outline" onClick={() => setOpen(false)} disabled={isGenerating}>
+                Cancel
+              </Button>
+              <Button onClick={handleGenerate} disabled={isGenerating}>
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Analyzing...
+                  </>
+                ) : (
+                  'Generate Now'
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
