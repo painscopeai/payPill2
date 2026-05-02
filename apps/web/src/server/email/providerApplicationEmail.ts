@@ -1,7 +1,64 @@
 /**
  * Resend notifications for provider application lifecycle.
- * Safe to call without RESEND_API_KEY (logs and skips).
+ * `sendMail` is soft-fail (logs and skips) for optional notices.
+ * `sendMailStrict` throws when Resend is misconfigured or rejects the send — use for applicant-critical mail.
  */
+
+import { getPublicAppOrigin } from '@/server/utils/providerApplicationInvite';
+
+export type SendMailStrictResult = { resendEmailId: string | undefined };
+
+async function sendMailStrict(opts: {
+	to: string | string[];
+	subject: string;
+	html: string;
+}): Promise<SendMailStrictResult> {
+	const key = process.env.RESEND_API_KEY?.trim();
+	if (!key) {
+		throw Object.assign(
+			new Error(
+				'RESEND_API_KEY is not set on the server. Add it in Vercel (Production) so onboarding emails can be delivered.',
+			),
+			{ status: 503 },
+		);
+	}
+	const from = process.env.RESEND_FROM?.trim() || process.env.EMAIL_FROM?.trim();
+	if (!from) {
+		throw Object.assign(
+			new Error(
+				'RESEND_FROM or EMAIL_FROM is not set. Use a verified domain sender in Resend (e.g. PayPill <onboarding@yourdomain.com>).',
+			),
+			{ status: 503 },
+		);
+	}
+	let ResendCtor: typeof import('resend').Resend;
+	try {
+		({ Resend: ResendCtor } = await import('resend'));
+	} catch (e) {
+		throw Object.assign(new Error('Resend package failed to load'), { status: 500, cause: e });
+	}
+	const resend = new ResendCtor(key);
+	const { data, error } = await resend.emails.send({
+		from,
+		to: Array.isArray(opts.to) ? opts.to : [opts.to],
+		subject: opts.subject,
+		html: opts.html,
+	});
+	if (error) {
+		const msg =
+			typeof error === 'object' && error !== null && 'message' in error
+				? String((error as { message: unknown }).message)
+				: JSON.stringify(error);
+		console.error('[providerApplicationEmail] Resend send failed:', error);
+		throw Object.assign(
+			new Error(
+				`Resend rejected the email (${msg}). Confirm the API key, verified sender domain, and recipient allowlisting in Resend.`,
+			),
+			{ status: 502 },
+		);
+	}
+	return { resendEmailId: data?.id };
+}
 
 async function sendMail(opts: { to: string | string[]; subject: string; html: string }) {
 	const key = process.env.RESEND_API_KEY?.trim();
@@ -81,12 +138,20 @@ export async function notifyApplicantApproved(params: {
 	to: string;
 	organizationName: string;
 	providerId: string;
-}): Promise<void> {
-	await sendMail({
+}): Promise<SendMailStrictResult> {
+	const origin = getPublicAppOrigin();
+	const org = escapeHtml(params.organizationName || 'your organization');
+	return sendMailStrict({
 		to: params.to,
-		subject: '[PayPill] Your provider application was approved',
-		html: `<p>Your application for <strong>${escapeHtml(params.organizationName)}</strong> has been approved.</p>
-<p>Your provider record ID: <code>${escapeHtml(params.providerId)}</code></p>`,
+		subject: '[PayPill] Welcome — your provider onboarding is complete',
+		html: `<p>Hi,</p>
+<p>Great news: your provider application for <strong>${org}</strong> has been <strong>approved</strong>. Your organization is onboarded in PayPill.</p>
+<p><a href="${escapeHtml(origin)}" style="display:inline-block;padding:10px 16px;background:#ea580c;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Go to PayPill</a></p>
+<p style="font-size:14px;color:#444;">If the button does not work, copy this link into your browser:<br/><a href="${escapeHtml(origin)}">${escapeHtml(origin)}</a></p>
+<p style="font-size:13px;color:#666;">Sign in with the same email you used on your application to access your provider tools when your account is connected.</p>
+<p style="font-size:13px;color:#666;">Your provider reference (for support): <code>${escapeHtml(params.providerId)}</code></p>
+<p style="font-size:13px;color:#666;">Profile verification may still show as pending while we complete our checks.</p>
+<p>— PayPill</p>`,
 	});
 }
 

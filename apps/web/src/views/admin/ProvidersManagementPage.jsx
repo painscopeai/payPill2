@@ -86,7 +86,16 @@ export default function ProvidersManagementPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Approve failed');
       }
-      toast.success('Application approved; provider record created');
+      const json = await res.json();
+      toast.success('Application approved; provider record created', {
+        description:
+          json.email?.sent === false
+            ? `Onboarding email could not be sent: ${json.email?.error || 'unknown error'}`
+            : 'Onboarding confirmation email sent to the applicant.',
+      });
+      if (json.email?.sent === false) {
+        toast.warning('Fix Resend configuration or check Resend logs — approval is already saved.');
+      }
       await fetchApplications();
     } catch (e) {
       toast.error(e.message);

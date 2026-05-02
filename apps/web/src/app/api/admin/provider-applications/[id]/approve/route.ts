@@ -29,11 +29,19 @@ export async function POST(
 	try {
 		const { application, provider } = await approveProviderApplication(id, ctx.adminId);
 
-		await notifyApplicantApproved({
-			to: application.applicant_email,
-			organizationName: application.organization_name || 'Your organization',
-			providerId: String(provider.id),
-		});
+		let email: { sent: true; resendEmailId?: string } | { sent: false; error: string };
+		try {
+			const r = await notifyApplicantApproved({
+				to: application.applicant_email,
+				organizationName: application.organization_name || 'Your organization',
+				providerId: String(provider.id),
+			});
+			email = { sent: true, resendEmailId: r.resendEmailId };
+		} catch (mailErr) {
+			const errMsg = mailErr instanceof Error ? mailErr.message : 'Failed to send onboarding email';
+			console.error('[approve] applicant onboarding email failed after approval:', mailErr);
+			email = { sent: false, error: errMsg };
+		}
 
 		await auditLog({
 			adminId: ctx.adminId,
@@ -45,7 +53,7 @@ export async function POST(
 			userAgent: request.headers.get('user-agent'),
 		});
 
-		return NextResponse.json({ application, provider });
+		return NextResponse.json({ application, provider, email });
 	} catch (e) {
 		return errResponse(e);
 	}
