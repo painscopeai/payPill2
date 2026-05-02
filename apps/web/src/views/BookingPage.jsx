@@ -166,7 +166,12 @@ export default function BookingPage() {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Booking failed');
+        const msg =
+          err.hint ||
+          err.detail ||
+          err.error ||
+          (response.status === 503 ? 'Service temporarily unavailable.' : 'Booking failed');
+        throw new Error(msg);
       }
 
       const data = await response.json();

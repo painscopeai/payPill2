@@ -43,27 +43,47 @@ function validateAppointmentDateTime(appointmentDate: string, appointmentTime: s
 	return { valid: true as const };
 }
 
-/** Postgres / PostgREST: optional FK columns from migration not applied yet. */
-function isMissingOptionalColumnError(err: { code?: string; message?: string }): boolean {
+/**
+ * Only the copay-matrix FK columns may be absent when that part of the migration
+ * was skipped. Retrying without them is safe. Retrying when core columns like
+ * `appointment_date` are missing would fail the same way — handle separately.
+ */
+function shouldRetryInsertWithoutOptionalFkColumns(err: { code?: string; message?: string }): boolean {
 	const code = String(err.code || '');
+	if (code !== 'PGRST204' && code !== '42703') return false;
 	const msg = (err.message || '').toLowerCase();
-	if (code === '42703' || code === 'PGRST204') return true;
-	if (msg.includes('could not find') && msg.includes('column')) return true;
-	if (msg.includes('schema cache') && msg.includes('column')) return true;
-	if (
-		(msg.includes('visit_type_id') || msg.includes('insurance_option_id') || msg.includes('meeting_url')) &&
-		(msg.includes('does not exist') ||
-			msg.includes('unknown column') ||
-			msg.includes('could not find'))
-	) {
-		return true;
-	}
-	return false;
+	return (
+		msg.includes('visit_type_id') ||
+		msg.includes('insurance_option_id') ||
+		msg.includes('meeting_url')
+	);
+}
+
+function isPostgrestSchemaColumnError(err: { code?: string; message?: string } | null): boolean {
+	if (!err) return false;
+	const c = String(err.code || '');
+	return c === 'PGRST204' || c === '42703';
 }
 
 function sanitizeCopayAmount(n: number): number {
 	if (!Number.isFinite(n) || n < 0) return 0;
 	return Math.round(n * 100) / 100;
+}
+
+/** Browsers open the URL with GET; this route only accepts POST. */
+export async function GET() {
+	return NextResponse.json(
+		{
+			error: 'Method not allowed',
+			allowed: ['POST', 'OPTIONS'],
+			usage: 'Send a POST request with a JSON body to book an appointment.',
+		},
+		{ status: 405, headers: { Allow: 'POST, OPTIONS' } },
+	);
+}
+
+export async function OPTIONS() {
+	return new NextResponse(null, { status: 204, headers: { Allow: 'POST, OPTIONS' } });
 }
 
 export async function POST(request: NextRequest) {
@@ -209,20 +229,18 @@ export async function POST(request: NextRequest) {
 	let insErr: { code?: string; message?: string; details?: string; hint?: string } | null = null;
 
 	const attemptFull = await sb.from('appointments').insert(rowFull).select().single();
-	if (attemptFull.error) {
-		if (isMissingOptionalColumnError(attemptFull.error)) {
-			const retry = await sb.from('appointments').insert(rowBase).select().single();
-			appointment = retry.data as { id: string } | null;
-			insErr = retry.error;
-			if (!insErr) {
-				console.warn(
-					'[appointments/book] Inserted without visit_type_id/insurance_option_id; apply migration 20260511120000_appointment_copay_matrix.sql',
-				);
-			}
-		} else {
-			appointment = attemptFull.data as { id: string } | null;
-			insErr = attemptFull.error;
+	if (attemptFull.error && shouldRetryInsertWithoutOptionalFkColumns(attemptFull.error)) {
+		const retry = await sb.from('appointments').insert(rowBase).select().single();
+		appointment = retry.data as { id: string } | null;
+		insErr = retry.error;
+		if (!insErr) {
+			console.warn(
+				'[appointments/book] Inserted without visit_type_id/insurance_option_id/meeting_url; apply migration 20260511120000_appointment_copay_matrix.sql',
+			);
 		}
+	} else if (attemptFull.error) {
+		appointment = attemptFull.data as { id: string } | null;
+		insErr = attemptFull.error;
 	} else {
 		appointment = attemptFull.data as { id: string };
 	}
@@ -236,6 +254,20 @@ export async function POST(request: NextRequest) {
 						'This booking could not be linked to your account or the provider. Try again or contact support.',
 				},
 				{ status: 400 },
+			);
+		}
+		if (isPostgrestSchemaColumnError(insErr)) {
+			return NextResponse.json(
+				{
+					error:
+						'Booking storage is not configured on the server. Apply Supabase migrations so the appointments table includes booking columns (e.g. appointment_date).',
+					code: 'SCHEMA_APPOINTMENTS_INCOMPLETE',
+					hint: 'Run `supabase db push` or execute supabase/migrations/20260516120000_ensure_appointments_booking_schema.sql in the Supabase SQL editor, then retry.',
+					...(process.env.NODE_ENV === 'development' && insErr?.message
+						? { detail: insErr.message }
+						: {}),
+				},
+				{ status: 503 },
 			);
 		}
 		const devHint =
