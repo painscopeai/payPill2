@@ -67,7 +67,7 @@ export function QuestionBuilder({
     const inputType = type === 'checkboxes' ? 'checkbox' : 'radio';
 
     return (
-      <div className="space-y-2 mt-4">
+      <div className="mt-4 space-y-2">
         {opts.map((opt, idx) => (
           <div key={idx} className="option-item">
             <input type={inputType} disabled className="w-4 h-4 text-primary" />
@@ -96,7 +96,7 @@ export function QuestionBuilder({
     const validation = question.validation_json || { min: 1, max: 5, minLabel: '', maxLabel: '' };
     
     return (
-      <div className="space-y-4 mt-4 p-4 bg-muted/30 rounded-lg border border-border">
+      <div className="mt-4 space-y-4 rounded-xl border border-border/80 bg-muted/40 p-4">
         <div className="flex items-center gap-4">
           <Select value={String(validation.min)} onValueChange={(v) => updateField('validation_json', {...validation, min: parseInt(v)})}>
             <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
@@ -125,12 +125,20 @@ export function QuestionBuilder({
   };
 
   return (
-    <div className={cn("question-card group", isActive && "active")} onClick={onClick}>
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity drag-handle">
-        <GripVertical className="w-5 h-5 rotate-90" />
+    <div
+      className={cn(
+        'group relative rounded-2xl border bg-card p-5 shadow-sm ring-1 ring-black/[0.04] transition-[box-shadow,border-color] dark:ring-white/[0.06]',
+        isActive
+          ? 'border-primary/35 shadow-md ring-2 ring-primary/20'
+          : 'border-border/80 hover:border-border hover:shadow-md',
+      )}
+      onClick={onClick}
+    >
+      <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 opacity-0 transition-opacity group-hover:opacity-40">
+        <GripVertical className="h-5 w-5 rotate-90 text-muted-foreground" />
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start mt-4">
+      <div className="mt-3 flex flex-col items-start gap-4 md:flex-row">
         <div className="flex-1 space-y-4 w-full">
           <Input 
             value={question.question_text} 

@@ -53,3 +53,82 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json({ error: msg }, { status: 500 });
 	}
 }
+
+type CreateBody = {
+	name?: string;
+	form_type?: string;
+	description?: string;
+	category?: string | null;
+	settings?: Record<string, unknown>;
+};
+
+/**
+ * POST /api/forms — create form (used by Forms Builder "Blank form").
+ * Must be implemented here: the SPA calls same-origin `/api`, not the Express mount.
+ */
+export async function POST(request: NextRequest) {
+	const ctx = await requireManageFormsAdmin(request);
+	if (ctx instanceof NextResponse) return ctx;
+
+	let body: CreateBody;
+	try {
+		body = (await request.json()) as CreateBody;
+	} catch {
+		return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+	}
+
+	const name = typeof body.name === 'string' ? body.name.trim() : '';
+	const form_type = typeof body.form_type === 'string' ? body.form_type.trim() : '';
+	if (!name) {
+		return NextResponse.json({ error: 'Missing required field: name' }, { status: 400 });
+	}
+	if (!form_type) {
+		return NextResponse.json({ error: 'Missing required field: form_type' }, { status: 400 });
+	}
+	if (!(VALID_FORM_TYPES as readonly string[]).includes(form_type)) {
+		return NextResponse.json(
+			{ error: `Invalid form_type: must be one of [${VALID_FORM_TYPES.join(', ')}]` },
+			{ status: 400 },
+		);
+	}
+
+	const sb = getSupabaseAdmin();
+	const formData: Record<string, unknown> = {
+		name,
+		form_type,
+		description: typeof body.description === 'string' ? body.description : '',
+		category:
+			body.category === undefined || body.category === null
+				? null
+				: String(body.category),
+		created_by: ctx.adminId,
+		status: 'draft',
+	};
+	if (
+		body.settings !== undefined &&
+		typeof body.settings === 'object' &&
+		body.settings !== null &&
+		!Array.isArray(body.settings)
+	) {
+		formData.settings = body.settings;
+	}
+
+	try {
+		const { data: form, error: formErr } = await sb.from('forms').insert(formData).select().single();
+		if (formErr) throw formErr;
+		if (!form) throw new Error('Insert returned no row');
+
+		return NextResponse.json({
+			id: form.id as string,
+			name: form.name,
+			form_type: form.form_type,
+			description: form.description,
+			status: form.status,
+			created_by: form.created_by,
+			created_at: form.created_at,
+		});
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Failed to create form';
+		return NextResponse.json({ error: msg }, { status: 500 });
+	}
+}

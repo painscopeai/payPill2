@@ -44,3 +44,39 @@ export async function GET(
 		return NextResponse.json({ error: msg }, { status: 500 });
 	}
 }
+
+/**
+ * DELETE /api/forms/:formId — remove form; children cascade in DB or we delete explicitly.
+ */
+export async function DELETE(
+	request: NextRequest,
+	context: { params: Promise<{ formId: string }> },
+) {
+	const ctx = await requireManageFormsAdmin(request);
+	if (ctx instanceof NextResponse) return ctx;
+	const { formId } = await context.params;
+
+	const sb = getSupabaseAdmin();
+	try {
+		const { data: existing, error: exErr } = await sb.from('forms').select('id').eq('id', formId).maybeSingle();
+		if (exErr) throw exErr;
+		if (!existing) {
+			return NextResponse.json({ error: 'Form not found' }, { status: 404 });
+		}
+
+		const { error: qDelErr } = await sb.from('form_questions').delete().eq('form_id', formId);
+		if (qDelErr) throw qDelErr;
+		const { error: rDelErr } = await sb.from('form_responses').delete().eq('form_id', formId);
+		if (rDelErr) throw rDelErr;
+		const { error: fDelErr } = await sb.from('forms').delete().eq('id', formId);
+		if (fDelErr) throw fDelErr;
+
+		return NextResponse.json({
+			success: true,
+			message: 'Form deleted successfully',
+		});
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Failed to delete form';
+		return NextResponse.json({ error: msg }, { status: 500 });
+	}
+}

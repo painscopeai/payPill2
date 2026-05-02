@@ -43,9 +43,11 @@ import {
   Copy,
   Trash2,
   Rocket,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
+import { Badge } from '@/components/ui/badge.jsx';
 
 async function formsAuthHeaders() {
   const {
@@ -75,6 +77,8 @@ export default function FormBuilderPage() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const [creatingBlank, setCreatingBlank] = useState(false);
+  const [deletingForm, setDeletingForm] = useState(false);
 
   const loadForm = useCallback(async (id) => {
     setIsLoading(true);
@@ -140,6 +144,7 @@ export default function FormBuilderPage() {
   }, [forms, listSearch, categoryFilter]);
 
   const handleCreateBlank = async () => {
+    setCreatingBlank(true);
     try {
       const res = await apiServerClient.fetch('/forms', {
         method: 'POST',
@@ -162,14 +167,17 @@ export default function FormBuilderPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to create form');
+        const detail = err.error || err.message || res.statusText;
+        throw new Error(typeof detail === 'string' ? detail : 'Failed to create form');
       }
       const created = await res.json();
       await fetchForms();
       await loadForm(created.id);
       toast.success('New form created');
     } catch (err) {
-      toast.error(err.message || 'Failed to create form');
+      toast.error(err instanceof Error ? err.message : 'Failed to create form');
+    } finally {
+      setCreatingBlank(false);
     }
   };
 
@@ -336,6 +344,7 @@ export default function FormBuilderPage() {
 
   const handleDeleteForm = async () => {
     if (!activeForm) return;
+    setDeletingForm(true);
     try {
       const res = await apiServerClient.fetch(`/forms/${activeForm.id}`, {
         method: 'DELETE',
@@ -343,7 +352,8 @@ export default function FormBuilderPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Delete failed');
+        const detail = err.error || err.message || res.statusText;
+        throw new Error(typeof detail === 'string' ? detail : 'Delete failed');
       }
       toast.success('Form deleted');
       setDeleteConfirmOpen(false);
@@ -351,7 +361,9 @@ export default function FormBuilderPage() {
       setActiveForm(null);
       setQuestions([]);
     } catch (err) {
-      toast.error(err.message || 'Failed to delete');
+      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+    } finally {
+      setDeletingForm(false);
     }
   };
 
@@ -405,11 +417,17 @@ export default function FormBuilderPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-muted/10">
-      <div className="flex w-72 shrink-0 flex-col border-r border-border bg-card">
-        <div className="space-y-3 border-b border-border p-4">
-          <Button className="w-full gap-2" type="button" onClick={() => void handleCreateBlank()}>
-            <Plus className="h-4 w-4" /> Blank form
+    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-[linear-gradient(160deg,hsl(var(--muted)/0.35)_0%,hsl(var(--background))_45%,hsl(var(--muted)/0.2)_100%)]">
+      <div className="flex w-72 shrink-0 flex-col border-r border-border/80 bg-card/95 shadow-sm backdrop-blur-sm">
+        <div className="space-y-3 border-b border-border/80 p-4">
+          <Button
+            className="w-full gap-2 shadow-sm"
+            type="button"
+            disabled={creatingBlank}
+            onClick={() => void handleCreateBlank()}
+          >
+            {creatingBlank ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Blank form
           </Button>
           <Button
             variant="outline"
@@ -442,7 +460,7 @@ export default function FormBuilderPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex-1 space-y-1 overflow-y-auto p-2">
+        <div className="flex-1 space-y-2 overflow-y-auto p-2">
           {isLoading && !activeForm ? (
             <div className="p-4 text-center">
               <LoadingSpinner size="sm" />
@@ -453,142 +471,167 @@ export default function FormBuilderPage() {
                 key={f.id}
                 type="button"
                 onClick={() => void loadForm(f.id)}
-                className={`w-full truncate rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
                   activeForm?.id === f.id
-                    ? 'bg-primary/10 font-medium text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    ? 'border-primary/40 bg-primary/[0.07] font-medium text-foreground shadow-sm ring-1 ring-primary/20'
+                    : 'border-transparent bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground'
                 }`}
               >
                 <span className="block truncate">{f.name || 'Untitled Form'}</span>
-                {(f.category || f.form_type) && (
-                  <span className="mt-0.5 block truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {[f.category, f.form_type].filter(Boolean).join(' · ')}
-                  </span>
-                )}
+                <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {f.status === 'published' ? (
+                    <Badge variant="secondary" className="text-[10px] font-normal uppercase tracking-wide">
+                      Live
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-normal uppercase tracking-wide">
+                      Draft
+                    </Badge>
+                  )}
+                  {(f.category || f.form_type) && (
+                    <span className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {[f.category, f.form_type].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
+                </span>
               </button>
             ))
           )}
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col bg-transparent">
         {activeForm ? (
           <>
-            <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
-              <div className="flex min-w-0 flex-1 items-center gap-4">
-                <Input
-                  value={activeForm.name}
-                  onChange={(e) => setActiveForm({ ...activeForm, name: e.target.value })}
-                  className="h-9 w-full max-w-md border-transparent bg-transparent px-2 font-display text-lg font-semibold hover:border-border focus:border-primary"
-                />
-                {isSaving ? (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <LoadingSpinner size="xs" /> Saving…
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <CheckCircle2 className="h-3 w-3" /> Saved locally — click Save to persist
-                  </span>
-                )}
+            <header className="shrink-0 border-b border-border/80 bg-card/95 px-4 py-3 shadow-sm backdrop-blur-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <Input
+                    value={activeForm.name}
+                    onChange={(e) => setActiveForm({ ...activeForm, name: e.target.value })}
+                    className="h-10 border-transparent bg-transparent px-1 font-display text-xl font-semibold tracking-tight hover:border-border focus:border-primary md:text-2xl"
+                    placeholder="Form name"
+                  />
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                        Saving…
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                        <span className="min-w-0">
+                          Edits are kept in this session only — <span className="font-medium text-foreground/80">Save</span> to update the server.
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <Button variant="ghost" size="sm" type="button" onClick={() => setActiveTab('theme')}>
+                    <Palette className="h-4 w-4" /> Theme
+                  </Button>
+                  <Button variant="ghost" size="sm" type="button" onClick={() => setIsPreviewMode(true)}>
+                    <Eye className="h-4 w-4" /> Preview
+                  </Button>
+                  <Button variant="ghost" size="sm" type="button" onClick={() => setActiveTab('settings')}>
+                    <Settings className="h-4 w-4" /> Settings
+                  </Button>
+                  <div className="mx-0.5 hidden h-6 w-px bg-border sm:block" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    disabled={duplicateBusy}
+                    onClick={() => void handleDuplicate()}
+                  >
+                    <Copy className="mr-1 h-4 w-4" /> Duplicate
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => setDeleteConfirmOpen(true)}
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" /> Delete
+                  </Button>
+                  <Button size="sm" className="gap-2 bg-primary-gradient shadow-sm" disabled={isSaving} type="button" onClick={() => void handleSaveForm()}>
+                    <Save className="h-4 w-4" /> Save
+                  </Button>
+                  <Button size="sm" variant="secondary" type="button" disabled={isSaving} onClick={() => void handlePublish()}>
+                    <Rocket className="h-4 w-4" /> Publish
+                  </Button>
+                  <Button size="sm" variant="outline" type="button" asChild>
+                    <Link to={`/admin/forms/${activeForm.id}/responses`}>
+                      <Send className="mr-1 h-4 w-4" /> Responses
+                    </Link>
+                  </Button>
+                </div>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <Button variant="ghost" size="sm" type="button" className="toolbar-button" onClick={() => setActiveTab('theme')}>
-                  <Palette className="h-4 w-4" /> Theme
-                </Button>
-                <Button variant="ghost" size="sm" type="button" className="toolbar-button" onClick={() => setIsPreviewMode(true)}>
-                  <Eye className="h-4 w-4" /> Preview
-                </Button>
-                <Button variant="ghost" size="sm" type="button" className="toolbar-button" onClick={() => setActiveTab('settings')}>
-                  <Settings className="h-4 w-4" /> Settings
-                </Button>
-                <div className="mx-1 h-6 w-px bg-border" />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  disabled={duplicateBusy}
-                  onClick={() => void handleDuplicate()}
-                >
-                  <Copy className="mr-1 h-4 w-4" /> Duplicate
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  className="text-destructive hover:bg-destructive/10"
-                  onClick={() => setDeleteConfirmOpen(true)}
-                >
-                  <Trash2 className="mr-1 h-4 w-4" /> Delete
-                </Button>
-                <Button size="sm" className="gap-2 bg-primary-gradient" disabled={isSaving} type="button" onClick={() => void handleSaveForm()}>
-                  <Save className="h-4 w-4" /> Save
-                </Button>
-                <Button size="sm" variant="secondary" type="button" disabled={isSaving} onClick={() => void handlePublish()}>
-                  <Rocket className="h-4 w-4" /> Publish
-                </Button>
-                <Button size="sm" variant="outline" type="button" asChild>
-                  <Link to={`/admin/forms/${activeForm.id}/responses`}>
-                    <Send className="mr-1 h-4 w-4" /> Responses
-                  </Link>
-                </Button>
-              </div>
-            </div>
+            </header>
 
-            <div className="flex flex-wrap items-center gap-3 border-b border-border bg-muted/20 px-4 py-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Label className="text-muted-foreground">Type</Label>
-                <Select
-                  value={activeForm.form_type || 'custom'}
-                  onValueChange={(v) => setActiveForm({ ...activeForm, form_type: v })}
-                >
-                  <SelectTrigger className="h-8 w-[200px] bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VALID_FORM_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <section className="shrink-0 border-b border-border/60 bg-muted/25 px-4 py-4">
+              <div className="mx-auto max-w-3xl">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Form details</p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Type</Label>
+                    <Select
+                      value={activeForm.form_type || 'custom'}
+                      onValueChange={(v) => setActiveForm({ ...activeForm, form_type: v })}
+                    >
+                      <SelectTrigger className="h-10 bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VALID_FORM_TYPES.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Category</Label>
+                    <Input
+                      value={activeForm.category || ''}
+                      onChange={(e) => setActiveForm({ ...activeForm, category: e.target.value })}
+                      placeholder="e.g. Intake"
+                      className="h-10 bg-background"
+                      list="form-category-presets"
+                    />
+                    <datalist id="form-category-presets">
+                      {CATEGORY_PRESETS.map((c) => (
+                        <option key={c} value={c} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <Select
+                      value={activeForm.status || 'draft'}
+                      onValueChange={(v) => setActiveForm({ ...activeForm, status: v })}
+                    >
+                      <SelectTrigger className="h-10 bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="published">Published</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Label className="text-muted-foreground">Category</Label>
-                <Input
-                  value={activeForm.category || ''}
-                  onChange={(e) => setActiveForm({ ...activeForm, category: e.target.value })}
-                  placeholder="e.g. Intake"
-                  className="h-8 w-[140px] bg-background"
-                  list="form-category-presets"
-                />
-                <datalist id="form-category-presets">
-                  {CATEGORY_PRESETS.map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label className="text-muted-foreground">Status</Label>
-                <Select
-                  value={activeForm.status || 'draft'}
-                  onValueChange={(v) => setActiveForm({ ...activeForm, status: v })}
-                >
-                  <SelectTrigger className="h-8 w-[130px] bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            </section>
 
             <div className="flex flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto bg-muted/30 p-4 md:p-8">
+              <div className="flex-1 overflow-y-auto bg-[radial-gradient(ellipse_at_top,hsl(var(--muted)/0.5)_0%,transparent_55%)] p-4 md:p-8">
                 <div className="mx-auto max-w-3xl space-y-6 pb-32">
-                  <div className="rounded-xl border border-border border-t-8 border-t-primary bg-card p-6 shadow-sm">
+                  <div className="rounded-2xl border border-border/80 border-t-[6px] border-t-primary bg-card p-6 shadow-md ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
                     <Input
                       value={activeForm.name}
                       onChange={(e) => setActiveForm({ ...activeForm, name: e.target.value })}
@@ -764,9 +807,23 @@ export default function FormBuilderPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => void handleDeleteForm()}>
-              Delete
+            <AlertDialogCancel disabled={deletingForm}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deletingForm}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteForm();
+              }}
+            >
+              {deletingForm ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
