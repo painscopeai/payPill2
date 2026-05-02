@@ -4,12 +4,12 @@ import { useRecommendations } from '@/contexts/RecommendationContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Sparkles, Activity, CheckCircle2, XCircle, Edit3 } from 'lucide-react';
+import { Sparkles, Activity, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import AskAIButton from '@/components/AskAIButton';
 
 export default function AIRecommendationsPage() {
-  const { recommendations, fetchRecommendations, isLoading, acceptRecommendation, declineRecommendation } = useRecommendations();
+  const { recommendations, fetchRecommendations, isListLoading, acceptRecommendation, declineRecommendation } =
+    useRecommendations();
 
   useEffect(() => {
     fetchRecommendations();
@@ -35,23 +35,28 @@ export default function AIRecommendationsPage() {
         <AskAIButton />
       </div>
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="overflow-hidden">
-              <CardHeader className="pb-3"><Skeleton className="h-6 w-3/4" /></CardHeader>
-              <CardContent><Skeleton className="h-20 w-full" /></CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : recommendations.length === 0 ? (
+      {recommendations.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="bg-primary/10 p-4 rounded-full mb-4">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-xl font-semibold">No recommendations yet</h3>
-            <p className="text-muted-foreground max-w-md mt-2 mb-6">Generate your first set of personalized health recommendations based on your profile.</p>
+            {isListLoading ? (
+              <>
+                <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
+                <h3 className="text-xl font-semibold">Loading saved recommendations</h3>
+                <p className="text-muted-foreground max-w-md mt-2 text-sm">
+                  Fetching your plan from the server—AI analysis only runs when you click Generate in the dialog.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="bg-primary/10 p-4 rounded-full mb-4">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold">No recommendations yet</h3>
+                <p className="text-muted-foreground max-w-md mt-2 mb-6">
+                  Use &quot;Ask AI for Recommendation&quot; to generate your first plan after choosing a focus area.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (

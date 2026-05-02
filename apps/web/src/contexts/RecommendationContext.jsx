@@ -8,10 +8,13 @@ export const RecommendationProvider = ({ children }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  /** GET /ai-recommendations — saved list load / refresh */
+  const [isListLoading, setIsListLoading] = useState(false);
+  /** POST — Gemini generation only (do not tie to list fetch) */
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const fetchRecommendations = useCallback(async () => {
-    setIsLoading(true);
+    setIsListLoading(true);
     try {
       const response = await apiServerClient.fetch('/ai-recommendations');
       if (response.ok) {
@@ -22,12 +25,12 @@ export const RecommendationProvider = ({ children }) => {
       console.error('Failed to fetch recommendations:', error);
       toast.error('Failed to load recommendations');
     } finally {
-      setIsLoading(false);
+      setIsListLoading(false);
     }
   }, []);
 
   const generateRecommendations = async (focusArea = 'general') => {
-    setIsLoading(true);
+    setIsGenerating(true);
     try {
       const response = await apiServerClient.fetch('/ai-recommendations', {
         method: 'POST',
@@ -44,7 +47,7 @@ export const RecommendationProvider = ({ children }) => {
       toast.error('Failed to generate recommendations');
       throw error;
     } finally {
-      setIsLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -105,7 +108,8 @@ export const RecommendationProvider = ({ children }) => {
       recommendations,
       history,
       stats,
-      isLoading,
+      isListLoading,
+      isGenerating,
       fetchRecommendations,
       generateRecommendations,
       acceptRecommendation,

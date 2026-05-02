@@ -6,7 +6,7 @@ import { Sparkles, Loader2 } from 'lucide-react';
 import { useRecommendations } from '@/contexts/RecommendationContext';
 
 export default function AskAIButton() {
-  const { generateRecommendations, recommendations, isLoading } = useRecommendations();
+  const { generateRecommendations, recommendations, isGenerating } = useRecommendations();
   const [open, setOpen] = useState(false);
   const [focusArea, setFocusArea] = useState('general');
 
@@ -64,9 +64,17 @@ export default function AskAIButton() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>Cancel</Button>
-            <Button onClick={handleGenerate} disabled={isLoading}>
-              {isLoading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Analyzing...</> : 'Generate Now'}
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={isGenerating}>
+              Cancel
+            </Button>
+            <Button onClick={handleGenerate} disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Analyzing...
+                </>
+              ) : (
+                'Generate Now'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
