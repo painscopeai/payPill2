@@ -27,14 +27,16 @@ export async function GET(request: NextRequest) {
 	}
 
 	const sb = getSupabaseAdmin();
+	// Order by created_at — exists on the base appointments table. Ordering by
+	// appointment_date breaks if the PB-compat migration adding that column was not applied.
 	const { data: appointments, error } = await sb
 		.from('appointments')
 		.select('*')
 		.eq('user_id', userId)
-		.order('appointment_date', { ascending: false });
+		.order('created_at', { ascending: false });
 
 	if (error) {
-		console.error('[api/appointments] list', error.message);
+		console.error('[api/appointments] list', error.message, error.code, error.details);
 		return NextResponse.json({ error: 'Failed to list appointments' }, { status: 500 });
 	}
 

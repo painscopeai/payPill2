@@ -161,7 +161,7 @@ router.post('/book', async (req, res) => {
 router.get('/', async (req, res) => {
 	const { user_id, provider_id, status } = req.query;
 
-	let q = sb().from('appointments').select('*').order('appointment_date', { ascending: false });
+	let q = sb().from('appointments').select('*').order('created_at', { ascending: false });
 	if (user_id) q = q.eq('user_id', user_id);
 	if (provider_id) q = q.eq('provider_id', provider_id);
 	if (status) q = q.eq('status', status);
