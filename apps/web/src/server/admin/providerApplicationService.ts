@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { signProviderApplicationInviteToken, verifyProviderApplicationInviteToken } from '@/server/utils/providerApplicationInvite';
 
 export type ProviderApplicationRow = {
 	id: string;
@@ -144,6 +145,12 @@ export async function submitProviderApplication(id: string): Promise<ProviderApp
 	if (existing.status !== 'draft') {
 		throw Object.assign(new Error('Only draft applications can be submitted'), { status: 400 });
 	}
+	if (existing.form_id) {
+		throw Object.assign(
+			new Error('This application uses a Form Builder questionnaire—use Send invitation instead of direct submit'),
+			{ status: 400 },
+		);
+	}
 	const org = (existing.organization_name || '').trim();
 	const ty = (existing.type || '').trim();
 	const email = (existing.applicant_email || '').trim();
@@ -161,6 +168,114 @@ export async function submitProviderApplication(id: string): Promise<ProviderApp
 		})
 		.eq('id', id)
 		.eq('status', 'draft')
+		.select('*')
+		.single();
+	if (error) throw error;
+	return data as ProviderApplicationRow;
+}
+
+function validateInvitePrerequisites(existing: ProviderApplicationRow): void {
+	const org = (existing.organization_name || '').trim();
+	const ty = (existing.type || '').trim();
+	const email = (existing.applicant_email || '').trim();
+	if (!org) throw Object.assign(new Error('organization_name is required'), { status: 400 });
+	if (!ty || ty === 'unspecified') throw Object.assign(new Error('type is required'), { status: 400 });
+	if (!email) throw Object.assign(new Error('applicant_email is required'), { status: 400 });
+	if (!existing.form_id) throw Object.assign(new Error('Select an applicant form before sending an invitation'), { status: 400 });
+}
+
+/**
+ * Draft → invited (first invite), or resend email when already invited (same validations).
+ * Returns a fresh JWT for the email link each time.
+ */
+export async function inviteOrResendProviderApplication(id: string): Promise<{ application: ProviderApplicationRow; inviteToken: string }> {
+	const existing = await getProviderApplication(id);
+	if (!existing) throw Object.assign(new Error('Not found'), { status: 404 });
+
+	if (existing.status !== 'draft' && existing.status !== 'invited') {
+		throw Object.assign(new Error('Invitation can only be sent for draft or invited applications'), { status: 400 });
+	}
+	if (existing.form_response_id) {
+		throw Object.assign(new Error('This application already has a submitted form response'), { status: 400 });
+	}
+
+	validateInvitePrerequisites(existing);
+
+	const token = signProviderApplicationInviteToken({
+		applicationId: existing.id,
+		formId: existing.form_id as string,
+		applicantEmail: existing.applicant_email.trim(),
+	});
+
+	const now = new Date().toISOString();
+
+	if (existing.status === 'draft') {
+		const { data, error } = await sb()
+			.from('provider_applications')
+			.update({
+				status: 'invited',
+				updated_at: now,
+			})
+			.eq('id', id)
+			.eq('status', 'draft')
+			.select('*')
+			.single();
+		if (error) throw error;
+		return { application: data as ProviderApplicationRow, inviteToken: token };
+	}
+
+	// invited: refresh timestamp only (token rotates each send)
+	const { data, error } = await sb()
+		.from('provider_applications')
+		.update({ updated_at: now })
+		.eq('id', id)
+		.eq('status', 'invited')
+		.select('*')
+		.single();
+	if (error) throw error;
+	return { application: data as ProviderApplicationRow, inviteToken: token };
+}
+
+/** After applicant submits the Form Builder questionnaire with a valid invite token. */
+export async function completeApplicationWithFormResponse(params: {
+	token: string;
+	formResponseId: string;
+	formIdFromUrl: string;
+	respondentEmail: string;
+}): Promise<ProviderApplicationRow> {
+	const payload = verifyProviderApplicationInviteToken(params.token);
+	if (payload.formId !== params.formIdFromUrl) {
+		throw Object.assign(new Error('Form does not match invitation'), { status: 400 });
+	}
+
+	const emailNorm = (a: string) => a.trim().toLowerCase();
+	if (emailNorm(params.respondentEmail) !== emailNorm(payload.applicantEmail)) {
+		throw Object.assign(new Error('Email must match the invited applicant email'), { status: 400 });
+	}
+
+	const existing = await getProviderApplication(payload.applicationId);
+	if (!existing) throw Object.assign(new Error('Not found'), { status: 404 });
+	if (existing.status !== 'invited') {
+		throw Object.assign(new Error('Application is not awaiting the questionnaire'), { status: 400 });
+	}
+	if (existing.form_id !== params.formIdFromUrl) {
+		throw Object.assign(new Error('Form does not match application'), { status: 400 });
+	}
+	if (existing.form_response_id) {
+		throw Object.assign(new Error('This application was already completed'), { status: 409 });
+	}
+
+	const now = new Date().toISOString();
+	const { data, error } = await sb()
+		.from('provider_applications')
+		.update({
+			status: 'submitted',
+			submitted_at: now,
+			form_response_id: params.formResponseId,
+			updated_at: now,
+		})
+		.eq('id', existing.id)
+		.eq('status', 'invited')
 		.select('*')
 		.single();
 	if (error) throw error;

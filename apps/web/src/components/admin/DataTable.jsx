@@ -6,6 +6,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, ChevronsUpDown } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
+import { cn } from '@/lib/utils';
 
 export function DataTable({ 
   columns, 
@@ -14,7 +15,9 @@ export function DataTable({
   onSort,
   page = 1,
   totalPages = 1,
-  onPageChange
+  onPageChange,
+  selectedRowId,
+  onRowClick,
 }) {
   const [sortCol, setSortCol] = useState(null);
   const [sortDesc, setSortDesc] = useState(false);
@@ -63,7 +66,15 @@ export function DataTable({
                 </TableRow>
               ) : (
                 data?.map((row, rIdx) => (
-                  <TableRow key={row.id || rIdx} className="admin-table-row">
+                  <TableRow
+                    key={row.id || rIdx}
+                    className={cn(
+                      'admin-table-row',
+                      onRowClick && 'cursor-pointer transition-colors hover:bg-muted/50',
+                      selectedRowId != null && row.id === selectedRowId && 'bg-muted/70 ring-1 ring-inset ring-primary/20',
+                    )}
+                    onClick={() => onRowClick?.(row)}
+                  >
                     {columns.map((col, cIdx) => (
                       <TableCell key={cIdx} className="whitespace-nowrap">
                         {col.render ? col.render(row) : row[col.key]}

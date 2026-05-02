@@ -17,6 +17,7 @@ export function StatusBadge({ status, className }) {
         return 'bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] hover:bg-[hsl(var(--success))/90]';
       case 'pending':
       case 'draft':
+      case 'invited':
       case 'paused':
       case 'in_progress':
         return 'bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] hover:bg-[hsl(var(--warning))/90]';

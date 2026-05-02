@@ -39,6 +39,20 @@ function notifyRecipients(): string[] {
 	return raw.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+export async function notifyApplicantInvite(params: {
+	to: string;
+	organizationName: string;
+	inviteUrl: string;
+}): Promise<void> {
+	await sendMail({
+		to: params.to,
+		subject: `[PayPill] Complete your provider application`,
+		html: `<p>You were invited to complete a provider application for <strong>${escapeHtml(params.organizationName || 'your organization')}</strong>.</p>
+<p><a href="${escapeHtml(params.inviteUrl)}">Open the questionnaire</a></p>
+<p>If the button does not work, copy this link into your browser:<br/><code style="word-break:break-all">${escapeHtml(params.inviteUrl)}</code></p>`,
+	});
+}
+
 export async function notifyApplicationSubmitted(params: {
 	applicationId: string;
 	organizationName: string;

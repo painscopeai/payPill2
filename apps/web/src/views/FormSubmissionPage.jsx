@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import apiServerClient from '@/lib/apiServerClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,9 +12,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
+/** Decode JWT payload (browser only; signature verified on submit server-side). */
+function readInviteEmailFromToken(token) {
+  if (!token || typeof token !== 'string') return '';
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return '';
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    return typeof payload.applicantEmail === 'string' ? payload.applicantEmail.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
 export default function FormSubmissionPage() {
   const { formId } = useParams();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const applicationToken = searchParams.get('application_token')?.trim() || '';
+
+  const inviteEmailHint = useMemo(
+    () => readInviteEmailFromToken(applicationToken),
+    [applicationToken],
+  );
+
   const [form, setForm] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -31,6 +53,9 @@ export default function FormSubmissionPage() {
         const data = await res.json();
         setForm(data);
         setQuestions(data.questions || []);
+        if (inviteEmailHint && data.collect_email !== false) {
+          setEmail(inviteEmailHint);
+        }
       } catch (err) {
         toast.error('Form not found or unavailable');
       } finally {
@@ -38,7 +63,7 @@ export default function FormSubmissionPage() {
       }
     };
     if (formId) fetchForm();
-  }, [formId]);
+  }, [formId, inviteEmailHint]);
 
   const handleAnswerChange = (questionId, value) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -58,9 +83,18 @@ export default function FormSubmissionPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    const effectiveEmail =
+      applicationToken && inviteEmailHint
+        ? inviteEmailHint
+        : email || 'anonymous';
+
     // Basic validation
-    if (form.collect_email && !email) {
+    if (form.collect_email !== false && !applicationToken && !email?.trim()) {
       toast.error('Email is required');
+      return;
+    }
+    if (applicationToken && !inviteEmailHint) {
+      toast.error('Invalid invitation link');
       return;
     }
 
@@ -74,14 +108,18 @@ export default function FormSubmissionPage() {
     setIsSubmitting(true);
     try {
       const completionTime = Math.round((Date.now() - startTime) / 1000);
+      const body = {
+        respondent_email: effectiveEmail.trim(),
+        responses_json: answers,
+        completion_time_seconds: completionTime,
+      };
+      if (applicationToken) {
+        body.provider_application_token = applicationToken;
+      }
       await apiServerClient.fetch(`/forms/${formId}/responses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          respondent_email: email || 'anonymous',
-          responses_json: answers,
-          completion_time_seconds: completionTime
-        })
+        body: JSON.stringify(body),
       });
       setIsSubmitted(true);
     } catch (err) {
@@ -139,7 +177,12 @@ export default function FormSubmissionPage() {
                 onChange={(e) => setEmail(e.target.value)} 
                 placeholder="Your email" 
                 className="max-w-md"
+                readOnly={Boolean(applicationToken)}
+                title={applicationToken ? 'Email is fixed for this invitation' : undefined}
               />
+              {applicationToken ? (
+                <p className="text-xs text-muted-foreground">This questionnaire was sent to your invited email address.</p>
+              ) : null}
             </div>
           )}
 
