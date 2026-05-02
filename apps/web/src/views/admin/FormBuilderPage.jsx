@@ -45,7 +45,6 @@ import {
   Save,
   Send,
   LayoutTemplate,
-  CheckCircle2,
   X,
   Search,
   Copy,
@@ -516,7 +515,6 @@ export default function FormBuilderPage() {
         {activeForm ? (
           <>
             <header className="shrink-0 border-b border-border/80 bg-card/95 px-3 py-3 shadow-sm backdrop-blur-sm sm:px-4">
-              {/* Stack title + meta row; never put long hint and full toolbar in one flex row (causes ~0 width / one-word wrapping at 100% zoom). */}
               <div className="flex flex-col gap-3">
                 <Input
                   value={activeForm.name}
@@ -524,23 +522,7 @@ export default function FormBuilderPage() {
                   className="h-10 w-full max-w-full border-transparent bg-transparent px-1 font-display text-xl font-semibold tracking-tight hover:border-border focus:border-primary md:text-2xl"
                   placeholder="Form name"
                 />
-                <div className="flex flex-col gap-3 min-[1100px]:flex-row min-[1100px]:items-start min-[1100px]:justify-between min-[1100px]:gap-4">
-                  <p className="text-xs leading-relaxed text-muted-foreground min-[1100px]:max-w-[26rem]">
-                    {isSaving ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
-                        Saving…
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-start gap-1.5">
-                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
-                        <span>
-                          Session-only edits — use <span className="font-medium text-foreground/90">Save</span> to sync to the server.
-                        </span>
-                      </span>
-                    )}
-                  </p>
-                  <div className="flex min-w-0 flex-wrap items-center gap-2 min-[1100px]:max-w-[52%] min-[1100px]:justify-end xl:max-w-none">
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                   <Button variant="ghost" size="sm" type="button" onClick={() => setActiveTab('theme')}>
                     <Palette className="h-4 w-4" /> Theme
                   </Button>
@@ -595,13 +577,12 @@ export default function FormBuilderPage() {
                   </Button>
                 </div>
               </div>
-              </div>
             </header>
 
             <section className="shrink-0 border-b border-border/60 bg-muted/25 px-3 py-4 sm:px-4">
               <div className="mx-auto w-full max-w-6xl">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Form details</p>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Type</Label>
                     <Select
@@ -619,21 +600,6 @@ export default function FormBuilderPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Category</Label>
-                    <Input
-                      value={activeForm.category || ''}
-                      onChange={(e) => setActiveForm({ ...activeForm, category: e.target.value })}
-                      placeholder="e.g. Intake"
-                      className="h-10 bg-background"
-                      list="form-category-presets"
-                    />
-                    <datalist id="form-category-presets">
-                      {CATEGORY_PRESETS.map((c) => (
-                        <option key={c} value={c} />
-                      ))}
-                    </datalist>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Status</Label>
