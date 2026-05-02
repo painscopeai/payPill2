@@ -80,6 +80,62 @@ function labResultBadgeClass(status) {
   return 'bg-muted text-foreground border-border';
 }
 
+/** ISO or date string → YYYY-MM-DD for date inputs */
+function normalizeDateForInput(value) {
+  if (!value) return '';
+  const s = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  try {
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toISOString().slice(0, 10);
+    }
+  } catch {
+    /* ignore */
+  }
+  return '';
+}
+
+function getFieldHints(recordType) {
+  switch (recordType) {
+    case 'condition':
+      return {
+        title: 'Condition name',
+        date: 'Date diagnosed',
+        status: 'Status (e.g. Active, Resolved)',
+        provider: 'Managing doctor',
+      };
+    case 'lab_result':
+      return {
+        title: 'Test name',
+        date: 'Test date',
+        status: 'Result summary (e.g. Normal, Review needed)',
+        provider: 'Laboratory / facility',
+      };
+    case 'allergy':
+      return {
+        title: 'Allergen',
+        date: 'Onset date (if known)',
+        status: 'Severity (e.g. Mild, Severe)',
+        provider: 'Prescriber or clinic (optional)',
+      };
+    case 'surgery':
+      return {
+        title: 'Procedure',
+        date: 'Procedure date',
+        status: 'Status (e.g. Completed, Recovering)',
+        provider: 'Surgeon / hospital',
+      };
+    default:
+      return {
+        title: 'Title',
+        date: 'Date',
+        status: 'Status',
+        provider: 'Provider / facility',
+      };
+  }
+}
+
 export default function PatientHealthRecordsPage() {
   const { currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -89,8 +145,18 @@ export default function PatientHealthRecordsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [detailRecord, setDetailRecord] = useState(null);
+  const [detailEditing, setDetailEditing] = useState(false);
 
   const [form, setForm] = useState({
+    record_type: 'condition',
+    title: '',
+    record_date: '',
+    status: '',
+    provider_or_facility: '',
+    notes: '',
+  });
+
+  const [editForm, setEditForm] = useState({
     record_type: 'condition',
     title: '',
     record_date: '',
@@ -169,6 +235,73 @@ export default function PatientHealthRecordsPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleEditFormChange = (field, value) => {
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const openDetail = (record) => {
+    setDetailEditing(false);
+    setDetailRecord(record);
+  };
+
+  const closeDetail = () => {
+    setDetailRecord(null);
+    setDetailEditing(false);
+  };
+
+  const startEditingDetail = () => {
+    if (!detailRecord) return;
+    setEditForm({
+      record_type: detailRecord.record_type,
+      title: detailRecord.title ?? '',
+      record_date: normalizeDateForInput(detailRecord.record_date),
+      status: detailRecord.status ?? '',
+      provider_or_facility: detailRecord.provider_or_facility ?? '',
+      notes: detailRecord.notes ?? '',
+    });
+    setDetailEditing(true);
+  };
+
+  const handleUpdateRecord = async (e) => {
+    e.preventDefault();
+    if (!currentUser?.id || !detailRecord?.id) return;
+    if (!editForm.title?.trim()) {
+      toast.error('Please enter a title or name.');
+      return;
+    }
+    if (!editForm.record_date) {
+      toast.error('Please select a date.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from('patient_health_records')
+        .update({
+          record_type: editForm.record_type,
+          title: editForm.title.trim(),
+          record_date: editForm.record_date,
+          status: editForm.status?.trim() || null,
+          provider_or_facility: editForm.provider_or_facility?.trim() || null,
+          notes: editForm.notes?.trim() || null,
+        })
+        .eq('id', detailRecord.id)
+        .eq('user_id', currentUser.id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      toast.success('Record updated.');
+      setDetailEditing(false);
+      if (data) setDetailRecord(data);
+      await fetchRecords();
+    } catch (err) {
+      console.error('[PatientHealthRecordsPage] update', err);
+      toast.error(err.message || 'Could not update record.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleAddRecord = async (e) => {
     e.preventDefault();
     if (!currentUser?.id) {
@@ -218,7 +351,7 @@ export default function PatientHealthRecordsPage() {
         .eq('user_id', currentUser.id);
       if (error) throw error;
       toast.success('Record removed.');
-      setDetailRecord(null);
+      closeDetail();
       await fetchRecords();
     } catch (err) {
       console.error('[PatientHealthRecordsPage] delete', err);
@@ -266,45 +399,8 @@ export default function PatientHealthRecordsPage() {
     }
   };
 
-  const fieldHints = useMemo(() => {
-    switch (form.record_type) {
-      case 'condition':
-        return {
-          title: 'Condition name',
-          date: 'Date diagnosed',
-          status: 'Status (e.g. Active, Resolved)',
-          provider: 'Managing doctor',
-        };
-      case 'lab_result':
-        return {
-          title: 'Test name',
-          date: 'Test date',
-          status: 'Result summary (e.g. Normal, Review needed)',
-          provider: 'Laboratory / facility',
-        };
-      case 'allergy':
-        return {
-          title: 'Allergen',
-          date: 'Onset date (if known)',
-          status: 'Severity (e.g. Mild, Severe)',
-          provider: 'Prescriber or clinic (optional)',
-        };
-      case 'surgery':
-        return {
-          title: 'Procedure',
-          date: 'Procedure date',
-          status: 'Status (e.g. Completed, Recovering)',
-          provider: 'Surgeon / hospital',
-        };
-      default:
-        return {
-          title: 'Title',
-          date: 'Date',
-          status: 'Status',
-          provider: 'Provider / facility',
-        };
-    }
-  }, [form.record_type]);
+  const fieldHints = useMemo(() => getFieldHints(form.record_type), [form.record_type]);
+  const editFieldHints = useMemo(() => getFieldHints(editForm.record_type), [editForm.record_type]);
 
   return (
     <>
@@ -317,7 +413,7 @@ export default function PatientHealthRecordsPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Health Records</h1>
             <p className="text-muted-foreground">
-              Manage your medical history, lab results, allergies, and procedures.
+              Manage your medical history, lab results, and immunizations.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -413,7 +509,7 @@ export default function PatientHealthRecordsPage() {
                                 {c.provider_or_facility || '—'}
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <Button variant="ghost" size="sm" onClick={() => setDetailRecord(c)}>
+                                <Button variant="ghost" size="sm" onClick={() => openDetail(c)}>
                                   Details
                                 </Button>
                               </td>
@@ -464,7 +560,7 @@ export default function PatientHealthRecordsPage() {
                                 {l.provider_or_facility || '—'}
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <Button variant="ghost" size="sm" onClick={() => setDetailRecord(l)}>
+                                <Button variant="ghost" size="sm" onClick={() => openDetail(l)}>
                                   Details
                                 </Button>
                               </td>
@@ -510,7 +606,7 @@ export default function PatientHealthRecordsPage() {
                                 {a.notes || '—'}
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <Button variant="ghost" size="sm" onClick={() => setDetailRecord(a)}>
+                                <Button variant="ghost" size="sm" onClick={() => openDetail(a)}>
                                   Details
                                 </Button>
                               </td>
@@ -553,7 +649,7 @@ export default function PatientHealthRecordsPage() {
                                 {s.provider_or_facility || '—'}
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <Button variant="ghost" size="sm" onClick={() => setDetailRecord(s)}>
+                                <Button variant="ghost" size="sm" onClick={() => openDetail(s)}>
                                   Details
                                 </Button>
                               </td>
@@ -574,7 +670,7 @@ export default function PatientHealthRecordsPage() {
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleAddRecord}>
             <DialogHeader>
-              <DialogTitle>Add health record</DialogTitle>
+              <DialogTitle>Add new health record</DialogTitle>
               <DialogDescription>
                 Information you save here is stored in your account. It does not replace official medical
                 records from your providers.
@@ -662,48 +758,153 @@ export default function PatientHealthRecordsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(detailRecord)} onOpenChange={(open) => !open && setDetailRecord(null)}>
-        <DialogContent>
+      <Dialog
+        open={Boolean(detailRecord)}
+        onOpenChange={(open) => {
+          if (!open) closeDetail();
+        }}
+      >
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{detailRecord?.title}</DialogTitle>
+            <DialogTitle>
+              {detailEditing ? 'Edit health record' : detailRecord?.title}
+            </DialogTitle>
             <DialogDescription>
-              {detailRecord ? TYPE_LABELS[detailRecord.record_type] || detailRecord.record_type : ''}
+              {detailRecord
+                ? TYPE_LABELS[detailRecord.record_type] || detailRecord.record_type
+                : ''}
             </DialogDescription>
           </DialogHeader>
-          {detailRecord && (
-            <div className="grid gap-3 text-sm py-2">
-              <div className="flex justify-between gap-4 border-b pb-2">
-                <span className="text-muted-foreground">Date</span>
-                <span className="font-medium text-right">{formatDisplayDate(detailRecord.record_date)}</span>
+
+          {detailRecord && detailEditing ? (
+            <form onSubmit={handleUpdateRecord} className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit_record_type">Record type</Label>
+                <Select
+                  value={editForm.record_type}
+                  onValueChange={(v) => handleEditFormChange('record_type', v)}
+                >
+                  <SelectTrigger id="edit_record_type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {detailRecord.status ? (
+              <div className="grid gap-2">
+                <Label htmlFor="edit_title">{editFieldHints.title}</Label>
+                <Input
+                  id="edit_title"
+                  value={editForm.title}
+                  onChange={(e) => handleEditFormChange('title', e.target.value)}
+                  required
+                  autoComplete="off"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit_record_date">{editFieldHints.date}</Label>
+                <Input
+                  id="edit_record_date"
+                  type="date"
+                  value={editForm.record_date}
+                  onChange={(e) => handleEditFormChange('record_date', e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit_status">{editFieldHints.status}</Label>
+                <Input
+                  id="edit_status"
+                  value={editForm.status}
+                  onChange={(e) => handleEditFormChange('status', e.target.value)}
+                  placeholder="Optional"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit_provider_or_facility">{editFieldHints.provider}</Label>
+                <Input
+                  id="edit_provider_or_facility"
+                  value={editForm.provider_or_facility}
+                  onChange={(e) => handleEditFormChange('provider_or_facility', e.target.value)}
+                  placeholder="Optional"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit_notes">Additional notes</Label>
+                <Textarea
+                  id="edit_notes"
+                  value={editForm.notes}
+                  onChange={(e) => handleEditFormChange('notes', e.target.value)}
+                  placeholder="Optional details"
+                  rows={3}
+                />
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDetailEditing(false)}
+                  disabled={saving}
+                >
+                  Cancel edit
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Saving…' : 'Save changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : detailRecord ? (
+            <>
+              <div className="grid gap-3 text-sm py-2">
                 <div className="flex justify-between gap-4 border-b pb-2">
-                  <span className="text-muted-foreground">Status / result</span>
-                  <span className="font-medium text-right">{detailRecord.status}</span>
+                  <span className="text-muted-foreground">Date</span>
+                  <span className="font-medium text-right">
+                    {formatDisplayDate(detailRecord.record_date)}
+                  </span>
                 </div>
-              ) : null}
-              {detailRecord.provider_or_facility ? (
-                <div className="flex justify-between gap-4 border-b pb-2">
-                  <span className="text-muted-foreground">Provider / facility</span>
-                  <span className="font-medium text-right">{detailRecord.provider_or_facility}</span>
-                </div>
-              ) : null}
-              {detailRecord.notes ? (
-                <div className="grid gap-1">
-                  <span className="text-muted-foreground">Notes</span>
-                  <p className="whitespace-pre-wrap">{detailRecord.notes}</p>
-                </div>
-              ) : null}
-            </div>
-          )}
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button type="button" variant="destructive" onClick={() => detailRecord && handleDelete(detailRecord)}>
-              Delete
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setDetailRecord(null)}>
-              Close
-            </Button>
-          </DialogFooter>
+                {detailRecord.status ? (
+                  <div className="flex justify-between gap-4 border-b pb-2">
+                    <span className="text-muted-foreground">Status / result</span>
+                    <span className="font-medium text-right">{detailRecord.status}</span>
+                  </div>
+                ) : null}
+                {detailRecord.provider_or_facility ? (
+                  <div className="flex justify-between gap-4 border-b pb-2">
+                    <span className="text-muted-foreground">Provider / facility</span>
+                    <span className="font-medium text-right">{detailRecord.provider_or_facility}</span>
+                  </div>
+                ) : null}
+                {detailRecord.notes ? (
+                  <div className="grid gap-1">
+                    <span className="text-muted-foreground">Notes</span>
+                    <p className="whitespace-pre-wrap">{detailRecord.notes}</p>
+                  </div>
+                ) : null}
+              </div>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => detailRecord && handleDelete(detailRecord)}
+                >
+                  Delete
+                </Button>
+                <Button type="button" variant="secondary" onClick={startEditingDetail}>
+                  Edit
+                </Button>
+                <Button type="button" variant="outline" onClick={closeDetail}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
         </DialogContent>
       </Dialog>
     </>

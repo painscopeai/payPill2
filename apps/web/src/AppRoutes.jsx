@@ -18,9 +18,10 @@ import AdminLandingPage from './views/admin/AdminLandingPage.jsx';
 import AdminLoginPage from './views/admin/AdminLoginPage.jsx';
 import AdminDashboard from './views/admin/AdminDashboard.jsx';
 
+import PatientHealthRecordsPage from './views/PatientHealthRecordsPage.jsx';
+
 const PatientOnboardingPage = React.lazy(() => import('./views/PatientOnboardingPage.jsx'));
 const PatientDashboardPage = React.lazy(() => import('./views/PatientDashboardPage.jsx'));
-const PatientHealthRecordsPage = React.lazy(() => import('./views/PatientHealthRecordsPage.jsx'));
 const AIRecommendationsPage = React.lazy(() => import('./views/AIRecommendationsPage.jsx'));
 const MarketplaceSearchPage = React.lazy(() => import('./views/MarketplaceSearchPage.jsx'));
 const BookingPage = React.lazy(() => import('./views/BookingPage.jsx'));
