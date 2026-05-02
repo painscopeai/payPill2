@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
 import apiServerClient from '@/lib/apiServerClient';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { SearchBar } from '@/components/admin/SearchBar.jsx';
@@ -135,6 +136,15 @@ export default function ProvidersManagementPage() {
     { key: 'organization_name', label: 'Organization' },
     { key: 'type', label: 'Type' },
     { key: 'applicant_email', label: 'Applicant email' },
+    {
+      key: 'queue_status',
+      label: 'Status',
+      render: () => (
+        <Badge variant="secondary" className="font-normal">
+          Awaiting verification
+        </Badge>
+      ),
+    },
     {
       key: 'actions',
       label: 'Actions',

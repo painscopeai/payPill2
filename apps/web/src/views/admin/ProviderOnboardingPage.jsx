@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Loader2, MailPlus, Pencil } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { StatusBadge } from '@/components/admin/StatusBadge.jsx';
 
@@ -79,6 +80,8 @@ export default function ProviderOnboardingPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
+  /** After saving a draft, POST /invite so Resend emails the form link. */
+  const [sendInviteAfterSave, setSendInviteAfterSave] = useState(true);
 
   const authHeaders = async () => {
     const {
@@ -116,7 +119,7 @@ export default function ProviderOnboardingPage() {
   const loadFormTemplates = useCallback(async () => {
     setFormsLoading(true);
     try {
-      const res = await apiServerClient.fetch('/forms?limit=50&form_type=provider_application', {
+      const res = await apiServerClient.fetch('/admin/provider-application-forms', {
         headers: await authHeaders(),
       });
       if (!res.ok) {
@@ -187,6 +190,7 @@ export default function ProviderOnboardingPage() {
 
   const openCreateDialog = () => {
     setEditingId(null);
+    setSendInviteAfterSave(true);
     setFormData({
       organization_name: '',
       type: '',
@@ -204,6 +208,7 @@ export default function ProviderOnboardingPage() {
       return;
     }
     setEditingId(selectedRow.id);
+    setSendInviteAfterSave(false);
     setFormData({
       organization_name: selectedRow.organization_name || '',
       type: selectedRow.type || '',
@@ -268,9 +273,31 @@ export default function ProviderOnboardingPage() {
       }
       const json = await res.json();
       const app = json.application;
-      toast.success('Draft saved');
-      setDialogOpen(false);
       setSelectedId(app.id);
+
+      if (sendInviteAfterSave) {
+        setInviteBusy(true);
+        try {
+          const invRes = await apiServerClient.fetch(`/admin/provider-applications/${app.id}/invite`, {
+            method: 'POST',
+            headers: await authHeaders(),
+          });
+          if (!invRes.ok) {
+            const err = await invRes.json().catch(() => ({}));
+            throw new Error(err.error || 'Invitation email failed');
+          }
+          toast.success('Draft saved — invitation email sent with form link');
+        } catch (invErr) {
+          toast.error(invErr.message);
+          toast.info('Draft saved. You can send the invitation from the table below.');
+        } finally {
+          setInviteBusy(false);
+        }
+      } else {
+        toast.success('Draft saved');
+      }
+
+      setDialogOpen(false);
       await loadApplications();
     } catch (err) {
       toast.error(err.message);
@@ -433,7 +460,8 @@ export default function ProviderOnboardingPage() {
           <DialogHeader>
             <DialogTitle>{editingId ? 'Edit draft application' : 'New applicant'}</DialogTitle>
             <DialogDescription>
-              Save as draft first. Then select the row and send an invitation so the applicant can complete the form.
+              Choose a published applicant form and email. You can send the invitation immediately (email includes the
+              form link), or save only and use Send invitation on the table.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={saveDraft} className="space-y-4">
@@ -466,6 +494,19 @@ export default function ProviderOnboardingPage() {
               </Select>
             </div>
             <div className="space-y-2">
+              <Label htmlFor="onboarding-applicant-email">Applicant email</Label>
+              <Input
+                id="onboarding-applicant-email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="applicant@organization.com"
+                value={formData.applicant_email}
+                onChange={(e) => setFormData({ ...formData, applicant_email: e.target.value })}
+                className="bg-background"
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Applicant form</Label>
               <Select
                 value={formData.form_id || undefined}
@@ -473,12 +514,12 @@ export default function ProviderOnboardingPage() {
                 disabled={formsLoading}
               >
                 <SelectTrigger className="bg-background">
-                  <SelectValue placeholder={formsLoading ? 'Loading forms…' : 'Select form template'} />
+                  <SelectValue placeholder={formsLoading ? 'Loading forms…' : 'Select published template'} />
                 </SelectTrigger>
                 <SelectContent>
                   {templateForms.length === 0 ? (
                     <div className="px-2 py-3 text-sm text-muted-foreground">
-                      No provider_application forms. Create one in Forms Builder.
+                      No published provider application forms. Create and publish one in Forms Builder.
                     </div>
                   ) : (
                     templateForms.map((f) => (
@@ -489,16 +530,6 @@ export default function ProviderOnboardingPage() {
                   )}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Applicant email</Label>
-              <Input
-                type="email"
-                required
-                value={formData.applicant_email}
-                onChange={(e) => setFormData({ ...formData, applicant_email: e.target.value })}
-                className="bg-background"
-              />
             </div>
             <div className="space-y-2">
               <Label>Phone</Label>
@@ -516,12 +547,42 @@ export default function ProviderOnboardingPage() {
                 className="bg-background"
               />
             </div>
+            <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
+              <Checkbox
+                id="send-invite-after-save"
+                checked={sendInviteAfterSave}
+                onCheckedChange={(v) => setSendInviteAfterSave(v === true)}
+                disabled={isSaving || inviteBusy}
+              />
+              <div className="grid gap-1 leading-none">
+                <label
+                  htmlFor="send-invite-after-save"
+                  className="cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Send invitation email now
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Uses Resend to email the applicant a secure link to the selected form (configure{' '}
+                  <code className="rounded bg-muted px-1">RESEND_API_KEY</code> and from-address env vars).
+                </p>
+              </div>
+            </div>
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSaving} className="bg-primary text-primary-foreground">
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save as draft'}
+              <Button
+                type="submit"
+                disabled={isSaving || inviteBusy}
+                className="bg-primary text-primary-foreground"
+              >
+                {isSaving || inviteBusy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : sendInviteAfterSave ? (
+                  'Save & send invitation'
+                ) : (
+                  'Save as draft'
+                )}
               </Button>
             </DialogFooter>
           </form>
