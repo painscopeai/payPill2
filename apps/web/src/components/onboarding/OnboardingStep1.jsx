@@ -26,7 +26,7 @@ export default function OnboardingStep1() {
     updateFormData(1, { [field]: value });
   };
 
-  const isValid = data.first_name && data.last_name && data.phone && data.terms_acceptance;
+  const isValid = data.first_name && data.last_name && data.phone && data.terms_acceptance === true;
 
   const introSections = [
     { id: 'identity', title: 'Your name', icon: User, description: 'As it should appear on your care record.' },
@@ -169,8 +169,8 @@ export default function OnboardingStep1() {
           <div className="flex items-start space-x-3">
             <Checkbox
               id="terms"
-              checked={!!data.terms_acceptance}
-              onCheckedChange={(c) => handleChange('terms_acceptance', c)}
+              checked={data.terms_acceptance === true}
+              onCheckedChange={(c) => handleChange('terms_acceptance', c === true)}
               className="mt-0.5"
             />
             <Label htmlFor="terms" className="text-sm font-normal leading-relaxed cursor-pointer">
@@ -180,8 +180,8 @@ export default function OnboardingStep1() {
           <div className="flex items-start space-x-3">
             <Checkbox
               id="privacy"
-              checked={!!data.privacy_preferences}
-              onCheckedChange={(c) => handleChange('privacy_preferences', c)}
+              checked={data.privacy_preferences === true}
+              onCheckedChange={(c) => handleChange('privacy_preferences', c === true)}
               className="mt-0.5"
             />
             <Label htmlFor="privacy" className="text-sm font-normal leading-relaxed cursor-pointer">

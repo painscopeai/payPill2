@@ -145,7 +145,7 @@ export function validateStep(step, data) {
 
 	for (const field of validation.required) {
 		if (field === 'terms_acceptance') {
-			if (!d[field]) {
+			if (d[field] !== true) {
 				errors.push(`Missing required field: ${field}`);
 			}
 			continue;
@@ -188,11 +188,14 @@ export function validateStep(step, data) {
 
 /**
  * @param {object} allData - Keys step1..step14 or step_1..step_14
+ * @param {{ criticalOnly?: boolean }} [options] - If true, only steps 1–2 are validated (used for /onboarding/complete).
  */
-export function validateAllSteps(allData) {
+export function validateAllSteps(allData, options = {}) {
 	const errors = {};
+	const criticalOnly = options.criticalOnly === true;
+	const maxStep = criticalOnly ? 2 : 13;
 
-	for (let step = 1; step <= 13; step++) {
+	for (let step = 1; step <= maxStep; step++) {
 		const stepData =
 			allData[`step${step}`] ||
 			allData[`step_${step}`] ||

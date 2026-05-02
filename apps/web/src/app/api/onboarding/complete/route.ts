@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 		);
 	}
 
-	const validation = validateAllSteps(allData as Record<string, unknown>) as {
+	const validation = validateAllSteps(allData as Record<string, unknown>, { criticalOnly: true }) as {
 		valid: boolean;
 		errors: Record<string, string[]>;
 	};

@@ -19,8 +19,10 @@ export default function OnboardingWizard({ children, title, description, isValid
     if (onNext) {
       const success = await onNext();
       if (!success) return;
+      // Final step: custom handler finished (e.g. navigate or success UI) — do not run nextStep / duplicate save
+      if (currentStep >= totalSteps) return;
     }
-    nextStep();
+    await nextStep();
   };
 
   const handleSaveAndExit = async () => {

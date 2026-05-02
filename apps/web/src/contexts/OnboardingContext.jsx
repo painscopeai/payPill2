@@ -96,7 +96,7 @@ export const OnboardingProvider = ({ children }) => {
       localStorage.setItem(`${STORAGE_KEY}_${activePatientId}`, encrypted);
     }
 
-    // Save to backend
+    // Save to backend (never throw — callers like autosave must not break completion flow)
     try {
       console.log('[OnboardingContext] API Request to /onboarding/save-step with patient_id:', activePatientId);
       const response = await apiServerClient.fetch('/onboarding/save-step', {
@@ -105,27 +105,36 @@ export const OnboardingProvider = ({ children }) => {
         body: JSON.stringify({
           patient_id: activePatientId,
           step: currentStep,
-          data: formData[`step${currentStep}`] || {}
-        })
+          data: formData[`step${currentStep}`] || {},
+        }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        const msg = errorData.error || `Save failed (${response.status})`;
+        const fields = errorData.fields;
         if (response.status === 403) {
-          console.error('[OnboardingContext] 403 Unauthorized:', errorData.error || 'patient_id mismatch');
-          throw new Error(errorData.error || 'Unauthorized: patient_id does not match authenticated user.');
+          console.error('[OnboardingContext] 403 Unauthorized:', msg);
+          if (showToast) toast.error('Authentication error: You are not authorized to modify this profile.');
+          return false;
         }
-        throw new Error(errorData.error || 'Failed to save progress');
+        console.warn('[OnboardingContext] save-step rejected:', msg, fields || '');
+        if (showToast) {
+          toast.error(
+            fields?.length
+              ? `${msg}: ${Array.isArray(fields) ? fields.join('; ') : JSON.stringify(fields)}`
+              : `${msg}. Progress kept locally.`,
+          );
+        }
+        return false;
       }
-      
+
       if (showToast) toast.success('Progress saved');
+      return true;
     } catch (err) {
       console.error('[OnboardingContext] Failed to save to backend:', err);
-      if (err.message?.includes('Unauthorized')) {
-        if (showToast) toast.error('Authentication error: You are not authorized to modify this profile.');
-      } else {
-        if (showToast) toast.error('Failed to sync progress to server. Saved locally.');
-      }
+      if (showToast) toast.error('Failed to sync progress to server. Saved locally.');
+      return false;
     }
   }, [formData, currentStep, completedSteps, patientId, currentUser?.id]);
 
@@ -154,32 +163,39 @@ export const OnboardingProvider = ({ children }) => {
     }
   };
 
-  const completeOnboarding = async (explicitPatientId = null) => {
+  const completeOnboarding = async (explicitPatientId = null, options = {}) => {
     const activePatientId = explicitPatientId || patientId || currentUser?.id;
-    
+
     console.log('[OnboardingContext] Preparing to complete onboarding. patient_id:', activePatientId);
-    
+
     if (!activePatientId) {
       const msg = 'Authentication error: Missing patient ID.';
       toast.error(msg);
       throw new Error(msg);
     }
 
+    const payload =
+      options.allDataOverride && typeof options.allDataOverride === 'object'
+        ? options.allDataOverride
+        : formData;
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      await saveProgress(false, activePatientId);
-      
+      if (!options.skipPreflightSave) {
+        await saveProgress(false, activePatientId);
+      }
+
       console.log('[OnboardingContext] API Request to /onboarding/complete with patient_id:', activePatientId);
       const response = await apiServerClient.fetch('/onboarding/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          patient_id: activePatientId, 
-          formData: formData,
-          allData: formData // Sending both to satisfy both frontend requirements and backend expectations
-        })
+        body: JSON.stringify({
+          patient_id: activePatientId,
+          formData: payload,
+          allData: payload,
+        }),
       });
       
       if (!response.ok) {
@@ -192,7 +208,6 @@ export const OnboardingProvider = ({ children }) => {
       }
       
       localStorage.removeItem(`${STORAGE_KEY}_${activePatientId}`);
-      toast.success('Onboarding completed successfully!');
       return true;
     } catch (err) {
       console.error('[OnboardingContext] Complete onboarding error:', err);
