@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { User, Building2, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { toast } from 'sonner';
 
 export default function RoleSelectionPage() {
@@ -66,6 +67,9 @@ export default function RoleSelectionPage() {
       </Helmet>
 
       <div className="w-full max-w-3xl space-y-8">
+        <div className="flex justify-center mb-6">
+          <PayPillLogo className="h-9 max-h-10 w-auto" />
+        </div>
         <div className="text-center space-y-3 mb-10">
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">How will you use PayPill?</h1>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">

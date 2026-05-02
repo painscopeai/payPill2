@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Activity, Mail, Lock } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import Header from '@/components/Header.jsx';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -41,8 +42,8 @@ const LoginPage = () => {
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5 px-4 py-12">
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <Activity className="h-6 w-6 text-primary" />
+            <div className="mx-auto mb-4 flex justify-center">
+              <PayPillLogo className="h-9 max-h-10 w-auto" />
             </div>
             <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
             <CardDescription>Sign in to your PayPill account</CardDescription>

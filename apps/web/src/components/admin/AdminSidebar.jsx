@@ -10,6 +10,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import apiServerClient from '@/lib/apiServerClient';
 import { PROVIDER_PENDING_QUEUE_CHANGED_EVENT } from '@/lib/providerApplicationPendingQueue.js';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { cn } from '@/lib/utils';
 
 const PROVIDERS_MANAGEMENT_PATH = '/admin/providers';
@@ -123,16 +124,16 @@ function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
     <div className="flex flex-col h-full bg-[hsl(var(--admin-sidebar-bg))] text-[hsl(var(--admin-sidebar-fg))]">
       <div className="p-4 flex items-center justify-between border-b border-[hsl(var(--admin-sidebar-fg))]/10 h-16 shrink-0">
         {!isCollapsed && (
-          <div className="flex items-center gap-2 font-display font-bold text-xl tracking-tight text-[hsl(var(--admin-sidebar-fg))]">
-            <div className="w-8 h-8 rounded-lg bg-primary-gradient flex items-center justify-center shadow-sm">
-              P
-            </div>
-            <span>PayPill Admin</span>
+          <div className="flex min-w-0 items-center gap-2 text-[hsl(var(--admin-sidebar-fg))]">
+            <PayPillLogo className="h-8 max-h-9 shrink-0" />
+            <span className="font-display text-xs font-semibold uppercase tracking-wide text-[hsl(var(--admin-sidebar-fg))]/70">
+              Admin
+            </span>
           </div>
         )}
         {isCollapsed && (
-          <div className="w-8 h-8 mx-auto rounded-lg bg-primary-gradient flex items-center justify-center text-[hsl(var(--primary-foreground))] font-bold shadow-sm">
-            P
+          <div className="flex justify-center">
+            <PayPillLogo variant="mark" />
           </div>
         )}
       </div>

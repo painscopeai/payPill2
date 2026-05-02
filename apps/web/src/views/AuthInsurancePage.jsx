@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ShieldCheck, Loader2, ArrowLeft } from 'lucide-react';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
@@ -108,6 +109,7 @@ export default function AuthInsurancePage() {
         </Button>
 
         <div className="flex flex-col items-center text-center space-y-2">
+          <PayPillLogo className="h-8 max-h-9 w-auto mb-1" />
           <div className="bg-emerald-500/10 p-3 rounded-2xl mb-2">
             <ShieldCheck className="h-8 w-8 text-emerald-600" />
           </div>

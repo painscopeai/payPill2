@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Button } from '@/components/ui/button';
-import { Activity } from 'lucide-react';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 
 export default function NotFoundPage() {
   const navigate = useNavigate();
@@ -13,8 +13,8 @@ export default function NotFoundPage() {
         <title>Page Not Found - PayPill</title>
       </Helmet>
       
-      <div className="bg-primary/10 p-4 rounded-2xl mb-6">
-        <Activity className="h-10 w-10 text-primary" />
+      <div className="mb-6 flex justify-center">
+        <PayPillLogo className="h-10 max-h-11 w-auto" />
       </div>
       
       <h1 className="text-6xl md:text-7xl font-bold text-foreground mb-4 tracking-tight">

@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 
 /** Decode JWT payload (browser only; signature verified on submit server-side). */
 function readInviteEmailFromToken(token) {
@@ -178,6 +179,9 @@ export default function FormSubmissionPage() {
         <div className="h-3 w-full" style={{ backgroundColor: themeColor }}></div>
         
         <div className="p-8 md:p-10 space-y-8">
+          <div className="flex justify-center sm:justify-start">
+            <PayPillLogo className="h-8 max-h-9 w-auto" />
+          </div>
           <div className="space-y-3 border-b border-border pb-8">
             <h1 className="text-3xl font-bold font-display">{form.name}</h1>
             {form.description && <p className="text-muted-foreground whitespace-pre-wrap">{form.description}</p>}

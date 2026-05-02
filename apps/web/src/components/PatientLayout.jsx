@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Activity, Home, User, Sparkles, FileText, Calendar, Settings, LogOut, Menu, Bell } from 'lucide-react';
+import { Home, User, Sparkles, FileText, Calendar, Settings, LogOut, Menu, Bell } from 'lucide-react';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 
 export default function PatientLayout({ children }) {
   const { currentUser, logout } = useAuth();
@@ -28,10 +29,7 @@ export default function PatientLayout({ children }) {
       {/* Mobile Top Bar */}
       <header className="md:hidden sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur flex items-center justify-between px-4 h-16">
         <Link to="/patient/dashboard" className="flex items-center gap-2">
-          <div className="bg-primary p-1.5 rounded-lg">
-            <Activity className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="font-bold text-lg">PayPill</span>
+          <PayPillLogo className="h-7 max-h-8 w-auto" />
         </Link>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
@@ -63,10 +61,7 @@ export default function PatientLayout({ children }) {
       <aside className="hidden md:flex flex-col w-64 border-r bg-card min-h-screen sticky top-0">
         <div className="h-16 flex items-center px-6 border-b">
           <Link to="/patient/dashboard" className="flex items-center gap-2">
-            <div className="bg-primary p-1.5 rounded-lg">
-              <Activity className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="font-bold text-xl">PayPill</span>
+            <PayPillLogo className="h-8 max-h-9 w-auto" />
           </Link>
         </div>
         <div className="p-4 border-b">

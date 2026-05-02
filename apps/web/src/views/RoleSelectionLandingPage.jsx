@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { User, Building2, ShieldCheck, Activity, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { User, Building2, ShieldCheck, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
 
 export default function RoleSelectionLandingPage() {
@@ -27,12 +28,7 @@ export default function RoleSelectionLandingPage() {
       <header className="w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-4">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="bg-primary/10 p-2 rounded-xl">
-              <Activity className="h-6 w-6 text-primary" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-foreground">
-              PayPill
-            </span>
+            <PayPillLogo className="h-9 max-h-10 w-auto" />
           </div>
         </div>
       </header>
@@ -149,11 +145,10 @@ export default function RoleSelectionLandingPage() {
       <footer className="border-t py-8 mt-auto bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-foreground">PayPill</span>
+            <PayPillLogo className="h-7 max-h-8 w-auto" />
           </div>
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} PayPill Healthcare Platform. All rights reserved.
+            PayPill inc @{new Date().getFullYear()}. All rights reserved.
           </p>
           <div className="flex gap-4 text-sm text-muted-foreground">
             <span className="hover:text-foreground cursor-pointer transition-colors">Privacy Policy</span>

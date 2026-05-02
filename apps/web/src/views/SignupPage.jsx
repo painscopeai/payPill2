@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Activity, Mail, Lock, Loader2 } from 'lucide-react';
+import { Mail, Lock, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import Header from '@/components/Header.jsx';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 const SignupPage = () => {
@@ -113,8 +114,8 @@ const SignupPage = () => {
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5 px-4 py-12">
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <Activity className="h-6 w-6 text-primary" />
+            <div className="mx-auto mb-4 flex justify-center">
+              <PayPillLogo className="h-9 max-h-10 w-auto" />
             </div>
             <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
             <CardDescription>Get started with PayPill today</CardDescription>

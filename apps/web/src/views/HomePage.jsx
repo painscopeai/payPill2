@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { motion } from 'framer-motion';
 import { Brain, Shield, Heart, Activity, Users, Pill, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
 import Header from '@/components/Header.jsx';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 const HomePage = () => {
   const navigate = useNavigate();
   const {
@@ -274,12 +275,11 @@ const HomePage = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
-              <Activity className="h-6 w-6 text-primary" />
-              <span className="text-lg font-bold">PayPill</span>
+              <PayPillLogo className="h-8 max-h-9 w-auto" />
             </div>
             
             <div className="flex items-center gap-6 text-sm">
-              <span className="text-muted-foreground">© 2026 PayPill</span>
+              <span className="text-muted-foreground">PayPill inc @{new Date().getFullYear()}. All rights reserved.</span>
               <a href="#" className="hover:underline">Privacy Policy</a>
               <a href="#" className="hover:underline">Terms of Service</a>
             </div>

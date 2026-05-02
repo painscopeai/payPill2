@@ -3,7 +3,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { Activity, LogOut, User, Menu, Sparkles } from 'lucide-react';
+import { LogOut, User, Menu, Sparkles } from 'lucide-react';
+import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -63,10 +64,7 @@ export default function Header() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between">
         <div className="flex items-center gap-6">
           <Link to="/" className="flex items-center gap-2">
-            <div className="bg-primary p-1.5 rounded-lg">
-              <Activity className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-foreground">PayPill</span>
+            <PayPillLogo className="h-8 max-h-9 w-auto sm:h-9" />
           </Link>
           
           <nav className="hidden md:flex items-center gap-6 ml-6">
