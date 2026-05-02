@@ -43,6 +43,29 @@ function validateAppointmentDateTime(appointmentDate: string, appointmentTime: s
 	return { valid: true as const };
 }
 
+/** Postgres / PostgREST: optional FK columns from migration not applied yet. */
+function isMissingOptionalColumnError(err: { code?: string; message?: string }): boolean {
+	const code = String(err.code || '');
+	const msg = (err.message || '').toLowerCase();
+	if (code === '42703' || code === 'PGRST204') return true;
+	if (msg.includes('could not find') && msg.includes('column')) return true;
+	if (msg.includes('schema cache') && msg.includes('column')) return true;
+	if (
+		(msg.includes('visit_type_id') || msg.includes('insurance_option_id') || msg.includes('meeting_url')) &&
+		(msg.includes('does not exist') ||
+			msg.includes('unknown column') ||
+			msg.includes('could not find'))
+	) {
+		return true;
+	}
+	return false;
+}
+
+function sanitizeCopayAmount(n: number): number {
+	if (!Number.isFinite(n) || n < 0) return 0;
+	return Math.round(n * 100) / 100;
+}
+
 export async function POST(request: NextRequest) {
 	const userId = await getBearerUserId(request);
 	if (!userId) {
@@ -138,15 +161,28 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Invalid or inactive insurance option' }, { status: 400 });
 	}
 
-	const { copay_estimate } = await resolveCopayEstimate({
-		visitTypeId: visitType.id,
-		insuranceOptionId: insuranceRow.id,
-	});
+	let copay_estimate: number;
+	try {
+		const resolved = await resolveCopayEstimate({
+			visitTypeId: visitType.id,
+			insuranceOptionId: insuranceRow.id,
+		});
+		copay_estimate = sanitizeCopayAmount(resolved.copay_estimate);
+	} catch (e) {
+		console.error('[appointments/book] resolveCopayEstimate', e);
+		return NextResponse.json(
+			{
+				error:
+					'Could not compute pricing for this visit. Ensure database migrations are applied (appointment_copay_matrix).',
+			},
+			{ status: 503 },
+		);
+	}
 
 	const pname = providerName || prov.provider_name || prov.name;
 	const confirmationNumber = `APT-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
 
-	const row = {
+	const rowBase = {
 		user_id: uid,
 		provider_id: providerId,
 		provider_name: pname,
@@ -160,15 +196,56 @@ export async function POST(request: NextRequest) {
 		copay_amount: copay_estimate,
 		confirmation_number: confirmationNumber,
 		status: 'confirmed',
-		visit_type_id: visitType.id,
-		insurance_option_id: insuranceRow.id,
-		meeting_url: null,
 	};
 
-	const { data: appointment, error: insErr } = await sb.from('appointments').insert(row).select().single();
-	if (insErr) {
-		console.error('[appointments/book]', insErr);
-		return NextResponse.json({ error: 'Failed to book appointment' }, { status: 500 });
+	const rowFull = {
+		...rowBase,
+		visit_type_id: visitType.id,
+		insurance_option_id: insuranceRow.id,
+		meeting_url: null as string | null,
+	};
+
+	let appointment: { id: string } | null = null;
+	let insErr: { code?: string; message?: string; details?: string; hint?: string } | null = null;
+
+	const attemptFull = await sb.from('appointments').insert(rowFull).select().single();
+	if (attemptFull.error) {
+		if (isMissingOptionalColumnError(attemptFull.error)) {
+			const retry = await sb.from('appointments').insert(rowBase).select().single();
+			appointment = retry.data as { id: string } | null;
+			insErr = retry.error;
+			if (!insErr) {
+				console.warn(
+					'[appointments/book] Inserted without visit_type_id/insurance_option_id; apply migration 20260511120000_appointment_copay_matrix.sql',
+				);
+			}
+		} else {
+			appointment = attemptFull.data as { id: string } | null;
+			insErr = attemptFull.error;
+		}
+	} else {
+		appointment = attemptFull.data as { id: string };
+	}
+
+	if (insErr || !appointment) {
+		console.error('[appointments/book] insert', insErr);
+		if (insErr?.code === '23503') {
+			return NextResponse.json(
+				{
+					error:
+						'This booking could not be linked to your account or the provider. Try again or contact support.',
+				},
+				{ status: 400 },
+			);
+		}
+		const devHint =
+			process.env.NODE_ENV === 'development' && insErr?.message
+				? { detail: insErr.message }
+				: {};
+		return NextResponse.json(
+			{ error: 'Failed to book appointment', ...devHint },
+			{ status: 500 },
+		);
 	}
 
 	const { data: profile } = await sb
