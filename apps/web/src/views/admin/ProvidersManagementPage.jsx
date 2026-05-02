@@ -19,6 +19,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { PROVIDER_PENDING_QUEUE_CHANGED_EVENT } from '@/lib/providerApplicationPendingQueue.js';
 
 export default function ProvidersManagementPage() {
   const [data, setData] = useState([]);
@@ -42,6 +43,9 @@ export default function ProvidersManagementPage() {
       }
       const json = await res.json();
       setApplications(json.items || []);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(PROVIDER_PENDING_QUEUE_CHANGED_EVENT));
+      }
     } catch (e) {
       toast.error(e.message);
       setApplications([]);
