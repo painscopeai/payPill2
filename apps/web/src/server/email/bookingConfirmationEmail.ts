@@ -1,5 +1,8 @@
 /**
- * Resend: patient + provider booking notifications. Non-fatal if Resend is unconfigured.
+ * Booking confirmations go **both ways** when Resend is configured:
+ * - **Patient** — confirmation to the address on their profile (`patientEmail`).
+ * - **Provider (doctor)** — new-booking notice to the provider record (`providerEmail`).
+ * Each recipient gets a separate message. Non-fatal if Resend env vars are missing or an address is absent.
  */
 
 function esc(s: string) {
@@ -79,22 +82,28 @@ ${commonBody}
 		}
 	};
 
+	const tasks: Promise<void>[] = [];
 	if (opts.patientEmail) {
-		await sendOne(
-			opts.patientEmail,
-			`Appointment confirmed — ${opts.confirmationNumber}`,
-			patientHtml,
+		tasks.push(
+			sendOne(
+				opts.patientEmail,
+				`Appointment confirmed — ${opts.confirmationNumber}`,
+				patientHtml,
+			),
 		);
 	} else {
 		console.warn('[bookingConfirmationEmail] No patient email; skipping patient notification');
 	}
 	if (opts.providerEmail) {
-		await sendOne(
-			opts.providerEmail,
-			`New booking: ${opts.patientName} — ${opts.confirmationNumber}`,
-			providerHtml,
+		tasks.push(
+			sendOne(
+				opts.providerEmail,
+				`New booking: ${opts.patientName} — ${opts.confirmationNumber}`,
+				providerHtml,
+			),
 		);
 	} else {
 		console.warn('[bookingConfirmationEmail] No provider email; skipping provider notification');
 	}
+	await Promise.all(tasks);
 }

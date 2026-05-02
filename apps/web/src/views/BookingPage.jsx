@@ -373,8 +373,9 @@ export default function BookingPage() {
                 </div>
                 <h2 className="text-3xl font-bold">Booking Confirmed!</h2>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                  Your appointment with {confirmation?.provider} has been scheduled. When email is configured,
-                  confirmations are sent to you and your provider.
+                  Your appointment with {confirmation?.provider} has been scheduled. When the server has email
+                  (Resend) set up, you get a confirmation email and your provider gets a separate booking
+                  notification—both ways.
                 </p>
 
                 <div className="bg-muted/20 border rounded-xl p-6 max-w-md mx-auto text-left space-y-4">

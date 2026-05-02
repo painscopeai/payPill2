@@ -299,6 +299,7 @@ export async function POST(request: NextRequest) {
 	const visitLabel = visitType.label;
 	const insuranceLabel = insuranceRow.label;
 
+	// Bidirectional: patient (profile email) + provider (providers.email) each get their own Resend message.
 	void sendBookingConfirmationEmails({
 		patientEmail: prof?.email ?? null,
 		patientName,
