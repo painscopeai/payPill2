@@ -18,7 +18,7 @@ export default tseslint.config(
 	{
 		files: ['**/*.{tsx,jsx}'],
 		languageOptions: {
-			globals: { ...globals.browser, React: 'readonly', Intl: 'readonly' },
+			globals: { ...globals.browser, React: 'readonly', Intl: 'readonly', process: 'readonly' },
 		},
 		plugins: { react, 'react-hooks': reactHooks },
 		settings: { react: { version: 'detect' } },
@@ -41,7 +41,7 @@ export default tseslint.config(
 			ecmaVersion: 'latest',
 			sourceType: 'module',
 			parserOptions: { ecmaFeatures: { jsx: true } },
-			globals: { ...globals.browser, React: 'readonly', Intl: 'readonly' },
+			globals: { ...globals.browser, React: 'readonly', Intl: 'readonly', process: 'readonly' },
 		},
 		settings: {
 			react: { version: 'detect' },
