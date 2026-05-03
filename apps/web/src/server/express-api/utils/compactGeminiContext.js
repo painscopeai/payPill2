@@ -2,7 +2,8 @@
  * Small, structured context for Gemini — avoids huge raw JSON dumps that slow models and cause timeouts.
  */
 
-const MAX_TOTAL_CHARS = 14000;
+/** Smaller context = faster Gemini latency (helps stay under serverless limits). */
+const MAX_TOTAL_CHARS = 9000;
 const MAX_NOTE = 220;
 const MAX_DESC = 280;
 

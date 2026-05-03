@@ -11,11 +11,22 @@ const FETCH_TIMEOUT_MS = Math.min(
 );
 const SESSION_WAIT_MS = 8_000;
 
+export type ApiServerFetchOptions = RequestInit & {
+	/** Override AbortController deadline for long-running routes (e.g. AI generation). */
+	timeoutMs?: number;
+};
+
 const apiServerClient = {
-	fetch: async (url: string, options: RequestInit = {}) => {
+	fetch: async (url: string, options: ApiServerFetchOptions = {}) => {
+		const { timeoutMs, ...fetchRest } = options;
+		const deadlineMs =
+			typeof timeoutMs === 'number' && timeoutMs > 0
+				? Math.min(600_000, timeoutMs)
+				: FETCH_TIMEOUT_MS;
+
 		const base = getApiBaseUrl();
 		const path = url.startsWith('/') ? url : `/${url}`;
-		const headers = new Headers(options.headers ?? undefined);
+		const headers = new Headers(fetchRest.headers ?? undefined);
 		if (!headers.has('Authorization')) {
 			try {
 				const {
@@ -30,12 +41,12 @@ const apiServerClient = {
 		}
 
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+		const timeoutId = setTimeout(() => controller.abort(), deadlineMs);
 		try {
-			return await window.fetch(`${base}${path}`, { ...options, headers, signal: controller.signal });
+			return await window.fetch(`${base}${path}`, { ...fetchRest, headers, signal: controller.signal });
 		} catch (e: unknown) {
 			if (e instanceof DOMException && e.name === 'AbortError') {
-				throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS / 1000}s. Try again.`);
+				throw new Error(`Request timed out after ${deadlineMs / 1000}s. Try again.`);
 			}
 			throw e;
 		} finally {

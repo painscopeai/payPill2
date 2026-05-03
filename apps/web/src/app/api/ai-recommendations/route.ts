@@ -6,8 +6,11 @@ import { dispatchFromNextRequest } from '@/server/api/dispatchLegacyApi';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-/** Align with project Functions default (e.g. 500s); GET remains fast. */
-export const maxDuration = 500;
+/**
+ * Vercel caps vary by plan (often 10s Hobby, 300s Pro). POST runs Gemini + DB; keep within platform limit.
+ * @see https://vercel.com/docs/functions/serverless-functions/runtimes#max-duration
+ */
+export const maxDuration = 300;
 
 /**
  * GET — native Supabase (avoids tinyhttp + proxy-addr on cold paths).

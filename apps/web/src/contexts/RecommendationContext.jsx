@@ -2,6 +2,12 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 
+/** Must stay under Vercel serverless maxDuration; default 285s so the browser does not abort before the server finishes. */
+const AI_POST_TIMEOUT_MS = Math.min(
+	600_000,
+	Math.max(120_000, Number(process.env.NEXT_PUBLIC_AI_RECOMMENDATIONS_TIMEOUT_MS) || 285_000),
+);
+
 const RecommendationContext = createContext(null);
 
 export const RecommendationProvider = ({ children }) => {
@@ -35,6 +41,7 @@ export const RecommendationProvider = ({ children }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ focus_area: focusArea }),
+        timeoutMs: AI_POST_TIMEOUT_MS,
       });
       let data = {};
       try {

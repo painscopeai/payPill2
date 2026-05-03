@@ -110,10 +110,13 @@ router.post('/', async (req, res) => {
 	let recentRecords = [];
 	let onboardingRowCount = 0;
 	try {
-		const fetched = await fetchPatientDataFromSupabase(userId);
+		const [fetched, records] = await Promise.all([
+			fetchPatientDataFromSupabase(userId),
+			fetchRecentHealthRecords(userId),
+		]);
 		patientData = fetched.patientData;
 		onboardingRowCount = fetched.onboardingRowCount;
-		recentRecords = await fetchRecentHealthRecords(userId);
+		recentRecords = records;
 	} catch (error) {
 		logger.error(`[ai-recommendations] Error loading patient data: ${error.message}`);
 		return res.status(500).json({ error: 'Failed to load patient health data' });
@@ -157,6 +160,12 @@ Return ONLY a valid JSON array with this structure:
   }
 ]`;
 
+	/** Stay below route `maxDuration` (e.g. 300s on Vercel Pro) so we return JSON instead of FUNCTION_INVOCATION_TIMEOUT. */
+	const geminiTimeoutMs = Math.min(
+		290_000,
+		Math.max(60_000, Number(process.env.AI_RECOMMENDATIONS_GEMINI_TIMEOUT_MS) || 260_000),
+	);
+
 	let geminiResponse;
 	try {
 		geminiResponse = await axios.post(
@@ -170,11 +179,16 @@ Return ONLY a valid JSON array with this structure:
 						parts: [{ text: userPrompt }],
 					},
 				],
+				generationConfig: {
+					temperature: 0.35,
+					maxOutputTokens: 3072,
+					topP: 0.95,
+					topK: 40,
+				},
 			},
 			{
 				headers: { 'Content-Type': 'application/json' },
-				/** Stay under Vercel maxDuration; fail fast if Gemini hangs */
-				timeout: 420000,
+				timeout: geminiTimeoutMs,
 			},
 		);
 	} catch (err) {
