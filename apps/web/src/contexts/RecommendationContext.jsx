@@ -29,20 +29,36 @@ export const RecommendationProvider = ({ children }) => {
 
   const generateRecommendations = async (focusArea = 'general') => {
     setIsGenerating(true);
+    let errorToastShown = false;
     try {
       const response = await apiServerClient.fetch('/ai-recommendations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ focus_area: focusArea }),
       });
-      if (!response.ok) throw new Error('Generation failed');
-      const data = await response.json();
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {
+        /* non-JSON error body */
+      }
+      if (!response.ok) {
+        const msg =
+          (typeof data?.message === 'string' && data.message) ||
+          (typeof data?.error === 'string' && data.error) ||
+          `Generation failed (${response.status})`;
+        toast.error(msg);
+        errorToastShown = true;
+        throw new Error(msg);
+      }
       toast.success('New recommendations generated!');
       await fetchRecommendations();
       return data;
     } catch (error) {
       console.error('Failed to generate:', error);
-      toast.error('Failed to generate recommendations');
+      if (!errorToastShown) {
+        toast.error(error instanceof Error ? error.message : 'Failed to generate recommendations');
+      }
       throw error;
     } finally {
       setIsGenerating(false);

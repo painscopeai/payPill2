@@ -15,6 +15,13 @@ export default function AIRecommendationsPage() {
     fetchRecommendations();
   }, [fetchRecommendations]);
 
+  const confidencePercent = (rec) => {
+    const raw = rec.confidence_score ?? rec.confidence_level;
+    if (raw == null || Number.isNaN(Number(raw))) return null;
+    const n = Number(raw);
+    return n <= 1 ? Math.round(n * 100) : Math.round(n);
+  };
+
   const getPriorityColor = (priority) => {
     const p = (priority || '').toLowerCase();
     if (p === 'high') return 'bg-destructive text-destructive-foreground';
@@ -50,7 +57,9 @@ export default function AIRecommendationsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recommendations.map((rec) => (
+          {recommendations.map((rec) => {
+            const confPct = confidencePercent(rec);
+            return (
             <Card key={rec.id} className="flex flex-col h-full interactive-card">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start mb-3">
@@ -67,7 +76,10 @@ export default function AIRecommendationsPage() {
                 <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{rec.description || rec.recommendation_description}</p>
                 <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground bg-muted/50 p-2 rounded-md w-fit">
                   <Activity className="h-3.5 w-3.5 text-primary" />
-                  Confidence: <span className="text-foreground">{Math.round(rec.confidence_level || 85)}%</span>
+                  Confidence:{' '}
+                  <span className="text-foreground">
+                    {confPct != null ? `${confPct}%` : '—'}
+                  </span>
                 </div>
               </CardContent>
               <CardFooter className="pt-0 mt-auto flex gap-2">
@@ -91,7 +103,8 @@ export default function AIRecommendationsPage() {
                 )}
               </CardFooter>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

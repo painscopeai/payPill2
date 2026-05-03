@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 			summary: ok
 				? `Gemini responded in ${ms}ms. If “Generate” still hangs, the bottleneck is likely the full request path (large prompt, insert, or legacy handler)—not basic Gemini connectivity.`
 				: r.status === 404
-					? `HTTP 404: model "${GEMINI_GENERATE_MODEL_ID}" not found for this API. Set GEMINI_MODEL to a current ID (see ai.google.dev/models) or leave unset to use gemini-2.0-flash.`
+					? `HTTP 404: model "${GEMINI_GENERATE_MODEL_ID}" not found for this API. Set GEMINI_MODEL to a current ID (see ai.google.dev/models); default is gemini-2.5-flash.`
 					: `Gemini did not return usable content (HTTP ${r.status}). Check key, billing, or model access.`,
 		});
 	} catch (e: unknown) {

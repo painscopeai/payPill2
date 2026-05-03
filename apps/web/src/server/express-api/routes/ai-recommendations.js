@@ -17,6 +17,32 @@ import {
 import { buildCompactGeminiContext } from '../utils/compactGeminiContext.js';
 import { buildGeminiGenerateContentUrl } from '../utils/geminiModel.js';
 
+const UUID_RE =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function stripMarkdownJsonFence(s) {
+	const t = String(s || '').trim();
+	const m = t.match(/^```(?:json)?\s*\r?\n?([\s\S]*?)\r?\n?```$/i);
+	return m ? m[1].trim() : t;
+}
+
+function extractGeminiText(data) {
+	const parts = data?.candidates?.[0]?.content?.parts;
+	if (!Array.isArray(parts) || !parts.length) return '';
+	return parts.map((p) => (p && typeof p.text === 'string' ? p.text : '')).join('');
+}
+
+function parseRecommendationsJson(responseText) {
+	const stripped = stripMarkdownJsonFence(responseText);
+	try {
+		return JSON.parse(stripped);
+	} catch {
+		const m = stripped.match(/\[\s*\{[\s\S]*\}\s*\]/);
+		if (m) return JSON.parse(m[0]);
+		throw new Error('No valid JSON array in model output');
+	}
+}
+
 const router = new App();
 
 router.use(requireSupabaseUser);
@@ -53,7 +79,11 @@ async function fetchPatientDataFromSupabase(userId) {
 		throw new Error(error.message);
 	}
 
-	return buildPatientDataFromOnboardingRows(userId, rows || []);
+	const list = rows || [];
+	return {
+		patientData: buildPatientDataFromOnboardingRows(userId, list),
+		onboardingRowCount: list.length,
+	};
 }
 
 /**
@@ -78,19 +108,22 @@ router.post('/', async (req, res) => {
 
 	let patientData;
 	let recentRecords = [];
+	let onboardingRowCount = 0;
 	try {
-		patientData = await fetchPatientDataFromSupabase(userId);
+		const fetched = await fetchPatientDataFromSupabase(userId);
+		patientData = fetched.patientData;
+		onboardingRowCount = fetched.onboardingRowCount;
 		recentRecords = await fetchRecentHealthRecords(userId);
 	} catch (error) {
 		logger.error(`[ai-recommendations] Error loading patient data: ${error.message}`);
 		return res.status(500).json({ error: 'Failed to load patient health data' });
 	}
 
-	if (!patientHasHealthSignals(patientData, recentRecords.length)) {
+	if (!patientHasHealthSignals(patientData, recentRecords.length, onboardingRowCount)) {
 		return res.status(400).json({
 			error: 'Insufficient patient data',
 			message:
-				'Complete onboarding or add a health record in the last 24 hours before requesting AI recommendations.',
+				'Save at least one onboarding step or add a health record in the last 24 hours before requesting AI recommendations.',
 		});
 	}
 
@@ -146,32 +179,49 @@ Return ONLY a valid JSON array with this structure:
 		);
 	} catch (err) {
 		const isTimeout = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err.message));
-		logger.error(`[ai-recommendations] Gemini request failed: ${err.message}`);
+		const apiMsg = err.response?.data?.error?.message || err.response?.data?.message;
+		logger.error(`[ai-recommendations] Gemini request failed: ${err.message}`, apiMsg || '');
 		return res.status(isTimeout ? 504 : 502).json({
 			error: isTimeout ? 'AI request timed out' : 'AI provider request failed',
+			message: apiMsg || undefined,
 		});
 	}
 
-	if (!geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+	if (geminiResponse.status !== 200) {
+		const apiMsg = geminiResponse.data?.error?.message || JSON.stringify(geminiResponse.data || {});
+		logger.error(`[ai-recommendations] Gemini HTTP ${geminiResponse.status}: ${apiMsg}`);
+		return res.status(502).json({ error: 'AI provider request failed', message: apiMsg });
+	}
+
+	const promptFeedback = geminiResponse.data?.promptFeedback;
+	if (promptFeedback?.blockReason) {
+		logger.warn(`[ai-recommendations] prompt blocked: ${promptFeedback.blockReason}`);
+		return res.status(502).json({
+			error: 'AI request blocked',
+			message: String(promptFeedback.blockReason),
+		});
+	}
+
+	const responseText = extractGeminiText(geminiResponse.data);
+	if (!responseText.trim()) {
 		return res.status(502).json({ error: 'Invalid response from AI provider' });
 	}
 
-	const responseText = geminiResponse.data.candidates[0].content.parts[0].text;
-
-	let recommendations = [];
+	let recommendations;
 	try {
-		const jsonMatch = responseText.match(/\[\s*\{[\s\S]*\}\s*\]/);
-		const jsonString = jsonMatch ? jsonMatch[0] : responseText;
-		recommendations = JSON.parse(jsonString);
+		recommendations = parseRecommendationsJson(responseText);
 	} catch (parseError) {
 		logger.error(`[ai-recommendations] JSON parse failed: ${parseError.message}`);
 		return res.status(502).json({ error: 'Failed to parse AI response' });
 	}
 
+	if (!Array.isArray(recommendations)) {
+		return res.status(502).json({ error: 'AI response was not a JSON array' });
+	}
+
 	const formattedRecommendations = recommendations
 		.filter((rec) => rec && rec.title && rec.description)
-		.map((rec, index) => ({
-			id: `rec_${userId}_${Date.now()}_${index}`,
+		.map((rec) => ({
 			title: rec.title || '',
 			description: rec.description || '',
 			priority: rec.priority || 'medium',
@@ -183,21 +233,29 @@ Return ONLY a valid JSON array with this structure:
 		.slice(0, 5);
 
 	const sb = getSupabaseAdmin();
-	if (formattedRecommendations.length > 0) {
-		const rows = formattedRecommendations.map((rec) => ({
-			user_id: userId,
-			title: rec.title,
-			description: rec.description,
-			priority: rec.priority,
-			related_conditions: rec.relatedConditions,
-			suggested_actions: rec.suggestedActions,
-			sources: rec.sources,
-			confidence_score: rec.confidenceScore,
-		}));
-		const { error: bulkErr } = await sb.from('patient_recommendations').insert(rows);
-		if (bulkErr) {
-			logger.warn(`[ai-recommendations] Bulk insert failed: ${bulkErr.message}`);
-		}
+	if (formattedRecommendations.length === 0) {
+		return res.status(502).json({ error: 'AI returned no usable recommendations' });
+	}
+
+	const insertRows = formattedRecommendations.map((rec) => ({
+		user_id: userId,
+		title: rec.title,
+		description: rec.description,
+		priority: rec.priority,
+		related_conditions: rec.relatedConditions,
+		suggested_actions: rec.suggestedActions,
+		sources: rec.sources,
+		confidence_score: rec.confidenceScore,
+	}));
+
+	const { data: insertedRows, error: bulkErr } = await sb
+		.from('patient_recommendations')
+		.insert(insertRows)
+		.select('*');
+
+	if (bulkErr) {
+		logger.error(`[ai-recommendations] Bulk insert failed: ${bulkErr.message}`);
+		return res.status(500).json({ error: 'Failed to save recommendations', message: bulkErr.message });
 	}
 
 	return res.json({
@@ -205,7 +263,7 @@ Return ONLY a valid JSON array with this structure:
 		focus_area: focusKey,
 		focus_label: focusAreaLabel(focusKey),
 		recent_records_included: recentRecords.length,
-		recommendations: formattedRecommendations,
+		recommendations: insertedRows || [],
 		generatedAt: new Date().toISOString(),
 	});
 });
@@ -231,13 +289,52 @@ router.get('/', async (req, res) => {
 	return res.json(data || []);
 });
 
-/** Legacy UI actions — persist status in a later iteration */
 router.post('/:id/accept', async (req, res) => {
-	return res.json({ success: true });
+	const { id } = req.params;
+	const userId = req.user.id;
+	if (!UUID_RE.test(id)) {
+		return res.status(400).json({ error: 'Invalid id' });
+	}
+	const sb = getSupabaseAdmin();
+	const { data, error } = await sb
+		.from('patient_recommendations')
+		.update({ status: 'Accepted' })
+		.eq('id', id)
+		.eq('user_id', userId)
+		.select()
+		.maybeSingle();
+	if (error) {
+		logger.error(`[ai-recommendations] accept: ${error.message}`);
+		return res.status(500).json({ error: 'Failed to update recommendation' });
+	}
+	if (!data) {
+		return res.status(404).json({ error: 'Not found' });
+	}
+	return res.json(data);
 });
 
 router.post('/:id/decline', async (req, res) => {
-	return res.json({ success: true });
+	const { id } = req.params;
+	const userId = req.user.id;
+	if (!UUID_RE.test(id)) {
+		return res.status(400).json({ error: 'Invalid id' });
+	}
+	const sb = getSupabaseAdmin();
+	const { data, error } = await sb
+		.from('patient_recommendations')
+		.update({ status: 'Declined' })
+		.eq('id', id)
+		.eq('user_id', userId)
+		.select()
+		.maybeSingle();
+	if (error) {
+		logger.error(`[ai-recommendations] decline: ${error.message}`);
+		return res.status(500).json({ error: 'Failed to update recommendation' });
+	}
+	if (!data) {
+		return res.status(404).json({ error: 'Not found' });
+	}
+	return res.json(data);
 });
 
 router.post('/:id/refine', async (req, res) => {

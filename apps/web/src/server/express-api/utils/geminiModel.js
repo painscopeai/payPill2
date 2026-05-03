@@ -1,8 +1,9 @@
 /**
- * Model ID for Generative Language API (REST). Unversioned IDs like gemini-1.5-flash
- * may return HTTP 404 after Google retires them — override via GEMINI_MODEL if needed.
+ * Model ID for Generative Language API (REST). Defaults must work for new API keys:
+ * e.g. gemini-2.0-flash may return 404 ("no longer available to new users").
+ * Override via GEMINI_MODEL if Google changes availability again.
  */
-export const GEMINI_GENERATE_MODEL_ID = process.env.GEMINI_MODEL?.trim() || 'gemini-2.0-flash';
+export const GEMINI_GENERATE_MODEL_ID = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 
 export function buildGeminiGenerateContentUrl(apiKey) {
 	const id = encodeURIComponent(GEMINI_GENERATE_MODEL_ID);

@@ -132,11 +132,20 @@ export function buildPatientDataFromOnboardingRows(userId, rows) {
 	return patientData;
 }
 
-export function patientHasHealthSignals(patientData, recentHealthRecordCount = 0) {
-	if (!patientData) return recentHealthRecordCount > 0;
+/**
+ * @param {number} onboardingStepCount — rows in `patient_onboarding_steps`; any progress should allow generation.
+ */
+export function patientHasHealthSignals(patientData, recentHealthRecordCount = 0, onboardingStepCount = 0) {
+	if (!patientData) return recentHealthRecordCount > 0 || onboardingStepCount > 0;
 	const summaryLen = (patientData.rawOnboardingSummary || '').length;
+	const profileKeys =
+		patientData.profile && typeof patientData.profile === 'object'
+			? Object.keys(patientData.profile).filter((k) => patientData.profile[k] != null && patientData.profile[k] !== '')
+			: [];
 	return (
 		recentHealthRecordCount > 0 ||
+		onboardingStepCount > 0 ||
+		profileKeys.length > 0 ||
 		patientData.conditions.length > 0 ||
 		patientData.medications.length > 0 ||
 		patientData.allergies.length > 0 ||
@@ -145,6 +154,6 @@ export function patientHasHealthSignals(patientData, recentHealthRecordCount = 0
 		Object.keys(patientData.lifestyle || {}).some((k) => patientData.lifestyle[k]) ||
 		patientData.immunizations.length > 0 ||
 		Object.keys(patientData.vitals || {}).length > 0 ||
-		summaryLen > 120
+		summaryLen > 80
 	);
 }
