@@ -19,52 +19,6 @@ import { buildCompactGeminiContext } from '../utils/compactGeminiContext.js';
 const UUID_RE =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function stripMarkdownJsonFence(s) {
-	const t = String(s || '').trim();
-	const m = t.match(/^```(?:json)?\s*\r?\n?([\s\S]*?)\r?\n?```$/i);
-	return m ? m[1].trim() : t;
-}
-
-function parseRecommendationsJson(responseText) {
-	const stripped = stripMarkdownJsonFence(responseText);
-	try {
-		return JSON.parse(stripped);
-	} catch {
-		const m = stripped.match(/\[\s*\{[\s\S]*\}\s*\]/);
-		if (m) return JSON.parse(m[0]);
-		throw new Error('No valid JSON array in model output');
-	}
-}
-
-/**
- * n8n may return the array at the root, under `recommendations`, or nested in workflow output.
- */
-function extractRecommendationsFromN8nPayload(data) {
-	if (!data || typeof data !== 'object') return null;
-	if (Array.isArray(data)) return data;
-	const candidates = [
-		data.recommendations,
-		data.output?.recommendations,
-		data.body?.recommendations,
-		data.data?.recommendations,
-		data.result?.recommendations,
-		Array.isArray(data.output) ? data.output : null,
-	];
-	for (const c of candidates) {
-		if (Array.isArray(c)) return c;
-	}
-	if (typeof data.text === 'string' || typeof data.output === 'string') {
-		const t = data.text || data.output;
-		try {
-			const parsed = parseRecommendationsJson(t);
-			return Array.isArray(parsed) ? parsed : null;
-		} catch {
-			return null;
-		}
-	}
-	return null;
-}
-
 const router = new App();
 
 router.use(requireSupabaseUser);
@@ -178,10 +132,13 @@ Return ONLY a valid JSON array with this structure:
   }
 ]`;
 
-	/** Stay below route `maxDuration` (e.g. 300s on Vercel Pro). Same env as previous Gemini direct call. */
-	const upstreamTimeoutMs = Math.min(
-		290_000,
-		Math.max(60_000, Number(process.env.AI_RECOMMENDATIONS_GEMINI_TIMEOUT_MS) || 260_000),
+	/**
+	 * n8n must respond with 2xx within this window (e.g. "Respond to Webhook" before slow Gemini).
+	 * Full generation + Supabase insert runs in n8n after the ack. See .env.example.
+	 */
+	const ackTimeoutMs = Math.min(
+		60_000,
+		Math.max(3_000, Number(process.env.N8N_WEBHOOK_ACK_TIMEOUT_MS) || 12_000),
 	);
 
 	const n8nPayload = {
@@ -209,15 +166,15 @@ Return ONLY a valid JSON array with this structure:
 	try {
 		n8nResponse = await axios.post(n8nWebhookUrl, n8nPayload, {
 			headers: n8nHeaders,
-			timeout: upstreamTimeoutMs,
+			timeout: ackTimeoutMs,
 			validateStatus: (s) => s >= 200 && s < 300,
 		});
 	} catch (err) {
 		const isTimeout = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err.message));
 		const apiMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-		logger.error(`[ai-recommendations] n8n webhook failed: ${err.message}`, String(apiMsg || ''));
+		logger.error(`[ai-recommendations] n8n webhook ack failed: ${err.message}`, String(apiMsg || ''));
 		return res.status(isTimeout ? 504 : 502).json({
-			error: isTimeout ? 'AI workflow timed out' : 'AI workflow request failed',
+			error: isTimeout ? 'AI workflow did not acknowledge in time' : 'Could not reach AI workflow',
 			message: typeof apiMsg === 'string' ? apiMsg : undefined,
 		});
 	}
@@ -231,64 +188,14 @@ Return ONLY a valid JSON array with this structure:
 		});
 	}
 
-	const recommendations = extractRecommendationsFromN8nPayload(raw);
-	if (!recommendations) {
-		logger.error(`[ai-recommendations] n8n response had no recommendations array: ${JSON.stringify(raw).slice(0, 500)}`);
-		return res.status(502).json({
-			error: 'Invalid response from AI workflow',
-			message: 'Expected a JSON array of recommendations or { recommendations: [...] } from n8n.',
-		});
-	}
-
-	if (!Array.isArray(recommendations)) {
-		return res.status(502).json({ error: 'AI workflow response was not a recommendations array' });
-	}
-
-	const formattedRecommendations = recommendations
-		.filter((rec) => rec && rec.title && rec.description)
-		.map((rec) => ({
-			title: rec.title || '',
-			description: rec.description || '',
-			priority: rec.priority || 'medium',
-			relatedConditions: Array.isArray(rec.relatedConditions) ? rec.relatedConditions : [],
-			suggestedActions: Array.isArray(rec.suggestedActions) ? rec.suggestedActions : [],
-			sources: Array.isArray(rec.sources) ? rec.sources : [],
-			confidenceScore: typeof rec.confidenceScore === 'number' ? rec.confidenceScore : 0.5,
-		}))
-		.slice(0, 5);
-
-	const sb = getSupabaseAdmin();
-	if (formattedRecommendations.length === 0) {
-		return res.status(502).json({ error: 'AI returned no usable recommendations' });
-	}
-
-	const insertRows = formattedRecommendations.map((rec) => ({
-		user_id: userId,
-		title: rec.title,
-		description: rec.description,
-		priority: rec.priority,
-		related_conditions: rec.relatedConditions,
-		suggested_actions: rec.suggestedActions,
-		sources: rec.sources,
-		confidence_score: rec.confidenceScore,
-	}));
-
-	const { data: insertedRows, error: bulkErr } = await sb
-		.from('patient_recommendations')
-		.insert(insertRows)
-		.select('*');
-
-	if (bulkErr) {
-		logger.error(`[ai-recommendations] Bulk insert failed: ${bulkErr.message}`);
-		return res.status(500).json({ error: 'Failed to save recommendations', message: bulkErr.message });
-	}
-
-	return res.json({
-		success: true,
+	return res.status(202).json({
+		accepted: true,
+		async: true,
+		message:
+			'Request accepted. Recommendations are generated in the background; refresh the list shortly.',
 		focus_area: focusKey,
 		focus_label: focusAreaLabel(focusKey),
 		recent_records_included: recentRecords.length,
-		recommendations: insertedRows || [],
 		generatedAt: new Date().toISOString(),
 	});
 });

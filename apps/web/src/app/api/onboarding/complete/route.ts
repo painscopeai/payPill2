@@ -70,16 +70,21 @@ export async function POST(request: NextRequest) {
 				focus_area: 'comprehensive',
 				include_history: false,
 			}),
+			signal: AbortSignal.timeout(15_000),
 		});
 
 		if (recommendationResponse.ok) {
-			const recommendationData = (await recommendationResponse.json()) as {
-				recommendations?: unknown[];
-				count?: number;
-			};
-			recommendationsGenerated = Array.isArray(recommendationData.recommendations)
-				? recommendationData.recommendations.length
-				: recommendationData.count || 0;
+			if (recommendationResponse.status === 202) {
+				recommendationsGenerated = 0;
+			} else {
+				const recommendationData = (await recommendationResponse.json()) as {
+					recommendations?: unknown[];
+					count?: number;
+				};
+				recommendationsGenerated = Array.isArray(recommendationData.recommendations)
+					? recommendationData.recommendations.length
+					: recommendationData.count || 0;
+			}
 		} else {
 			console.warn(`[onboarding] AI recommendations returned ${recommendationResponse.status}`);
 		}
