@@ -15,7 +15,6 @@ import {
 	AI_SAFETY_FOOTER,
 } from '../utils/aiRecommendationFocus.js';
 import { buildCompactGeminiContext } from '../utils/compactGeminiContext.js';
-import { buildGeminiGenerateContentUrl } from '../utils/geminiModel.js';
 
 const UUID_RE =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -24,12 +23,6 @@ function stripMarkdownJsonFence(s) {
 	const t = String(s || '').trim();
 	const m = t.match(/^```(?:json)?\s*\r?\n?([\s\S]*?)\r?\n?```$/i);
 	return m ? m[1].trim() : t;
-}
-
-function extractGeminiText(data) {
-	const parts = data?.candidates?.[0]?.content?.parts;
-	if (!Array.isArray(parts) || !parts.length) return '';
-	return parts.map((p) => (p && typeof p.text === 'string' ? p.text : '')).join('');
 }
 
 function parseRecommendationsJson(responseText) {
@@ -41,6 +34,35 @@ function parseRecommendationsJson(responseText) {
 		if (m) return JSON.parse(m[0]);
 		throw new Error('No valid JSON array in model output');
 	}
+}
+
+/**
+ * n8n may return the array at the root, under `recommendations`, or nested in workflow output.
+ */
+function extractRecommendationsFromN8nPayload(data) {
+	if (!data || typeof data !== 'object') return null;
+	if (Array.isArray(data)) return data;
+	const candidates = [
+		data.recommendations,
+		data.output?.recommendations,
+		data.body?.recommendations,
+		data.data?.recommendations,
+		data.result?.recommendations,
+		Array.isArray(data.output) ? data.output : null,
+	];
+	for (const c of candidates) {
+		if (Array.isArray(c)) return c;
+	}
+	if (typeof data.text === 'string' || typeof data.output === 'string') {
+		const t = data.text || data.output;
+		try {
+			const parsed = parseRecommendationsJson(t);
+			return Array.isArray(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	}
+	return null;
 }
 
 const router = new App();
@@ -98,13 +120,9 @@ router.post('/', async (req, res) => {
 		`[ai-recommendations] POST user=${userId} focus=${focusKey} (${focusAreaLabel(focusKey)})`,
 	);
 
-	const geminiApiKey = process.env.GEMINI_API_KEY;
-	if (!geminiApiKey) {
-		logger.error('[ai-recommendations] GEMINI_API_KEY is not configured');
-		return res.status(503).json({
-			error: 'GEMINI_API_KEY is not configured',
-		});
-	}
+	const n8nWebhookUrl =
+		process.env.N8N_AI_RECOMMENDATIONS_WEBHOOK_URL?.trim() ||
+		'https://silentminds.app.n8n.cloud/webhook/ai';
 
 	let patientData;
 	let recentRecords = [];
@@ -160,77 +178,70 @@ Return ONLY a valid JSON array with this structure:
   }
 ]`;
 
-	/** Stay below route `maxDuration` (e.g. 300s on Vercel Pro) so we return JSON instead of FUNCTION_INVOCATION_TIMEOUT. */
-	const geminiTimeoutMs = Math.min(
+	/** Stay below route `maxDuration` (e.g. 300s on Vercel Pro). Same env as previous Gemini direct call. */
+	const upstreamTimeoutMs = Math.min(
 		290_000,
 		Math.max(60_000, Number(process.env.AI_RECOMMENDATIONS_GEMINI_TIMEOUT_MS) || 260_000),
 	);
 
-	let geminiResponse;
+	const n8nPayload = {
+		source: 'paypill',
+		version: 1,
+		userId,
+		focusKey,
+		focusLabel: focusAreaLabel(focusKey),
+		includeHistory: Boolean(include_history),
+		recentRecordsCount: recentRecords.length,
+		systemPrompt,
+		userPrompt,
+		patientContext: patientDataText,
+		focusInstructionBlock: focusBlock,
+		aiSafetyFooter: AI_SAFETY_FOOTER,
+	};
+
+	const n8nHeaders = { 'Content-Type': 'application/json' };
+	const whSecret = process.env.N8N_AI_WEBHOOK_SECRET?.trim();
+	if (whSecret) {
+		n8nHeaders['X-PayPill-Webhook-Secret'] = whSecret;
+	}
+
+	let n8nResponse;
 	try {
-		geminiResponse = await axios.post(
-			buildGeminiGenerateContentUrl(geminiApiKey),
-			{
-				systemInstruction: {
-					parts: [{ text: systemPrompt }],
-				},
-				contents: [
-					{
-						parts: [{ text: userPrompt }],
-					},
-				],
-				generationConfig: {
-					temperature: 0.35,
-					maxOutputTokens: 3072,
-					topP: 0.95,
-					topK: 40,
-				},
-			},
-			{
-				headers: { 'Content-Type': 'application/json' },
-				timeout: geminiTimeoutMs,
-			},
-		);
+		n8nResponse = await axios.post(n8nWebhookUrl, n8nPayload, {
+			headers: n8nHeaders,
+			timeout: upstreamTimeoutMs,
+			validateStatus: (s) => s >= 200 && s < 300,
+		});
 	} catch (err) {
 		const isTimeout = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err.message));
-		const apiMsg = err.response?.data?.error?.message || err.response?.data?.message;
-		logger.error(`[ai-recommendations] Gemini request failed: ${err.message}`, apiMsg || '');
+		const apiMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+		logger.error(`[ai-recommendations] n8n webhook failed: ${err.message}`, String(apiMsg || ''));
 		return res.status(isTimeout ? 504 : 502).json({
-			error: isTimeout ? 'AI request timed out' : 'AI provider request failed',
-			message: apiMsg || undefined,
+			error: isTimeout ? 'AI workflow timed out' : 'AI workflow request failed',
+			message: typeof apiMsg === 'string' ? apiMsg : undefined,
 		});
 	}
 
-	if (geminiResponse.status !== 200) {
-		const apiMsg = geminiResponse.data?.error?.message || JSON.stringify(geminiResponse.data || {});
-		logger.error(`[ai-recommendations] Gemini HTTP ${geminiResponse.status}: ${apiMsg}`);
-		return res.status(502).json({ error: 'AI provider request failed', message: apiMsg });
-	}
-
-	const promptFeedback = geminiResponse.data?.promptFeedback;
-	if (promptFeedback?.blockReason) {
-		logger.warn(`[ai-recommendations] prompt blocked: ${promptFeedback.blockReason}`);
+	const raw = n8nResponse.data;
+	if (raw && typeof raw === 'object' && raw.success === false && raw.error != null) {
+		logger.warn(`[ai-recommendations] n8n reported failure: ${raw.error}`);
 		return res.status(502).json({
-			error: 'AI request blocked',
-			message: String(promptFeedback.blockReason),
+			error: 'AI workflow reported failure',
+			message: String(raw.error),
 		});
 	}
 
-	const responseText = extractGeminiText(geminiResponse.data);
-	if (!responseText.trim()) {
-		return res.status(502).json({ error: 'Invalid response from AI provider' });
-	}
-
-	let recommendations;
-	try {
-		recommendations = parseRecommendationsJson(responseText);
-	} catch (parseError) {
-		logger.error(`[ai-recommendations] JSON parse failed: ${parseError.message}`);
-		return res.status(502).json({ error: 'Failed to parse AI response' });
+	const recommendations = extractRecommendationsFromN8nPayload(raw);
+	if (!recommendations) {
+		logger.error(`[ai-recommendations] n8n response had no recommendations array: ${JSON.stringify(raw).slice(0, 500)}`);
+		return res.status(502).json({
+			error: 'Invalid response from AI workflow',
+			message: 'Expected a JSON array of recommendations or { recommendations: [...] } from n8n.',
+		});
 	}
 
 	if (!Array.isArray(recommendations)) {
-		return res.status(502).json({ error: 'AI response was not a JSON array' });
+		return res.status(502).json({ error: 'AI workflow response was not a recommendations array' });
 	}
 
 	const formattedRecommendations = recommendations
