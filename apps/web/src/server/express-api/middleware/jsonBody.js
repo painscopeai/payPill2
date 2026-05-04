@@ -15,6 +15,11 @@ export function jsonBodyMiddleware(req, res, next) {
 		return next();
 	}
 
+	/** Next.js `dispatchLegacyApi` pre-parses JSON; mock req streams may never emit `end` (hang). */
+	if (req.__paypillParsedJson === true && req.body != null) {
+		return next();
+	}
+
 	const chunks = [];
 	req.on('data', (c) => {
 		chunks.push(c);

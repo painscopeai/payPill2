@@ -12,56 +12,33 @@ import {
 const UUID_RE =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** Align with patient-health-overview (recent-first cap). */
-const HEALTH_RECORDS_LIMIT = 200;
-
 const router = new App();
 
 router.use(requireSupabaseUser);
 
-async function fetchOnboardingAndRecords(userId) {
-	const sb = getSupabaseAdmin();
-	const [stepsRes, recordsRes] = await Promise.all([
-		sb
-			.from('patient_onboarding_steps')
-			.select('step, data, created_at, updated_at')
-			.eq('user_id', userId)
-			.order('step', { ascending: true }),
-		sb
-			.from('patient_health_records')
-			.select('*')
-			.eq('user_id', userId)
-			.order('created_at', { ascending: false })
-			.limit(HEALTH_RECORDS_LIMIT),
-	]);
-	if (stepsRes.error) throw new Error(stepsRes.error.message);
-	if (recordsRes.error) throw new Error(recordsRes.error.message);
-	return {
-		onboardingSteps: stepsRes.data ?? [],
-		healthRecords: recordsRes.data ?? [],
-	};
-}
-
 /**
  * POST /ai-recommendations
- * Sends one consolidated JSON body to n8n (raw onboarding steps + health records; no account/profile).
+ * Expects JSON from the client (same raw rows as GET /patient-health-overview?includeRaw=1):
+ * { onboardingSteps: [...], healthRecords: [...] }
+ * Server trusts session userId only — forwards to n8n without re-querying Supabase.
  */
 router.post('/', async (req, res) => {
 	const userId = req.user.id;
+	const body = req.body && typeof req.body === 'object' ? req.body : {};
 
-	const n8nWebhookUrl =
-		process.env.N8N_AI_RECOMMENDATIONS_WEBHOOK_URL?.trim() ||
-		'https://silentminds.app.n8n.cloud/webhook/ai';
+	const onboardingSteps = body.onboardingSteps;
+	const healthRecords = body.healthRecords;
 
-	let onboardingSteps = [];
-	let healthRecords = [];
-	try {
-		const fetched = await fetchOnboardingAndRecords(userId);
-		onboardingSteps = fetched.onboardingSteps;
-		healthRecords = fetched.healthRecords;
-	} catch (error) {
-		logger.error(`[ai-recommendations] Error loading patient data: ${error.message}`);
-		return res.status(500).json({ error: 'Failed to load patient health data' });
+	if (!Array.isArray(onboardingSteps) || !Array.isArray(healthRecords)) {
+		return res.status(400).json({
+			error: 'Missing payload',
+			message:
+				'Send onboardingSteps and healthRecords arrays (load Basic profile / patient-health-overview with includeRaw=1 first).',
+		});
+	}
+
+	if (body.userId != null && body.userId !== userId) {
+		return res.status(403).json({ error: 'Payload does not match signed-in user' });
 	}
 
 	if (!hasUsablePatientPayload(onboardingSteps, healthRecords)) {
@@ -73,8 +50,6 @@ router.post('/', async (req, res) => {
 	}
 
 	const patientBody = buildAiWebhookPatientBody(userId, onboardingSteps, healthRecords);
-
-	/** Paste into an LLM user message in n8n — exact JSON, no extra narrative. */
 	const userPrompt = JSON.stringify(patientBody, null, 2);
 
 	const n8nPayload = {
@@ -83,6 +58,10 @@ router.post('/', async (req, res) => {
 		userPrompt,
 		...patientBody,
 	};
+
+	const n8nWebhookUrl =
+		process.env.N8N_AI_RECOMMENDATIONS_WEBHOOK_URL?.trim() ||
+		'https://silentminds.app.n8n.cloud/webhook/ai';
 
 	const ackTimeoutMs = Math.min(
 		60_000,
@@ -94,6 +73,10 @@ router.post('/', async (req, res) => {
 	if (whSecret) {
 		n8nHeaders['X-PayPill-Webhook-Secret'] = whSecret;
 	}
+
+	logger.info(
+		`[ai-recommendations] POST → n8n user=${userId} rows=${onboardingSteps.length} records=${healthRecords.length} url=${n8nWebhookUrl}`,
+	);
 
 	let n8nResponse;
 	try {

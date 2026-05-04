@@ -31,10 +31,25 @@ export async function dispatchLegacyApi(
 		method: method as 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
 		url: expressPath,
 		headers: headerObj,
-		...(bodyBuffer && bodyBuffer.length ? { body: bodyBuffer } : {}),
 	});
 
 	const { req, res } = mocks;
+
+	/** node-mocks-http may not drive `data`/`end` so jsonBodyMiddleware never completes — parse here. */
+	if (bodyBuffer && bodyBuffer.byteLength && method !== 'GET' && method !== 'HEAD') {
+		const ct = String(headerObj['content-type'] || headerObj['Content-Type'] || '').toLowerCase();
+		if (ct.includes('application/json')) {
+			const txt = bodyBuffer.toString('utf8');
+			try {
+				type ReqBridge = { body?: unknown; __paypillParsedJson?: boolean };
+				const rb = req as ReqBridge;
+				rb.body = txt ? JSON.parse(txt) : {};
+				rb.__paypillParsedJson = true;
+			} catch {
+				return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+			}
+		}
+	}
 	const app = await getLegacyHttpApp();
 
 	await new Promise<void>((resolve, reject) => {

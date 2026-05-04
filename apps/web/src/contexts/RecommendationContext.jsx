@@ -2,10 +2,10 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 
-/** POST only waits for n8n webhook ACK (~12s server-side); default 30s client buffer. */
+/** POST waits for n8n webhook ACK; allow headroom over server N8N_WEBHOOK_ACK_TIMEOUT_MS. */
 const AI_POST_ACK_TIMEOUT_MS = Math.min(
 	120_000,
-	Math.max(10_000, Number(process.env.NEXT_PUBLIC_AI_RECOMMENDATIONS_POST_TIMEOUT_MS) || 30_000),
+	Math.max(15_000, Number(process.env.NEXT_PUBLIC_AI_RECOMMENDATIONS_POST_TIMEOUT_MS) || 60_000),
 );
 
 const POLL_INTERVAL_MS = 4000;
@@ -73,10 +73,36 @@ export const RecommendationProvider = ({ children }) => {
     setIsGenerating(true);
     let errorToastShown = false;
     try {
+      const overviewRes = await apiServerClient.fetch('/patient-health-overview?includeRaw=1');
+      let overview = {};
+      try {
+        overview = await overviewRes.json();
+      } catch {
+        overview = {};
+      }
+      if (!overviewRes.ok) {
+        const msg =
+          (typeof overview?.error === 'string' && overview.error) ||
+          'Could not load health data for AI. Open Basic profile → View profile & records to verify.';
+        toast.error(msg);
+        errorToastShown = true;
+        throw new Error(msg);
+      }
+      const raw = overview.raw;
+      if (!raw || !Array.isArray(raw.onboardingSteps)) {
+        const msg = 'Missing saved onboarding rows. Complete or refresh your profile, then try again.';
+        toast.error(msg);
+        errorToastShown = true;
+        throw new Error(msg);
+      }
+
       const response = await apiServerClient.fetch('/ai-recommendations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          onboardingSteps: raw.onboardingSteps,
+          healthRecords: Array.isArray(raw.healthRecords) ? raw.healthRecords : [],
+        }),
         timeoutMs: AI_POST_ACK_TIMEOUT_MS,
       });
       let data = {};

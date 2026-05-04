@@ -59,6 +59,22 @@ export async function POST(request: NextRequest) {
 	let recommendationsGenerated = 0;
 	const auth = request.headers.get('authorization') || '';
 	try {
+		const [stepsRes, recordsRes] = await Promise.all([
+			sb
+				.from('patient_onboarding_steps')
+				.select('step, data, created_at, updated_at')
+				.eq('user_id', userId)
+				.order('step', { ascending: true }),
+			sb
+				.from('patient_health_records')
+				.select('*')
+				.eq('user_id', userId)
+				.order('created_at', { ascending: false })
+				.limit(200),
+		]);
+		if (stepsRes.error) throw new Error(stepsRes.error.message);
+		if (recordsRes.error) throw new Error(recordsRes.error.message);
+
 		const url = internalApiUrlFromRequest(request, '/ai-recommendations');
 		const recommendationResponse = await fetch(url, {
 			method: 'POST',
@@ -66,8 +82,11 @@ export async function POST(request: NextRequest) {
 				'Content-Type': 'application/json',
 				...(auth ? { Authorization: auth } : {}),
 			},
-			body: JSON.stringify({}),
-			signal: AbortSignal.timeout(15_000),
+			body: JSON.stringify({
+				onboardingSteps: stepsRes.data ?? [],
+				healthRecords: recordsRes.data ?? [],
+			}),
+			signal: AbortSignal.timeout(45_000),
 		});
 
 		if (recommendationResponse.ok) {
