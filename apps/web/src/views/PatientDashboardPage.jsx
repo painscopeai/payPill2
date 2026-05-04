@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import HealthDashboardOverview from '@/components/HealthDashboardOverview.jsx';
+import PatientBasicProfileSection from '@/components/PatientBasicProfileSection.jsx';
 
 export default function PatientDashboardPage() {
   const { currentUser } = useAuth();
@@ -45,6 +46,8 @@ export default function PatientDashboardPage() {
           <p className="text-xs text-muted-foreground mt-2 font-mono">{profileSource}</p>
         )}
       </div>
+
+      <PatientBasicProfileSection />
 
       <HealthDashboardOverview />
     </div>

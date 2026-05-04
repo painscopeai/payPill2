@@ -75,7 +75,7 @@ function getOverviewFromPayload(payload) {
   };
 }
 
-export default function PatientHealthOverviewPreview({ payload }) {
+export default function PatientHealthOverviewPreview({ payload, hideAccountCard = false }) {
   const [rawOpen, setRawOpen] = useState(false);
   const data = getOverviewFromPayload(payload);
   if (!data) return null;
@@ -106,35 +106,37 @@ export default function PatientHealthOverviewPreview({ payload }) {
         {meta.counts?.onboardingStepRows ?? '—'} · Health records: {meta.counts?.healthRecords ?? '—'}
       </p>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Account</CardTitle>
-          <CardDescription>Identity and account settings from your profile.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!account ? (
-            <p className="text-sm text-muted-foreground">No profile row found for this user.</p>
-          ) : (
-            <FieldGrid
-              fields={{
-                Name: account.displayName,
-                Email: account.email,
-                Phone: account.phone,
-                Role: account.role,
-                'Date of birth': account.dateOfBirth,
-                'Onboarding complete': account.onboardingCompleted,
-                'Onboarding completed at': account.onboardingCompletedAt,
-                'Terms accepted': account.termsAccepted,
-                'Privacy preferences': account.privacyPreferencesAccepted,
-                Subscription: subscriptionDisplay,
-                'Account status': account.accountStatus,
-                Created: account.createdAt,
-                Updated: account.updatedAt,
-              }}
-            />
-          )}
-        </CardContent>
-      </Card>
+      {!hideAccountCard && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Account</CardTitle>
+            <CardDescription>Identity and account settings from your profile.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!account ? (
+              <p className="text-sm text-muted-foreground">No profile row found for this user.</p>
+            ) : (
+              <FieldGrid
+                fields={{
+                  Name: account.displayName,
+                  Email: account.email,
+                  Phone: account.phone,
+                  Role: account.role,
+                  'Date of birth': account.dateOfBirth,
+                  'Onboarding complete': account.onboardingCompleted,
+                  'Onboarding completed at': account.onboardingCompletedAt,
+                  'Terms accepted': account.termsAccepted,
+                  'Privacy preferences': account.privacyPreferencesAccepted,
+                  Subscription: subscriptionDisplay,
+                  'Account status': account.accountStatus,
+                  Created: account.createdAt,
+                  Updated: account.updatedAt,
+                }}
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-2">

@@ -66,7 +66,7 @@ export const RecommendationProvider = ({ children }) => {
     toast.info('Still processing — refresh this page in a minute.');
   }, [fetchRecommendations]);
 
-  const generateRecommendations = async (focusArea = 'general') => {
+  const generateRecommendations = async () => {
     const baselineCount = recommendations.length;
     const baselineLatestCreatedAt = recommendations[0]?.created_at ?? null;
 
@@ -76,7 +76,7 @@ export const RecommendationProvider = ({ children }) => {
       const response = await apiServerClient.fetch('/ai-recommendations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ focus_area: focusArea }),
+        body: JSON.stringify({}),
         timeoutMs: AI_POST_ACK_TIMEOUT_MS,
       });
       let data = {};

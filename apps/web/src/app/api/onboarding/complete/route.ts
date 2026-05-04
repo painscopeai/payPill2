@@ -66,10 +66,7 @@ export async function POST(request: NextRequest) {
 				'Content-Type': 'application/json',
 				...(auth ? { Authorization: auth } : {}),
 			},
-			body: JSON.stringify({
-				focus_area: 'comprehensive',
-				include_history: false,
-			}),
+			body: JSON.stringify({}),
 			signal: AbortSignal.timeout(15_000),
 		});
 

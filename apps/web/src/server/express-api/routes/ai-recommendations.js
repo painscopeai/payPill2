@@ -5,156 +5,89 @@ import logger from '../utils/logger.js';
 import { requireSupabaseUser } from '../middleware/requireSupabaseUser.js';
 import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 import {
-	buildPatientDataFromOnboardingRows,
-	patientHasHealthSignals,
-} from '../utils/patientHealthFromOnboarding.js';
-import {
-	normalizeFocusArea,
-	focusAreaLabel,
-	getFocusInstructionBlock,
-	AI_SAFETY_FOOTER,
-} from '../utils/aiRecommendationFocus.js';
-import { buildCompactGeminiContext } from '../utils/compactGeminiContext.js';
+	buildAiWebhookPatientBody,
+	hasUsablePatientPayload,
+} from '../utils/aiWebhookPatientPayload.js';
 
 const UUID_RE =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Align with patient-health-overview (recent-first cap). */
+const HEALTH_RECORDS_LIMIT = 200;
 
 const router = new App();
 
 router.use(requireSupabaseUser);
 
-/** Only records from the last 24 hours (keeps prompt small and recent). */
-const HEALTH_RECORDS_LOOKBACK_DAYS = 1;
-
-async function fetchRecentHealthRecords(userId, days = HEALTH_RECORDS_LOOKBACK_DAYS) {
+async function fetchOnboardingAndRecords(userId) {
 	const sb = getSupabaseAdmin();
-	const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
-	const sinceIso = new Date(sinceMs).toISOString();
-	const { data, error } = await sb
-		.from('patient_health_records')
-		.select('record_type, title, record_date, status, provider_or_facility, notes, created_at')
-		.eq('user_id', userId)
-		.gte('created_at', sinceIso)
-		.order('created_at', { ascending: false })
-		.limit(30);
-	if (error) {
-		throw new Error(error.message);
-	}
-	return data || [];
-}
-
-async function fetchPatientDataFromSupabase(userId) {
-	const sb = getSupabaseAdmin();
-	const { data: rows, error } = await sb
-		.from('patient_onboarding_steps')
-		.select('step, data')
-		.eq('user_id', userId)
-		.order('step', { ascending: true });
-
-	if (error) {
-		throw new Error(error.message);
-	}
-
-	const list = rows || [];
+	const [stepsRes, recordsRes] = await Promise.all([
+		sb
+			.from('patient_onboarding_steps')
+			.select('step, data, created_at, updated_at')
+			.eq('user_id', userId)
+			.order('step', { ascending: true }),
+		sb
+			.from('patient_health_records')
+			.select('*')
+			.eq('user_id', userId)
+			.order('created_at', { ascending: false })
+			.limit(HEALTH_RECORDS_LIMIT),
+	]);
+	if (stepsRes.error) throw new Error(stepsRes.error.message);
+	if (recordsRes.error) throw new Error(recordsRes.error.message);
 	return {
-		patientData: buildPatientDataFromOnboardingRows(userId, list),
-		onboardingRowCount: list.length,
+		onboardingSteps: stepsRes.data ?? [],
+		healthRecords: recordsRes.data ?? [],
 	};
 }
 
 /**
  * POST /ai-recommendations
+ * Sends one consolidated JSON body to n8n (raw onboarding steps + health records; no account/profile).
  */
 router.post('/', async (req, res) => {
 	const userId = req.user.id;
-	const { focus_area, include_history } = req.body;
-	const focusKey = normalizeFocusArea(focus_area);
-
-	logger.info(
-		`[ai-recommendations] POST user=${userId} focus=${focusKey} (${focusAreaLabel(focusKey)})`,
-	);
 
 	const n8nWebhookUrl =
 		process.env.N8N_AI_RECOMMENDATIONS_WEBHOOK_URL?.trim() ||
 		'https://silentminds.app.n8n.cloud/webhook/ai';
 
-	let patientData;
-	let recentRecords = [];
-	let onboardingRowCount = 0;
+	let onboardingSteps = [];
+	let healthRecords = [];
 	try {
-		const [fetched, records] = await Promise.all([
-			fetchPatientDataFromSupabase(userId),
-			fetchRecentHealthRecords(userId),
-		]);
-		patientData = fetched.patientData;
-		onboardingRowCount = fetched.onboardingRowCount;
-		recentRecords = records;
+		const fetched = await fetchOnboardingAndRecords(userId);
+		onboardingSteps = fetched.onboardingSteps;
+		healthRecords = fetched.healthRecords;
 	} catch (error) {
 		logger.error(`[ai-recommendations] Error loading patient data: ${error.message}`);
 		return res.status(500).json({ error: 'Failed to load patient health data' });
 	}
 
-	if (!patientHasHealthSignals(patientData, recentRecords.length, onboardingRowCount)) {
+	if (!hasUsablePatientPayload(onboardingSteps, healthRecords)) {
 		return res.status(400).json({
 			error: 'Insufficient patient data',
 			message:
-				'Save at least one onboarding step or add a health record in the last 24 hours before requesting AI recommendations.',
+				'Save at least one onboarding answer or add a health record before requesting AI recommendations.',
 		});
 	}
 
-	const patientDataText = buildCompactGeminiContext(patientData, recentRecords);
+	const patientBody = buildAiWebhookPatientBody(userId, onboardingSteps, healthRecords);
 
-	const focusBlock = getFocusInstructionBlock(focusKey);
+	/** Paste into an LLM user message in n8n — exact JSON, no extra narrative. */
+	const userPrompt = JSON.stringify(patientBody, null, 2);
 
-	const systemPrompt = `You are PayPill's health education assistant. Use only the patient data provided in the user message. ${AI_SAFETY_FOOTER}`;
+	const n8nPayload = {
+		source: 'paypill',
+		version: 2,
+		userPrompt,
+		...patientBody,
+	};
 
-	const userPrompt = `${focusBlock}
-
-Selected category (must match all recommendations): "${focusAreaLabel(focusKey)}"
-
-Patient data:
-${patientDataText}
-
-Additional context: include_history flag from client = ${Boolean(include_history)}.
-
-Generate exactly 5 personalized recommendations (no more than 5). EVERY recommendation must clearly relate to the selected focus category above. Keep each description concise (under 120 words).
-
-Return ONLY a valid JSON array with this structure:
-[
-  {
-    "title": "Recommendation title",
-    "description": "Detailed description",
-    "priority": "high|medium|low",
-    "relatedConditions": ["condition1"],
-    "suggestedActions": ["action1"],
-    "sources": ["source1"],
-    "confidenceScore": 0.85
-  }
-]`;
-
-	/**
-	 * n8n must respond with 2xx within this window (e.g. "Respond to Webhook" before slow Gemini).
-	 * Full generation + Supabase insert runs in n8n after the ack. See .env.example.
-	 */
 	const ackTimeoutMs = Math.min(
 		60_000,
 		Math.max(3_000, Number(process.env.N8N_WEBHOOK_ACK_TIMEOUT_MS) || 12_000),
 	);
-
-	const n8nPayload = {
-		source: 'paypill',
-		version: 1,
-		userId,
-		focusKey,
-		focusLabel: focusAreaLabel(focusKey),
-		includeHistory: Boolean(include_history),
-		recentRecordsCount: recentRecords.length,
-		systemPrompt,
-		userPrompt,
-		patientContext: patientDataText,
-		focusInstructionBlock: focusBlock,
-		aiSafetyFooter: AI_SAFETY_FOOTER,
-	};
 
 	const n8nHeaders = { 'Content-Type': 'application/json' };
 	const whSecret = process.env.N8N_AI_WEBHOOK_SECRET?.trim();
@@ -193,16 +126,12 @@ Return ONLY a valid JSON array with this structure:
 		async: true,
 		message:
 			'Request accepted. Recommendations are generated in the background; refresh the list shortly.',
-		focus_area: focusKey,
-		focus_label: focusAreaLabel(focusKey),
-		recent_records_included: recentRecords.length,
+		onboarding_rows: onboardingSteps.length,
+		health_records: healthRecords.length,
 		generatedAt: new Date().toISOString(),
 	});
 });
 
-/**
- * GET /ai-recommendations
- */
 router.get('/', async (req, res) => {
 	const userId = req.user.id;
 	const sb = getSupabaseAdmin();
@@ -273,9 +202,6 @@ router.post('/:id/refine', async (req, res) => {
 	return res.json({ success: true });
 });
 
-/**
- * GET /ai-recommendations/:id
- */
 router.get('/:id', async (req, res) => {
 	const { id } = req.params;
 	const userId = req.user.id;

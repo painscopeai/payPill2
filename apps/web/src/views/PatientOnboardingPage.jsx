@@ -15,6 +15,7 @@ import OnboardingStep11 from '@/components/onboarding/OnboardingStep11.jsx';
 import OnboardingStep12 from '@/components/onboarding/OnboardingStep12.jsx';
 import OnboardingStep13 from '@/components/onboarding/OnboardingStep13.jsx';
 import OnboardingReview from '@/components/onboarding/OnboardingReview.jsx';
+import PatientBasicProfileSection from '@/components/PatientBasicProfileSection.jsx';
 
 export default function PatientOnboardingPage() {
   const { currentStep } = useOnboarding();
@@ -42,6 +43,9 @@ export default function PatientOnboardingPage() {
   return (
     <div className="min-h-screen bg-background">
       <Helmet><title>{`Step ${currentStep} - Health Profile Onboarding`}</title></Helmet>
+      <div className="max-w-3xl mx-auto px-4 pt-6 pb-2">
+        <PatientBasicProfileSection />
+      </div>
       {renderStep()}
     </div>
   );
