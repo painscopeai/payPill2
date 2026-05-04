@@ -59,54 +59,25 @@ export async function POST(request: NextRequest) {
 	let recommendationsGenerated = 0;
 	const auth = request.headers.get('authorization') || '';
 	try {
-		const [stepsRes, recordsRes] = await Promise.all([
-			sb
-				.from('patient_onboarding_steps')
-				.select('step, data, created_at, updated_at')
-				.eq('user_id', userId)
-				.order('step', { ascending: true }),
-			sb
-				.from('patient_health_records')
-				.select('*')
-				.eq('user_id', userId)
-				.order('created_at', { ascending: false })
-				.limit(200),
-		]);
-		if (stepsRes.error) throw new Error(stepsRes.error.message);
-		if (recordsRes.error) throw new Error(recordsRes.error.message);
-
-		const url = internalApiUrlFromRequest(request, '/ai-recommendations');
+		const url = internalApiUrlFromRequest(request, '/clinical-ai-webhook');
 		const recommendationResponse = await fetch(url, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				...(auth ? { Authorization: auth } : {}),
 			},
-			body: JSON.stringify({
-				onboardingSteps: stepsRes.data ?? [],
-				healthRecords: recordsRes.data ?? [],
-			}),
-			signal: AbortSignal.timeout(45_000),
+			body: JSON.stringify({}),
+			signal: AbortSignal.timeout(25_000),
 		});
 
-		if (recommendationResponse.ok) {
-			if (recommendationResponse.status === 202) {
-				recommendationsGenerated = 0;
-			} else {
-				const recommendationData = (await recommendationResponse.json()) as {
-					recommendations?: unknown[];
-					count?: number;
-				};
-				recommendationsGenerated = Array.isArray(recommendationData.recommendations)
-					? recommendationData.recommendations.length
-					: recommendationData.count || 0;
-			}
-		} else {
-			console.warn(`[onboarding] AI recommendations returned ${recommendationResponse.status}`);
+		if (recommendationResponse.ok && recommendationResponse.status === 202) {
+			recommendationsGenerated = 0;
+		} else if (!recommendationResponse.ok) {
+			console.warn(`[onboarding] clinical-ai-webhook returned ${recommendationResponse.status}`);
 		}
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
-		console.warn('[onboarding] Failed to generate AI recommendations:', msg);
+		console.warn('[onboarding] Failed to queue AI webhook:', msg);
 	}
 
 	return NextResponse.json({

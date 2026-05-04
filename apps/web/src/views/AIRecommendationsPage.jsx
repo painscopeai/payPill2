@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Activity, CheckCircle2, XCircle } from 'lucide-react';
-import AskAIButton from '@/components/AskAIButton';
+import ClinicalAiWorkflowButton from '@/components/ClinicalAiWorkflowButton.jsx';
 
 export default function AIRecommendationsPage() {
   const { recommendations, fetchRecommendations, acceptRecommendation, declineRecommendation } =
@@ -39,7 +39,7 @@ export default function AIRecommendationsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Health Action Plan</h1>
           <p className="text-muted-foreground mt-2">Your personalized AI-generated health recommendations.</p>
         </div>
-        <AskAIButton />
+        <ClinicalAiWorkflowButton />
       </div>
 
       {recommendations.length === 0 ? (

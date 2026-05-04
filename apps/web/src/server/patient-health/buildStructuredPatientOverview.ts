@@ -6,7 +6,7 @@
 export const PATIENT_HEALTH_OVERVIEW_SCHEMA_VERSION = 1;
 
 /** Labels aligned with `PatientOnboardingPage` / step components */
-const STEP_LABELS: Record<number, string> = {
+export const ONBOARDING_STEP_LABELS: Record<number, string> = {
 	1: 'Welcome & profile setup',
 	2: 'Basic health information',
 	3: 'Body measurements & vitals',
@@ -195,7 +195,7 @@ export function buildStructuredPatientOverview(input: {
 			const display = flattenForDisplay(omitKeys(data, []) as Record<string, unknown>);
 			return {
 				stepNumber: row.step,
-				stepTitle: STEP_LABELS[row.step] ?? `Step ${row.step}`,
+				stepTitle: ONBOARDING_STEP_LABELS[row.step] ?? `Step ${row.step}`,
 				lastSavedAt: row.updated_at,
 				firstSavedAt: row.created_at,
 				isSparse: sparse,

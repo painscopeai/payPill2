@@ -1,11 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getBearerUserId } from '@/server/auth/getBearerUserId';
-import { getSupabaseAdmin } from '@/server/supabase/admin';
 import {
 	buildStructuredPatientOverview,
 	type RawOnboardingRow,
 } from '@/server/patient-health/buildStructuredPatientOverview';
+import { loadPatientHealthSources } from '@/server/patient-health/loadPatientHealthSources';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,41 +24,18 @@ export async function GET(request: NextRequest) {
 
 	const includeRaw = request.nextUrl.searchParams.get('includeRaw') === '1';
 
-	const sb = getSupabaseAdmin();
-
-	const [profileRes, stepsRes, recordsRes] = await Promise.all([
-		sb.from('profiles').select('*').eq('id', userId).maybeSingle(),
-		sb
-			.from('patient_onboarding_steps')
-			.select('step, data, created_at, updated_at')
-			.eq('user_id', userId)
-			.order('step', { ascending: true }),
-		sb
-			.from('patient_health_records')
-			.select('*')
-			.eq('user_id', userId)
-			.order('created_at', { ascending: false })
-			.limit(200),
-	]);
-
-	const errors: string[] = [];
-	if (profileRes.error) errors.push(`profile: ${profileRes.error.message}`);
-	if (stepsRes.error) errors.push(`onboarding_steps: ${stepsRes.error.message}`);
-	if (recordsRes.error) errors.push(`health_records: ${recordsRes.error.message}`);
-
-	if (errors.length > 0) {
-		console.error('[patient-health-overview]', errors.join('; '));
+	const loaded = await loadPatientHealthSources(userId);
+	if (!loaded.ok) {
+		console.error('[patient-health-overview]', loaded.errors.join('; '));
 		return NextResponse.json(
-			{ error: 'Failed to load one or more data sources', details: errors },
+			{ error: 'Failed to load one or more data sources', details: loaded.errors },
 			{ status: 500 },
 		);
 	}
 
-	const onboardingSteps = stepsRes.data ?? [];
-	const healthRecords = recordsRes.data ?? [];
+	const { profile, onboardingSteps, healthRecords } = loaded;
 	const fetchedAt = new Date().toISOString();
 
-	const profile = (profileRes.data ?? null) as Record<string, unknown> | null;
 	const structured = buildStructuredPatientOverview({
 		userId,
 		fetchedAt,

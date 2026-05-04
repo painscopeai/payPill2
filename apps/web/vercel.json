@@ -4,6 +4,9 @@
   "functions": {
     "src/app/api/ai-recommendations/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/clinical-ai-webhook/route.ts": {
+      "maxDuration": 60
     }
   }
 }
