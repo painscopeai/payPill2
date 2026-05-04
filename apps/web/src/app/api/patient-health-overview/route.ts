@@ -11,7 +11,7 @@ export const maxDuration = 60;
  * Debug / transparency: returns the signed-in patient's profile row, onboarding step payloads,
  * and health records — independent of the AI recommendation pipeline.
  */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
 	const userId = await getBearerUserId(request);
 	if (!userId) {
 		return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
