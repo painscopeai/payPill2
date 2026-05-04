@@ -7,6 +7,7 @@ import { Sparkles, Loader2, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import apiServerClient from '@/lib/apiServerClient';
 import { useRecommendations } from '@/contexts/RecommendationContext';
+import PatientHealthOverviewPreview from '@/components/PatientHealthOverviewPreview.jsx';
 
 export default function AskAIButton() {
   const { generateRecommendations, recommendations, isGenerating } = useRecommendations();
@@ -47,7 +48,7 @@ export default function AskAIButton() {
     setPreviewLoading(true);
     setPreviewPayload(null);
     try {
-      const res = await apiServerClient.fetch('/patient-health-overview');
+      const res = await apiServerClient.fetch('/patient-health-overview?includeRaw=1');
       const json = await res.json();
       if (!res.ok) {
         toast.error(json?.error || 'Could not load health overview');
@@ -179,23 +180,14 @@ export default function AskAIButton() {
               <Database className="h-5 w-5 text-primary" /> Stored profile &amp; records
             </DialogTitle>
             <DialogDescription>
-              Raw data loaded from Supabase for your account (profile row, onboarding steps, health records). Use this to
-              verify what the server can read before calling AI workflows.
+              Normalized view of your profile, onboarding steps, and health records. Expand sections for detail; open “Full
+              JSON” for the exact API payload (includes raw Supabase rows when loaded).
             </DialogDescription>
           </DialogHeader>
           {previewPayload && (
-            <>
-              <p className="text-sm text-muted-foreground">
-                {previewPayload.meta?.counts?.hasProfile ? 'Profile row: yes' : 'Profile row: no'} · Onboarding steps:{' '}
-                {previewPayload.meta?.counts?.onboardingSteps ?? '—'} · Records:{' '}
-                {previewPayload.meta?.counts?.healthRecords ?? '—'}
-              </p>
-              <ScrollArea className="h-[min(55vh,420px)] w-full rounded-md border bg-muted/30 p-3">
-                <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                  {JSON.stringify(previewPayload, null, 2)}
-                </pre>
-              </ScrollArea>
-            </>
+            <ScrollArea className="h-[min(60vh,520px)] w-full rounded-md border bg-muted/20 p-4 pr-3">
+              <PatientHealthOverviewPreview payload={previewPayload} />
+            </ScrollArea>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDataPreviewOpen(false)}>
