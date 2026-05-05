@@ -6,7 +6,7 @@
       "maxDuration": 300
     },
     "src/app/api/clinical-ai-webhook/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   }
 }
