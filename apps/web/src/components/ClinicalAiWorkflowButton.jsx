@@ -8,7 +8,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Zap, Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import apiServerClient from '@/lib/apiServerClient';
@@ -102,22 +101,23 @@ export default function ClinicalAiWorkflowButton() {
       </div>
 
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-2 pr-12">
+        <DialogContent className="max-w-3xl h-[min(90vh,860px)] max-h-[90vh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+          <DialogHeader className="shrink-0 border-b bg-background px-6 pb-3 pt-6 pr-12">
             <DialogTitle className="flex items-center gap-2 text-xl">
               <FileText className="h-5 w-5 text-primary" />
               Your health report
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-left">
               Summary from your AI workflow. This is for education and planning—not a substitute for professional care.
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[min(65vh,560px)] px-6 border-y bg-card/50">
-            <div className="py-4 pr-3">
+          {/* flex-1 + min-h-0 lets this region scroll; native overflow is more reliable than ScrollArea without a fixed height */}
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-muted/30 px-6 py-5 scroll-smooth">
+            <div className="max-w-none pb-2">
               <HealthReportMarkdown markdown={reportMarkdown} />
             </div>
-          </ScrollArea>
-          <DialogFooter className="px-6 py-4 sm:justify-end">
+          </div>
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-4 sm:justify-end">
             <Button type="button" variant="outline" onClick={() => setReportOpen(false)}>
               Close
             </Button>

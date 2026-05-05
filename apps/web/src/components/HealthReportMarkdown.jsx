@@ -19,7 +19,7 @@ const mdComponents = {
     </h3>
   ),
   p: ({ children, ...props }) => (
-    <p className="text-sm leading-relaxed text-foreground/90 mt-3 first:mt-0" {...props}>
+    <p className="text-[15px] leading-[1.65] text-foreground/90 mt-3 first:mt-0" {...props}>
       {children}
     </p>
   ),
