@@ -14,15 +14,6 @@ const UUID_RE =
 const CATEGORIES = new Set(['service', 'drug', 'other']);
 const UNITS = new Set(['per_visit', 'per_dose', 'flat', 'monthly']);
 
-function errResponse(e: unknown, fallback = 500) {
-	const msg = e instanceof Error ? e.message : 'Server error';
-	const status =
-		typeof e === 'object' && e !== null && 'status' in e && typeof (e as { status: unknown }).status === 'number'
-			? (e as { status: number }).status
-			: fallback;
-	return NextResponse.json({ error: msg }, { status });
-}
-
 export async function PATCH(
 	request: NextRequest,
 	context: { params: Promise<{ id: string }> },
