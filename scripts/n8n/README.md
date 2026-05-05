@@ -25,7 +25,7 @@
 
 ## Delete behavior (app)
 
-Admin UI calls `DELETE /api/admin/knowledge-base/:uploadedFileId`, which removes the storage object and the `uploaded_files` row. With DB FKs, linked `documents` chunks (and `knowledge_base` rows with `uploaded_file_id` set) are removed automatically.
+Admin UI calls `DELETE /api/admin/knowledge-base/:uploadedFileId`, which deletes all `documents` rows for that upload (`uploaded_file_id` column **or** `metadata.uploadedFileID` / snake_case variants), clears linked `knowledge_base` rows when present, removes the Storage object, then deletes the `uploaded_files` row.
 
 ## Dedupe / replace
 
