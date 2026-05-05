@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import apiServerClient from '@/lib/apiServerClient';
 import { supabase } from '@/lib/supabaseClient';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
@@ -44,6 +44,9 @@ const UNIT_LABEL = {
 };
 
 export default function ProviderServicesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const applicationIdFromUrl = searchParams.get('providerApplicationId')?.trim() || '';
+
   const authHeaders = async () => {
     const {
       data: { session },
@@ -97,6 +100,25 @@ export default function ProviderServicesPage() {
   }, [providerSearch]);
 
   const loadServices = useCallback(async () => {
+    if (applicationIdFromUrl) {
+      setServicesLoading(true);
+      try {
+        const res = await apiServerClient.fetch(
+          `/admin/provider-services?providerApplicationId=${encodeURIComponent(applicationIdFromUrl)}`,
+          { headers: await authHeaders() },
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to load services');
+        setServices(Array.isArray(data.items) ? data.items : []);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Failed to load services');
+        setServices([]);
+      } finally {
+        setServicesLoading(false);
+      }
+      return;
+    }
+
     if (!selectedProvider?.id) {
       setServices([]);
       return;
@@ -116,7 +138,7 @@ export default function ProviderServicesPage() {
     } finally {
       setServicesLoading(false);
     }
-  }, [selectedProvider]);
+  }, [selectedProvider, applicationIdFromUrl]);
 
   useEffect(() => {
     void loadServices();
@@ -292,6 +314,29 @@ export default function ProviderServicesPage() {
         </Button>
       </div>
 
+      {applicationIdFromUrl ? (
+        <div className="rounded-lg border border-primary/25 bg-primary/5 px-4 py-3 text-sm">
+          <span className="font-medium">Onboarding application filter.</span>{' '}
+          Showing catalog rows saved under application ID{' '}
+          <code className="rounded bg-muted px-1 text-xs">{applicationIdFromUrl}</code>. After you approve the
+          application, the same rows are linked to the provider and appear when you select them below.{' '}
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto p-0"
+            onClick={() => {
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete('providerApplicationId');
+                return next;
+              });
+            }}
+          >
+            Clear filter
+          </Button>
+        </div>
+      ) : null}
+
       <Card className="border-[hsl(var(--admin-border))] bg-[hsl(var(--admin-card))] shadow-sm">
         <CardHeader>
           <CardTitle>Select provider</CardTitle>
@@ -331,7 +376,16 @@ export default function ProviderServicesPage() {
                 : 'Select a provider above to view or edit rows.'}
             </CardDescription>
           </div>
-          <Button type="button" onClick={openCreate} disabled={!selectedProvider}>
+          <Button
+            type="button"
+            onClick={openCreate}
+            disabled={!selectedProvider || Boolean(applicationIdFromUrl)}
+            title={
+              applicationIdFromUrl
+                ? 'Clear the onboarding application filter to add rows against a selected provider.'
+                : undefined
+            }
+          >
             <Plus className="mr-2 h-4 w-4" /> Add service
           </Button>
         </CardHeader>

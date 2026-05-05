@@ -13,6 +13,12 @@ import { toast } from 'sonner';
 import { Calendar, MapPin, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
 import { normalizeAppointmentTime } from '@/lib/appointmentDateTime';
 
+function formatCatalogLinePrice(row) {
+  const n = Number(row.price);
+  const cur = row.currency || 'USD';
+  return Number.isFinite(n) ? `${cur} ${n.toFixed(2)}` : '—';
+}
+
 export default function BookingPage() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -28,6 +34,7 @@ export default function BookingPage() {
 
   const [formData, setFormData] = useState({
     providerId: '',
+    providerServiceId: '',
     appointmentType: '',
     appointmentDate: '',
     appointmentTime: '',
@@ -81,6 +88,11 @@ export default function BookingPage() {
     () => providers.find((p) => p.id === formData.providerId),
     [providers, formData.providerId],
   );
+
+  const selectedCatalogService = useMemo(() => {
+    if (!formData.providerServiceId || !selectedProvider?.services?.length) return null;
+    return selectedProvider.services.find((s) => s.id === formData.providerServiceId) || null;
+  }, [formData.providerServiceId, selectedProvider]);
 
   const selectedVisitTypeId = useMemo(
     () => visitTypes.find((v) => v.slug === formData.appointmentType)?.id,
@@ -161,6 +173,7 @@ export default function BookingPage() {
           reason: formData.reason,
           insuranceInfo: insLabel,
           insuranceOptionId: formData.insuranceOptionId,
+          ...(formData.providerServiceId ? { providerServiceId: formData.providerServiceId } : {}),
         }),
       });
 
@@ -216,7 +229,9 @@ export default function BookingPage() {
                         <Label>Provider</Label>
                         <Select
                           value={formData.providerId || undefined}
-                          onValueChange={(v) => setFormData({ ...formData, providerId: v })}
+                          onValueChange={(v) =>
+                            setFormData({ ...formData, providerId: v, providerServiceId: '' })
+                          }
                           required
                           disabled={providers.length === 0}
                         >
@@ -239,6 +254,37 @@ export default function BookingPage() {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {selectedProvider?.services?.length > 0 ? (
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Provider services &amp; pricing</Label>
+                          <Select
+                            value={formData.providerServiceId || '__none__'}
+                            onValueChange={(v) =>
+                              setFormData({
+                                ...formData,
+                                providerServiceId: v === '__none__' ? '' : v,
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="General visit (no specific line)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">General visit — no catalog line</SelectItem>
+                              {selectedProvider.services.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name} · {formatCatalogLinePrice(s)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            From this provider&apos;s published price list (your plan copay below is still the main
+                            estimate).
+                          </p>
+                        </div>
+                      ) : null}
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
@@ -347,6 +393,16 @@ export default function BookingPage() {
                           Estimate only; final amount determined at check-in. Your plan and visit type may
                           change this figure.
                         </p>
+                        {selectedCatalogService ? (
+                          <div className="flex justify-between items-center text-sm border-t pt-2 mt-2">
+                            <span className="text-muted-foreground">
+                              Provider list: {selectedCatalogService.name}
+                            </span>
+                            <span className="font-medium tabular-nums">
+                              {formatCatalogLinePrice(selectedCatalogService)}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                     </>
                   )}
@@ -400,6 +456,14 @@ export default function BookingPage() {
                       <span className="text-muted-foreground">Estimated copay (saved): </span>
                       <span className="font-semibold">
                         ${Number(confirmation.copayAmount).toFixed(2)}
+                      </span>
+                    </div>
+                  ) : null}
+                  {selectedCatalogService ? (
+                    <div className="text-sm border-t pt-3">
+                      <span className="text-muted-foreground">Provider catalog line: </span>
+                      <span className="font-medium">
+                        {selectedCatalogService.name} ({formatCatalogLinePrice(selectedCatalogService)})
                       </span>
                     </div>
                   ) : null}

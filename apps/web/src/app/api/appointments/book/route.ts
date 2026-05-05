@@ -55,7 +55,8 @@ function shouldRetryInsertWithoutOptionalFkColumns(err: { code?: string; message
 	return (
 		msg.includes('visit_type_id') ||
 		msg.includes('insurance_option_id') ||
-		msg.includes('meeting_url')
+		msg.includes('meeting_url') ||
+		msg.includes('provider_service_id')
 	);
 }
 
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
 		insuranceInfo?: string;
 		insuranceOptionId?: string;
 		copayAmount?: number;
+		providerServiceId?: string | null;
 	};
 	try {
 		body = (await request.json()) as typeof body;
@@ -126,7 +128,13 @@ export async function POST(request: NextRequest) {
 		reason,
 		insuranceInfo,
 		insuranceOptionId,
+		providerServiceId: providerServiceIdRaw,
 	} = body;
+
+	const providerServiceId =
+		typeof providerServiceIdRaw === 'string' && providerServiceIdRaw.trim()
+			? providerServiceIdRaw.trim()
+			: null;
 
 	if (!uid || !providerId || !appointmentDate || !appointmentTime || !appointmentType) {
 		return NextResponse.json(
@@ -169,6 +177,21 @@ export async function POST(request: NextRequest) {
 	};
 	if (prov.status !== 'active' || prov.verification_status !== 'verified') {
 		return NextResponse.json({ error: 'Provider is not available for booking' }, { status: 400 });
+	}
+
+	if (providerServiceId) {
+		const { data: svc, error: svcErr } = await sb
+			.from('provider_services')
+			.select('id, provider_id, is_active')
+			.eq('id', providerServiceId)
+			.maybeSingle();
+		if (svcErr || !svc) {
+			return NextResponse.json({ error: 'Selected provider service not found' }, { status: 400 });
+		}
+		const s = svc as { id: string; provider_id: string | null; is_active: boolean };
+		if (!s.is_active || s.provider_id !== providerId) {
+			return NextResponse.json({ error: 'Selected provider service is not valid for this booking' }, { status: 400 });
+		}
 	}
 
 	const visitType = await getVisitTypeBySlug(appointmentType);
@@ -216,6 +239,7 @@ export async function POST(request: NextRequest) {
 		copay_amount: copay_estimate,
 		confirmation_number: confirmationNumber,
 		status: 'confirmed',
+		...(providerServiceId ? { provider_service_id: providerServiceId } : {}),
 	};
 
 	const rowFull = {

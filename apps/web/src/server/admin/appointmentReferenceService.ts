@@ -348,6 +348,18 @@ export async function listCopayMatrixCatalog(): Promise<CopayMatrixCatalogEntry[
 	}));
 }
 
+/** Active catalog lines exposed on booking when a provider is selected. */
+export type ProviderCatalogService = {
+	id: string;
+	name: string;
+	category: string;
+	unit: string;
+	price: number;
+	currency: string;
+	notes: string | null;
+	sort_order: number;
+};
+
 /** Catalog for patient booking UI (server-side read). */
 export async function getAppointmentCatalog(): Promise<{
 	visitTypes: VisitTypeRow[];
@@ -362,6 +374,7 @@ export async function getAppointmentCatalog(): Promise<{
 		email: string | null;
 		address: string | null;
 		scheduling_url: string | null;
+		services: ProviderCatalogService[];
 	}>;
 }> {
 	const [visitTypes, insuranceOptions, copayMatrix, providersRes] = await Promise.all([
@@ -386,10 +399,61 @@ export async function getAppointmentCatalog(): Promise<{
 		address: string | null;
 		scheduling_url: string | null;
 	};
+	const baseProviders = (providersRes.data || []) as Prov[];
+	const providerIds = baseProviders.map((p) => p.id);
+
+	const servicesByProvider = new Map<string, ProviderCatalogService[]>();
+	if (providerIds.length > 0) {
+		const { data: svcRows, error: svcErr } = await sb()
+			.from('provider_services')
+			.select('id, provider_id, name, category, unit, price, currency, notes, sort_order')
+			.in('provider_id', providerIds)
+			.eq('is_active', true);
+		if (svcErr) throw svcErr;
+		type SvcRow = {
+			id: string;
+			provider_id: string | null;
+			name: string;
+			category: string;
+			unit: string;
+			price: number | string;
+			currency: string;
+			notes: string | null;
+			sort_order: number | null;
+		};
+		const sorted = ((svcRows || []) as SvcRow[])
+			.filter((r) => r.provider_id)
+			.sort((a, b) => {
+				const sa = a.sort_order ?? 0;
+				const sb = b.sort_order ?? 0;
+				if (sa !== sb) return sa - sb;
+				return (a.name || '').localeCompare(b.name || '');
+			});
+		for (const r of sorted) {
+			const pid = r.provider_id as string;
+			const row: ProviderCatalogService = {
+				id: r.id,
+				name: r.name,
+				category: r.category,
+				unit: r.unit,
+				price: typeof r.price === 'number' ? r.price : Number(r.price),
+				currency: r.currency || 'USD',
+				notes: r.notes,
+				sort_order: r.sort_order ?? 0,
+			};
+			const list = servicesByProvider.get(pid) || [];
+			list.push(row);
+			servicesByProvider.set(pid, list);
+		}
+	}
+
 	return {
 		visitTypes,
 		insuranceOptions,
 		copayMatrix,
-		providers: (providersRes.data || []) as Prov[],
+		providers: baseProviders.map((p) => ({
+			...p,
+			services: servicesByProvider.get(p.id) || [],
+		})),
 	};
 }

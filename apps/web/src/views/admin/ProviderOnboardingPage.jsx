@@ -436,6 +436,15 @@ export default function ProviderOnboardingPage() {
                 <StatusBadge status={selectedRow.status} />
               </div>
               <div className="flex flex-wrap gap-2">
+                {(selectedRow.status === 'submitted' || selectedRow.status === 'approved') && (
+                  <Button type="button" variant="outline" asChild>
+                    <Link
+                      to={`/admin/provider-services?providerApplicationId=${encodeURIComponent(selectedRow.id)}`}
+                    >
+                      Services &amp; pricing captured
+                    </Link>
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="secondary"

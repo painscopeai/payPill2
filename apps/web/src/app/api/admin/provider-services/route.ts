@@ -45,7 +45,20 @@ export async function GET(request: NextRequest) {
 		.order('created_at', { ascending: true });
 
 	if (providerId) {
-		q = q.eq('provider_id', providerId);
+		const { data: apps, error: appErr } = await sb
+			.from('provider_applications')
+			.select('id')
+			.eq('provider_id', providerId);
+		if (appErr) {
+			console.error('[admin/provider-services GET] applications', appErr.message);
+			return NextResponse.json({ error: 'Failed to load services' }, { status: 500 });
+		}
+		const appIds = (apps || []).map((a: { id: string }) => a.id).filter(Boolean);
+		if (appIds.length > 0) {
+			q = q.or(`provider_id.eq.${providerId},provider_application_id.in.(${appIds.join(',')})`);
+		} else {
+			q = q.eq('provider_id', providerId);
+		}
 	} else {
 		q = q.eq('provider_application_id', applicationId);
 	}
