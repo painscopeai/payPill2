@@ -6,12 +6,31 @@ import { buildClinicalAiWebhookPayload } from '@/server/patient-health/buildClin
 import { loadPatientHealthSources } from '@/server/patient-health/loadPatientHealthSources';
 import { hasUsablePatientPayload } from '@/server/express-api/utils/aiWebhookPatientPayload.js';
 import { extractReportFromN8nResponse } from '@/server/webhooks/parseN8nWebhookReport';
+import { getSupabaseAdmin } from '@/server/supabase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 const DEFAULT_N8N_WAIT_MS = 120_000;
+
+async function persistPatientReport(userId: string, markdown: string, n8nStatus: number) {
+	const report = markdown.trim();
+	if (!report) return;
+	const titleMatch = report.match(/^#{1,3}\s+(.+)$/m);
+	const title = (titleMatch?.[1] || 'Health Action Report').trim().slice(0, 120);
+	const sb = getSupabaseAdmin();
+	const { error } = await sb.from('patient_ai_reports').insert({
+		user_id: userId,
+		title,
+		report_markdown: report,
+		source: 'clinical_ai_webhook',
+		metadata: { n8n_status: n8nStatus, saved_at: new Date().toISOString() },
+	});
+	if (error) {
+		console.error('[clinical-ai-webhook] failed to persist report', error.message);
+	}
+}
 
 type PostBody = {
 	/** If true, return 202 immediately and run n8n in the background (e.g. onboarding complete). */
@@ -154,6 +173,8 @@ export async function POST(request: NextRequest) {
 			{ status: 502 },
 		);
 	}
+
+	await persistPatientReport(userId, reportMarkdown, n8nRes.status);
 
 	return NextResponse.json({
 		ok: true,

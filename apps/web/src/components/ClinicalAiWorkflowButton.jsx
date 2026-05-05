@@ -22,7 +22,7 @@ const WEBHOOK_POST_TIMEOUT_MS = Math.min(
 /**
  * Sends clinical payload to n8n, waits for the workflow response, and shows a formatted health report.
  */
-export default function ClinicalAiWorkflowButton() {
+export default function ClinicalAiWorkflowButton({ onReportSaved }) {
   const [pending, setPending] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMarkdown, setReportMarkdown] = useState('');
@@ -61,6 +61,9 @@ export default function ClinicalAiWorkflowButton() {
       if (typeof md === 'string' && md.trim()) {
         setReportMarkdown(md);
         setReportOpen(true);
+        if (typeof onReportSaved === 'function') {
+          onReportSaved();
+        }
         toast.success('Your health report is ready.');
         return;
       }
