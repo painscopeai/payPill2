@@ -1,12 +1,11 @@
 
-import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Building2, ShieldCheck, 
   FileText, Brain, Settings,
-  LogOut, ChevronLeft, ChevronRight, ClipboardList, BookOpen, FileSpreadsheet,
-  PieChart, TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library,
-  ChevronDown,
+  LogOut, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, BookOpen, FileSpreadsheet,
+  PieChart, TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import apiServerClient from '@/lib/apiServerClient';
@@ -15,15 +14,6 @@ import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { cn } from '@/lib/utils';
 
 const PROVIDERS_MANAGEMENT_PATH = '/admin/providers';
-
-/** True if `pathname` is this nav item’s route or a child path. */
-function pathMatchesNavItem(itemPath, pathname) {
-  return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
-}
-
-function sectionContainsActive(section, pathname) {
-  return section.items.some((item) => pathMatchesNavItem(item.path, pathname));
-}
 
 const sections = [
   {
@@ -81,6 +71,20 @@ const sections = [
   }
 ];
 
+/** Sidebar groups that start collapsed and can be toggled open. Overview + System stay always open. */
+const COLLAPSIBLE_SECTION_TITLES = new Set([
+  'Analytics',
+  'Users',
+  'Providers',
+  'Content & AI',
+]);
+
+function sectionContainsActivePath(section, pathname) {
+  return section.items.some(
+    (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
+  );
+}
+
 /**
  * Module-level nav so React keeps the same component type across route changes.
  * Defining this inside AdminSidebar recreated the component every render, which
@@ -90,81 +94,39 @@ function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
   const location = useLocation();
   const { logout } = useAuth();
   const [pendingProviderApplications, setPendingProviderApplications] = useState(0);
-  /** Section titles expanded by user toggle; baseline default is collapsed except active section opens via effect below */
-  const [openSections, setOpenSections] = useState(() => new Set());
+  const [expandedBySection, setExpandedBySection] = useState(() => {
+    const initial = {};
+    for (const s of sections) {
+      if (COLLAPSIBLE_SECTION_TITLES.has(s.title)) {
+        initial[s.title] = false;
+      }
+    }
+    return initial;
+  });
 
-  /** Auto-expand whichever section holds the active route when the path changes. */
-  useLayoutEffect(() => {
-    const p = location.pathname;
-    const shouldOpen = sections.filter((s) => sectionContainsActive(s, p)).map((s) => s.title);
-    setOpenSections((prev) => {
-      const next = new Set(prev);
-      for (const t of shouldOpen) next.add(t);
-      return next;
+  /** Keep the active route visible: auto-expand its section while sidebar is expanded. */
+  useEffect(() => {
+    const path = location.pathname;
+    setExpandedBySection((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const s of sections) {
+        if (!COLLAPSIBLE_SECTION_TITLES.has(s.title)) continue;
+        if (sectionContainsActivePath(s, path) && next[s.title] !== true) {
+          next[s.title] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
   }, [location.pathname]);
 
   const toggleSection = useCallback((title) => {
-    setOpenSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(title)) next.delete(title);
-      else next.add(title);
-      return next;
-    });
+    setExpandedBySection((prev) => ({
+      ...prev,
+      [title]: !prev[title],
+    }));
   }, []);
-
-  /** Used when collapsed to icon-only: flat list preserves access without accordion. */
-  const renderNavLink = useCallback((item, keySuffix) => {
-    const pathname = location.pathname;
-    const isActive = pathMatchesNavItem(item.path, pathname);
-    const showMgmtDot = item.path === PROVIDERS_MANAGEMENT_PATH && pendingProviderApplications > 0;
-    return (
-      <Link
-        key={`${item.path}-${keySuffix}`}
-        to={item.path}
-        onClick={() => setIsMobileOpen(false)}
-        title={isCollapsed ? item.title : undefined}
-        aria-label={
-          showMgmtDot ? `${item.title}, ${pendingProviderApplications} pending application(s)` : item.title
-        }
-        className={cn(
-          'relative flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group text-sm',
-          isActive
-            ? 'bg-[hsl(var(--admin-sidebar-active))] text-[hsl(var(--admin-sidebar-fg))] font-medium shadow-md'
-            : 'text-[hsl(var(--admin-sidebar-fg))]/75 hover:bg-[hsl(var(--admin-sidebar-hover))] hover:text-[hsl(var(--admin-sidebar-fg))]',
-        )}
-      >
-        <span className="relative inline-flex shrink-0">
-          <item.icon
-            className={cn(
-              'w-4 h-4',
-              isActive
-                ? 'text-[hsl(var(--admin-sidebar-fg))]'
-                : 'text-[hsl(var(--admin-sidebar-fg))]/75 group-hover:text-[hsl(var(--admin-sidebar-fg))]',
-            )}
-          />
-          {isCollapsed && showMgmtDot ? (
-            <span
-              className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[hsl(var(--admin-sidebar-bg))]"
-              aria-hidden
-            />
-          ) : null}
-        </span>
-        {!isCollapsed && (
-          <>
-            <span className="flex-1 truncate">{item.title}</span>
-            {showMgmtDot ? (
-              <span
-                className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-[hsl(var(--admin-sidebar-bg))]"
-                title={`${pendingProviderApplications} pending`}
-                aria-hidden
-              />
-            ) : null}
-          </>
-        )}
-      </Link>
-    );
-  }, [location.pathname, pendingProviderApplications, setIsMobileOpen, isCollapsed]);
 
   const fetchPendingProviderApplications = useCallback(async () => {
     try {
@@ -215,49 +177,99 @@ function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-4 scrollbar-hide">
-        {isCollapsed ? (
-          <div className="space-y-1">
-            {sections.map((section, sIdx) => (
-              <React.Fragment key={section.title}>
-                {sIdx > 0 ? (
-                  <div className="h-4 border-b border-[hsl(var(--admin-sidebar-fg))]/10 mb-2 mx-4" />
-                ) : null}
-                {section.items.map((item) => renderNavLink(item, `c-${section.title}`))}
-              </React.Fragment>
-            ))}
-          </div>
-        ) : (
-          sections.map((section) => {
-            const isOpen = openSections.has(section.title);
-            return (
-              <div key={section.title} className="space-y-1">
+      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6 scrollbar-hide">
+        {sections.map((section, sIdx) => {
+          const isCollapsible = COLLAPSIBLE_SECTION_TITLES.has(section.title);
+          const isSectionOpen = !isCollapsible || expandedBySection[section.title] === true;
+          const showItems = isCollapsed || isSectionOpen;
+
+          return (
+            <div key={sIdx} className="space-y-1">
+              {!isCollapsed && isCollapsible && (
                 <button
                   type="button"
-                  aria-expanded={isOpen}
                   onClick={() => toggleSection(section.title)}
                   className={cn(
-                    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider transition-colors text-[hsl(var(--admin-sidebar-fg))]/50 hover:bg-[hsl(var(--admin-sidebar-hover))] hover:text-[hsl(var(--admin-sidebar-fg))]/85',
+                    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider',
+                    'text-[hsl(var(--admin-sidebar-fg))]/50 hover:bg-[hsl(var(--admin-sidebar-hover))] hover:text-[hsl(var(--admin-sidebar-fg))]/80',
                   )}
+                  aria-expanded={isSectionOpen}
                 >
                   <ChevronDown
                     className={cn(
-                      'h-4 w-4 shrink-0 transition-transform text-[hsl(var(--admin-sidebar-fg))]/45',
-                      isOpen ? '' : '-rotate-90',
+                      'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
+                      isSectionOpen ? 'rotate-0' : '-rotate-90',
                     )}
                     aria-hidden
                   />
                   <span className="flex-1 truncate">{section.title}</span>
                 </button>
-                {isOpen ? (
-                  <div className="space-y-0.5 pl-2 border-l border-[hsl(var(--admin-sidebar-fg))]/10 ml-5">
-                    {section.items.map((item) => renderNavLink(item, section.title))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })
-        )}
+              )}
+              {!isCollapsed && !isCollapsible && (
+                <h4 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-[hsl(var(--admin-sidebar-fg))]/50">
+                  {section.title}
+                </h4>
+              )}
+              {isCollapsed && <div className="mx-4 mb-2 h-4 border-b border-[hsl(var(--admin-sidebar-fg))]/10" />}
+
+              {showItems &&
+                section.items.map((item) => {
+                  const isActive =
+                    location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+                  const showMgmtDot =
+                    item.path === PROVIDERS_MANAGEMENT_PATH && pendingProviderApplications > 0;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setIsMobileOpen(false)}
+                      title={isCollapsed ? item.title : undefined}
+                      aria-label={
+                        showMgmtDot
+                          ? `${item.title}, ${pendingProviderApplications} pending application(s)`
+                          : item.title
+                      }
+                      className={cn(
+                        'relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 group',
+                        isActive
+                          ? 'bg-[hsl(var(--admin-sidebar-active))] font-medium text-[hsl(var(--admin-sidebar-fg))] shadow-md'
+                          : 'text-[hsl(var(--admin-sidebar-fg))]/75 hover:bg-[hsl(var(--admin-sidebar-hover))] hover:text-[hsl(var(--admin-sidebar-fg))]',
+                      )}
+                    >
+                      <span className="relative inline-flex shrink-0">
+                        <item.icon
+                          className={cn(
+                            'h-4 w-4',
+                            isActive
+                              ? 'text-[hsl(var(--admin-sidebar-fg))]'
+                              : 'text-[hsl(var(--admin-sidebar-fg))]/75 group-hover:text-[hsl(var(--admin-sidebar-fg))]',
+                          )}
+                        />
+                        {isCollapsed && showMgmtDot ? (
+                          <span
+                            className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[hsl(var(--admin-sidebar-bg))]"
+                            aria-hidden
+                          />
+                        ) : null}
+                      </span>
+                      {!isCollapsed && (
+                        <>
+                          <span className="flex-1 truncate">{item.title}</span>
+                          {showMgmtDot ? (
+                            <span
+                              className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-[hsl(var(--admin-sidebar-bg))]"
+                              title={`${pendingProviderApplications} pending`}
+                              aria-hidden
+                            />
+                          ) : null}
+                        </>
+                      )}
+                    </Link>
+                  );
+                })}
+            </div>
+          );
+        })}
       </div>
 
       <div className="p-4 border-t border-[hsl(var(--admin-sidebar-fg))]/10 shrink-0">
