@@ -2,7 +2,7 @@
 
 ## Webhook fields sent by the app
 
-`POST` from [`apps/web/src/app/api/admin/knowledge-base/document/route.ts`](../../apps/web/src/app/api/admin/knowledge-base/document/route.ts) includes:
+`POST` from [`apps/web/src/app/api/admin/knowledge-base/document/route.ts`](../../apps/web/src/app/api/admin/knowledge-base/document/route.ts) accepts **PDF only** (`.pdf` + valid `%PDF-` header); includes:
 
 - Binary `file` part(s) — same bytes stored in Supabase Storage under `uploads/{adminId}/…`
 - `source`, `adminId`, `uploadedAt`

@@ -5,6 +5,7 @@ import { Upload, History, FileText, ArrowRightLeft, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import apiServerClient from '@/lib/apiServerClient';
+import { isAdminKbPdfFile } from '@/lib/isAdminKbPdfUpload';
 
 export function DocumentVersioning({ document, onUpdate }) {
   const fileInputRef = useRef(null);
@@ -20,6 +21,11 @@ export function DocumentVersioning({ document, onUpdate }) {
   const handleUploadNewVersion = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!isAdminKbPdfFile(file)) {
+      toast.error('Only PDF files are allowed');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
     setIsUploading(true);
     const formData = new FormData();
@@ -56,7 +62,7 @@ export function DocumentVersioning({ document, onUpdate }) {
             ref={fileInputRef} 
             className="hidden" 
             onChange={handleUploadNewVersion}
-            accept=".pdf,.doc,.docx,.csv,.xlsx,.xls,.txt"
+            accept=".pdf,application/pdf"
           />
           <Button 
             className="gap-2" 

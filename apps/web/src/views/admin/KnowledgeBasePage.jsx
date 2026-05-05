@@ -6,12 +6,12 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import apiServerClient from '@/lib/apiServerClient';
+import { isAdminKbPdfFile } from '@/lib/isAdminKbPdfUpload';
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_RECENT = 25;
 /** `apiServerClient` prepends `/api` — paths must be `/admin/...`, never `/api/admin/...` (avoids `/api/api/...`). */
-const ACCEPT =
-	'.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const ACCEPT = '.pdf,application/pdf';
 
 /** Read JSON from fetch Response exactly once (never call .json() then .text()). */
 async function readResponsePayload(res) {
@@ -90,6 +90,10 @@ export default function KnowledgeBasePage() {
 			for (const f of next) {
 				if (f.size > MAX_FILE_BYTES) {
 					toast.error(`${f.name} is over 50MB — skipped`);
+					continue;
+				}
+				if (!isAdminKbPdfFile(f)) {
+					toast.error(`${f.name} — only PDF files are allowed`);
 					continue;
 				}
 				const key = `${f.name}-${f.size}`;
@@ -257,7 +261,7 @@ export default function KnowledgeBasePage() {
 								{isUploading ? 'Sending to pipeline…' : 'Add documents'}
 							</h3>
 							<p className="mt-1 max-w-md text-sm text-muted-foreground">
-								Drag and drop here, or click below. PDF and Word (.doc, .docx), Excel, CSV, text — max 50MB each.
+								Drag and drop here, or click below. PDF only — max 50MB per file.
 							</p>
 							<div className="mt-6 flex flex-wrap items-center justify-center gap-3">
 								<Button

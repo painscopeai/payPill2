@@ -2,13 +2,18 @@ import { App } from '@tinyhttp/app';
 import { getSupabaseAdmin } from '../utils/supabaseAdmin.js';
 import logger from '../utils/logger.js';
 import { uploadFiles } from '../middleware/file-upload.js';
-import {
-	extractTextFromFile,
-	getFileType,
-	chunkText,
-} from '../utils/fileExtractor.js';
+import { extractTextFromPDF, chunkText } from '../utils/fileExtractor.js';
 
 const svc = () => getSupabaseAdmin();
+
+/** PDF-only uploads: `.pdf` name + `%PDF-` magic bytes (Express KB routes). */
+function isPdfKnowledgeUpload(file) {
+	const name = String(file?.originalname || '').trim();
+	if (!name.toLowerCase().endsWith('.pdf')) return false;
+	const buf = file?.buffer;
+	if (!Buffer.isBuffer(buf) || buf.length < 5) return false;
+	return buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46 && buf[4] === 0x2d;
+}
 
 async function kbGet(id) {
 	const { data, error } = await svc().from('knowledge_base').select('*').eq('id', id).maybeSingle();
@@ -30,15 +35,7 @@ const router = new App();
 router.post('/upload', uploadFiles({
   maxCount: 1,
   maxSizeMB: 50,
-  allowedMimeTypes: [
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-excel',
-    'text/csv',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/msword',
-    'text/plain',
-  ],
+  allowedMimeTypes: ['application/pdf', 'application/x-pdf', 'application/octet-stream'],
   fieldName: 'file',
 }), async (req, res) => {
   const { title, category, description } = req.body;
@@ -63,18 +60,17 @@ router.post('/upload', uploadFiles({
   }
 
   const file = req.files[0];
-  const fileType = getFileType(file.mimetype);
-
-  if (fileType === 'unknown') {
-    return res.status(400).json({
-      error: `Unsupported file type: ${file.mimetype}`,
+  if (!isPdfKnowledgeUpload(file)) {
+    return res.status(415).json({
+      error: 'Only PDF files are allowed (must be a valid PDF).',
     });
   }
+  const fileType = 'pdf';
 
   try {
     // Extract text from file
     logger.info(`Extracting text from ${file.originalname}`);
-    const extractedText = await extractTextFromFile(file.buffer, file.mimetype);
+    const extractedText = await extractTextFromPDF(file.buffer);
 
     if (!extractedText || extractedText.length === 0) {
       return res.status(400).json({
@@ -444,15 +440,7 @@ router.post('/:docId/reindex', async (req, res) => {
 router.post('/:docId/versions', uploadFiles({
   maxCount: 1,
   maxSizeMB: 50,
-  allowedMimeTypes: [
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-excel',
-    'text/csv',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/msword',
-    'text/plain',
-  ],
+  allowedMimeTypes: ['application/pdf', 'application/x-pdf', 'application/octet-stream'],
   fieldName: 'file',
 }), async (req, res) => {
   const { docId } = req.params;
@@ -464,13 +452,12 @@ router.post('/:docId/versions', uploadFiles({
   }
 
   const file = req.files[0];
-  const fileType = getFileType(file.mimetype);
-
-  if (fileType === 'unknown') {
-    return res.status(400).json({
-      error: `Unsupported file type: ${file.mimetype}`,
+  if (!isPdfKnowledgeUpload(file)) {
+    return res.status(415).json({
+      error: 'Only PDF files are allowed (must be a valid PDF).',
     });
   }
+  const fileType = 'pdf';
 
   try {
     // Fetch existing document
@@ -478,7 +465,7 @@ router.post('/:docId/versions', uploadFiles({
 
     // Extract text from new file
     logger.info(`Extracting text from new version: ${file.originalname}`);
-    const extractedText = await extractTextFromFile(file.buffer, file.mimetype);
+    const extractedText = await extractTextFromPDF(file.buffer);
 
     if (!extractedText || extractedText.length === 0) {
       return res.status(400).json({

@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { requireManageAiAdmin } from '@/server/auth/requireManageAiAdmin';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { purgeUploadedFileAdmin } from '@/server/knowledge/purgeUploadedFile';
+import { isAdminKbPdfFile, pdfBytesLookValid } from '@/lib/isAdminKbPdfUpload';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,6 +53,12 @@ export async function POST(request: NextRequest) {
 				{ status: 413 },
 			);
 		}
+		if (!isAdminKbPdfFile(f)) {
+			return NextResponse.json(
+				{ error: `Only PDF files are allowed: ${f.name}` },
+				{ status: 415 },
+			);
+		}
 	}
 
 	const sb = getSupabaseAdmin();
@@ -61,6 +68,12 @@ export async function POST(request: NextRequest) {
 
 	for (const f of files) {
 		const bytes = Buffer.from(await f.arrayBuffer());
+		if (!pdfBytesLookValid(bytes)) {
+			return NextResponse.json(
+				{ error: `File does not look like a valid PDF: ${f.name}` },
+				{ status: 415 },
+			);
+		}
 		forwardBuffers.push(bytes);
 		const checksum = createHash('sha256').update(bytes).digest('hex');
 
