@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ function readInviteEmailFromToken(token) {
 
 export default function FormSubmissionPage() {
   const { formId } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const applicationToken = searchParams.get('application_token')?.trim() || '';
 
@@ -135,6 +136,13 @@ export default function FormSubmissionPage() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || res.statusText || 'Submit failed');
+      }
+      if (applicationToken) {
+        navigate(
+          `/provider-onboarding/services?application_token=${encodeURIComponent(applicationToken)}`,
+          { replace: true },
+        );
+        return;
       }
       setIsSubmitted(true);
     } catch (err) {

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Building2, ShieldCheck, 
   FileText, Brain, Settings,
   LogOut, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, BookOpen, FileSpreadsheet,
-  PieChart, TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library
+  PieChart, TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library, ListChecks
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import apiServerClient from '@/lib/apiServerClient';
@@ -51,6 +51,7 @@ const sections = [
       { title: 'Provider types', path: '/admin/provider-types', icon: Tags },
       { title: 'Appointment options', path: '/admin/appointment-options', icon: CalendarClock },
       { title: 'Bulk Upload', path: '/admin/bulk-provider-upload', icon: FileSpreadsheet },
+      { title: 'Service List', path: '/admin/provider-services', icon: ListChecks },
     ]
   },
   {

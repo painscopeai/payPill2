@@ -12,6 +12,7 @@ import AuthInsurancePage from './views/AuthInsurancePage.jsx';
 import AuthAdminPage from './views/AuthAdminPage.jsx';
 import NotFoundPage from './views/NotFoundPage.jsx';
 import FormSubmissionPage from './views/FormSubmissionPage.jsx';
+import ProviderServicesIntakePage from './views/ProviderServicesIntakePage.jsx';
 import ProtectedAdminRoute from './components/admin/ProtectedAdminRoute.jsx';
 import AdminLayout from './components/admin/AdminLayout.jsx';
 import AdminLandingPage from './views/admin/AdminLandingPage.jsx';
@@ -72,6 +73,7 @@ const ProviderTypesPage = React.lazy(() => import('./views/admin/ProviderTypesPa
 const AppointmentOptionsPage = React.lazy(() => import('./views/admin/AppointmentOptionsPage.jsx'));
 const ProfileReferenceDataPage = React.lazy(() => import('./views/admin/ProfileReferenceDataPage.jsx'));
 const BulkProviderUploadPage = React.lazy(() => import('./views/admin/BulkProviderUploadPage.jsx'));
+const ProviderServicesPage = React.lazy(() => import('./views/admin/ProviderServicesPage.jsx'));
 const FormBuilderPage = React.lazy(() => import('./views/admin/FormBuilderPage.jsx'));
 const FormResponsesPage = React.lazy(() => import('./views/admin/FormResponsesPage.jsx'));
 const FormResponsesHubPage = React.lazy(() => import('./views/admin/FormResponsesHubPage.jsx'));
@@ -105,6 +107,7 @@ export default function AppRoutes() {
 					<Route path="/admin" element={<AdminLandingPage />} />
 					<Route path="/admin/login" element={<AdminLoginPage />} />
 					<Route path="/forms/:formId" element={<FormSubmissionPage />} />
+					<Route path="/provider-onboarding/services" element={<ProviderServicesIntakePage />} />
 
 					<Route
 						path="/admin/*"
@@ -142,6 +145,7 @@ export default function AppRoutes() {
 											<Route path="appointment-options" element={<AppointmentOptionsPage />} />
 											<Route path="profile-reference-data" element={<ProfileReferenceDataPage />} />
 											<Route path="bulk-provider-upload" element={<BulkProviderUploadPage />} />
+											<Route path="provider-services" element={<ProviderServicesPage />} />
 											<Route path="form-responses" element={<FormResponsesHubPage />} />
 											<Route path="forms" element={<FormBuilderPage />} />
 											<Route path="forms/:formId/responses" element={<FormResponsesPage />} />

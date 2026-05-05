@@ -315,6 +315,14 @@ export async function approveProviderApplication(
 	const { data: provider, error: insErr } = await sb().from('providers').insert(providerRow).select('*').single();
 	if (insErr) throw insErr;
 
+	const pid = String(provider.id);
+	const { error: svcErr } = await sb()
+		.from('provider_services')
+		.update({ provider_id: pid, updated_at: new Date().toISOString() })
+		.eq('provider_application_id', id)
+		.is('provider_id', null);
+	if (svcErr) throw svcErr;
+
 	const now = new Date().toISOString();
 	const { data: app, error: upErr } = await sb()
 		.from('provider_applications')
