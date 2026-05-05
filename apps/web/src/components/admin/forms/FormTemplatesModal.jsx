@@ -74,6 +74,16 @@ export function FormTemplatesModal({ isOpen, onClose, onSelectTemplate, isCreati
 											>
 												Service List (pricing rows)
 											</Button>
+											<Button
+												variant="outline"
+												className="w-full gap-2"
+												onClick={() => {
+													onClose();
+													navigate('/admin/preview/provider-services-intake');
+												}}
+											>
+												Preview applicant screen
+											</Button>
 										</>
 									) : (
 										<Button

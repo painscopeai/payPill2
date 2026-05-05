@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import apiServerClient from '@/lib/apiServerClient';
 import { supabase } from '@/lib/supabaseClient';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
@@ -286,6 +287,9 @@ export default function ProviderServicesPage() {
         <p className="mt-1 text-muted-foreground">
           Manage services and drug pricing per provider. Rows created during onboarding appear here after approval.
         </p>
+        <Button variant="link" className="h-auto px-0 pt-2" asChild>
+          <Link to="/admin/preview/provider-services-intake">Applicant onboarding form (preview)</Link>
+        </Button>
       </div>
 
       <Card className="border-[hsl(var(--admin-border))] bg-[hsl(var(--admin-card))] shadow-sm">

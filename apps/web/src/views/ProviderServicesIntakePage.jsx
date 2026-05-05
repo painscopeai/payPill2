@@ -3,33 +3,15 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
-import { Plus, Trash2, Loader2, ArrowLeft } from 'lucide-react';
-
-function emptyRow(sortOrder) {
-  return {
-    clientKey: `${Date.now()}-${sortOrder}-${Math.random().toString(36).slice(2, 9)}`,
-    name: '',
-    category: 'service',
-    unit: 'per_visit',
-    price: '',
-    currency: 'USD',
-    notes: '',
-  };
-}
+import { Loader2, ArrowLeft } from 'lucide-react';
+import {
+  createEmptyServiceRow,
+  ServicesPricingFields,
+} from '@/components/provider-onboarding/ServicesPricingFields.jsx';
 
 export default function ProviderServicesIntakePage() {
   const [searchParams] = useSearchParams();
@@ -41,7 +23,7 @@ export default function ProviderServicesIntakePage() {
   const [readOnly, setReadOnly] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState('');
   const [organizationName, setOrganizationName] = useState('');
-  const [rows, setRows] = useState([emptyRow(0)]);
+  const [rows, setRows] = useState([createEmptyServiceRow(0)]);
   const [blockedFormId, setBlockedFormId] = useState(null);
   const [phase, setPhase] = useState('form'); // form | done | skipped
 
@@ -83,7 +65,7 @@ export default function ProviderServicesIntakePage() {
           })),
         );
       } else {
-        setRows([emptyRow(0)]);
+        setRows([createEmptyServiceRow(0)]);
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load');
@@ -101,7 +83,7 @@ export default function ProviderServicesIntakePage() {
   };
 
   const addRow = () => {
-    setRows((prev) => [...prev, emptyRow(prev.length)]);
+    setRows((prev) => [...prev, createEmptyServiceRow(prev.length)]);
   };
 
   const removeRow = (idx) => {
@@ -261,101 +243,16 @@ export default function ProviderServicesIntakePage() {
               <p className="text-xs text-muted-foreground">Status: {applicationStatus}</p>
             ) : null}
 
-            <div className="space-y-4">
-              {rows.map((row, idx) => (
-                <div
-                  key={row.clientKey}
-                  className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-4"
-                >
-                  <div className="flex flex-wrap items-end gap-3">
-                    <div className="min-w-[200px] flex-1 space-y-2">
-                      <Label>Service or drug name</Label>
-                      <Input
-                        value={row.name}
-                        disabled={readOnly}
-                        onChange={(e) => updateRow(idx, { name: e.target.value })}
-                        placeholder="e.g. Office visit, Lab panel, Medication name"
-                      />
-                    </div>
-                    <div className="w-full sm:w-40 space-y-2">
-                      <Label>Category</Label>
-                      <Select
-                        value={row.category}
-                        disabled={readOnly}
-                        onValueChange={(v) => updateRow(idx, { category: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="service">Service</SelectItem>
-                          <SelectItem value="drug">Drug</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="w-full sm:w-44 space-y-2">
-                      <Label>Unit</Label>
-                      <Select value={row.unit} disabled={readOnly} onValueChange={(v) => updateRow(idx, { unit: v })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="per_visit">Per visit</SelectItem>
-                          <SelectItem value="per_dose">Per dose</SelectItem>
-                          <SelectItem value="flat">Flat fee</SelectItem>
-                          <SelectItem value="monthly">Monthly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <div className="min-w-[120px] flex-1 space-y-2">
-                      <Label>Price</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        disabled={readOnly}
-                        value={row.price}
-                        onChange={(e) => updateRow(idx, { price: e.target.value })}
-                      />
-                    </div>
-                    <div className="w-28 space-y-2">
-                      <Label>Currency</Label>
-                      <Input
-                        disabled={readOnly}
-                        value={row.currency}
-                        onChange={(e) => updateRow(idx, { currency: e.target.value.toUpperCase().slice(0, 8) })}
-                      />
-                    </div>
-                    <div className="min-w-[200px] flex-[2] space-y-2">
-                      <Label>Notes (optional)</Label>
-                      <Textarea
-                        disabled={readOnly}
-                        rows={2}
-                        value={row.notes}
-                        onChange={(e) => updateRow(idx, { notes: e.target.value })}
-                        placeholder="Optional details"
-                      />
-                    </div>
-                  </div>
-                  {!readOnly && rows.length > 1 ? (
-                    <div className="flex justify-end">
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(idx)}>
-                        <Trash2 className="mr-1 h-4 w-4" /> Remove row
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+            <ServicesPricingFields
+              rows={rows}
+              readOnly={readOnly}
+              onUpdateRow={updateRow}
+              onAddRow={addRow}
+              onRemoveRow={removeRow}
+            />
 
             {!readOnly ? (
               <div className="flex flex-wrap gap-3">
-                <Button type="button" variant="outline" onClick={addRow}>
-                  <Plus className="mr-2 h-4 w-4" /> Add row
-                </Button>
                 <Button type="button" onClick={submit} disabled={submitting}>
                   {submitting ? (
                     <>

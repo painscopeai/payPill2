@@ -74,6 +74,9 @@ const AppointmentOptionsPage = React.lazy(() => import('./views/admin/Appointmen
 const ProfileReferenceDataPage = React.lazy(() => import('./views/admin/ProfileReferenceDataPage.jsx'));
 const BulkProviderUploadPage = React.lazy(() => import('./views/admin/BulkProviderUploadPage.jsx'));
 const ProviderServicesPage = React.lazy(() => import('./views/admin/ProviderServicesPage.jsx'));
+const ProviderServicesIntakePreviewPage = React.lazy(() =>
+	import('./views/admin/ProviderServicesIntakePreviewPage.jsx')
+);
 const FormBuilderPage = React.lazy(() => import('./views/admin/FormBuilderPage.jsx'));
 const FormResponsesPage = React.lazy(() => import('./views/admin/FormResponsesPage.jsx'));
 const FormResponsesHubPage = React.lazy(() => import('./views/admin/FormResponsesHubPage.jsx'));
@@ -146,6 +149,10 @@ export default function AppRoutes() {
 											<Route path="profile-reference-data" element={<ProfileReferenceDataPage />} />
 											<Route path="bulk-provider-upload" element={<BulkProviderUploadPage />} />
 											<Route path="provider-services" element={<ProviderServicesPage />} />
+											<Route
+												path="preview/provider-services-intake"
+												element={<ProviderServicesIntakePreviewPage />}
+											/>
 											<Route path="form-responses" element={<FormResponsesHubPage />} />
 											<Route path="forms" element={<FormBuilderPage />} />
 											<Route path="forms/:formId/responses" element={<FormResponsesPage />} />
