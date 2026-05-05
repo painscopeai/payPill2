@@ -3,8 +3,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Building2, ShieldCheck, 
-  CreditCard, Activity, FileText, Brain, Settings,
-  LogOut, ChevronLeft, ChevronRight, ListTodo, ClipboardList, BookOpen, ScrollText, FileSpreadsheet,
+  FileText, Brain, Settings,
+  LogOut, ChevronLeft, ChevronRight, ClipboardList, BookOpen, FileSpreadsheet,
   PieChart, TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,16 +41,6 @@ const sections = [
       { title: 'Patients', path: '/admin/patients', icon: Users },
       { title: 'Employers', path: '/admin/employers', icon: Building2 },
       { title: 'Insurance', path: '/admin/insurance-users', icon: ShieldCheck },
-    ]
-  },
-  {
-    title: 'Financials',
-    items: [
-      { title: 'Transactions', path: '/admin/transactions', icon: CreditCard },
-      { title: 'Subscription Plans', path: '/admin/subscription-plans', icon: ListTodo },
-      { title: 'Sub Assignment', path: '/admin/subscription-assignment', icon: ClipboardList },
-      { title: 'Sub Monitoring', path: '/admin/subscription-monitoring', icon: Activity },
-      { title: 'Sub Logs', path: '/admin/subscription-logs', icon: ScrollText },
     ]
   },
   {
