@@ -76,9 +76,8 @@ export async function POST(request: NextRequest) {
 		rawHealthRecords: healthRecords,
 	});
 
-	const webhookUrl =
-		process.env.N8N_AI_RECOMMENDATIONS_WEBHOOK_URL?.trim() ||
-		'https://northsnow.app.n8n.cloud/webhook/ai';
+	// Hardcoded per deployment request: do not depend on env override.
+	const webhookUrl = 'https://northsnow.app.n8n.cloud/webhook/ai';
 
 	const whSecret = process.env.N8N_AI_WEBHOOK_SECRET?.trim();
 	const n8nBody = JSON.stringify({
