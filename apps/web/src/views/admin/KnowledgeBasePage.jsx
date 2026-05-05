@@ -1,38 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { UploadCloud, FileText, CheckCircle2, XCircle, Loader2, X, Send } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle2, XCircle, Loader2, X, Send, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import apiServerClient from '@/lib/apiServerClient';
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
-const KB_STORAGE_KEY = 'paypill-kb-recent-uploads';
 const MAX_RECENT = 25;
 /** `apiServerClient` prepends `/api` — paths must be `/admin/...`, never `/api/admin/...` (avoids `/api/api/...`). */
 const ACCEPT =
 	'.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-
-function loadRecent() {
-	if (typeof window === 'undefined') return [];
-	try {
-		const raw = localStorage.getItem(KB_STORAGE_KEY);
-		if (!raw) return [];
-		const parsed = JSON.parse(raw);
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
-}
-
-function saveRecent(entries) {
-	try {
-		localStorage.setItem(KB_STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_RECENT)));
-	} catch {
-		/* ignore quota */
-	}
-}
 
 /** Read JSON from fetch Response exactly once (never call .json() then .text()). */
 async function readResponsePayload(res) {
@@ -56,16 +35,49 @@ export default function KnowledgeBasePage() {
 	const [isUploading, setIsUploading] = useState(false);
 	const inputRef = useRef(null);
 
-	useEffect(() => {
-		setRecent(loadRecent());
+	const loadRecentFromServer = useCallback(async () => {
+		try {
+			const res = await apiServerClient.fetch('/admin/uploaded-files?limit=25');
+			const payload = await readResponsePayload(res);
+			if (!res.ok) throw new Error(payload?.error || `Request failed (${res.status})`);
+			const items = Array.isArray(payload?.items) ? payload.items : [];
+			setRecent(
+				items.map((row) => ({
+					id: row.id,
+					uploadedFileId: row.id,
+					fileName: row.file_name || 'Untitled',
+					size: typeof row.size_bytes === 'number' ? row.size_bytes : null,
+					sentAt: row.created_at || new Date().toISOString(),
+					success: true,
+					error: null,
+				})),
+			);
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Failed to load upload history');
+		}
 	}, []);
 
+	const deleteUploadedFile = async (uploadedFileId) => {
+		if (!uploadedFileId) return;
+		try {
+			const res = await apiServerClient.fetch(`/admin/knowledge-base/${uploadedFileId}`, {
+				method: 'DELETE',
+			});
+			const payload = await readResponsePayload(res);
+			if (!res.ok) throw new Error(payload?.error || `Delete failed (${res.status})`);
+			toast.success('Document and vectors removed');
+			await loadRecentFromServer();
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Delete failed');
+		}
+	};
+
+	useEffect(() => {
+		loadRecentFromServer();
+	}, [loadRecentFromServer]);
+
 	const pushRecent = useCallback((entry) => {
-		setRecent((prev) => {
-			const next = [entry, ...prev.filter((e) => e.id !== entry.id)].slice(0, MAX_RECENT);
-			saveRecent(next);
-			return next;
-		});
+		setRecent((prev) => [entry, ...prev.filter((e) => e.id !== entry.id)].slice(0, MAX_RECENT));
 	}, []);
 
 	const addFilesToQueue = (fileList) => {
@@ -127,10 +139,16 @@ export default function KnowledgeBasePage() {
 			throw new Error(msg);
 		}
 
+		if (payload.replaced === true) {
+			toast.message('Replaced existing version (same file checksum)');
+		}
+
+		const uf = Array.isArray(payload.uploadedFiles) ? payload.uploadedFiles[0] : null;
 		pushRecent({
-			id,
+			id: uf?.id || id,
+			uploadedFileId: uf?.id || id,
 			fileName: file.name,
-			size: file.size,
+			size: typeof uf?.size === 'number' ? uf.size : file.size,
 			sentAt: new Date().toISOString(),
 			success: true,
 		});
@@ -172,6 +190,7 @@ export default function KnowledgeBasePage() {
 						? `Sent ${ok} document${ok === 1 ? '' : 's'} to the indexing pipeline`
 						: `Sent ${ok} of ${queue.length}. ${failed.length ? 'Fix issues and retry the rest.' : ''}`,
 				);
+				await loadRecentFromServer();
 			}
 		} finally {
 			setIsUploading(false);
@@ -194,12 +213,6 @@ export default function KnowledgeBasePage() {
 		e.stopPropagation();
 	};
 
-	const clearHistory = () => {
-		saveRecent([]);
-		setRecent([]);
-		toast.message('Recent upload history cleared');
-	};
-
 	return (
 		<div className="space-y-6">
 			<div>
@@ -207,8 +220,7 @@ export default function KnowledgeBasePage() {
 				<p className="mt-1 text-muted-foreground">
 					Choose files, review the queue, then use <strong>Send to pipeline</strong> to post them to n8n.
 					Requests go through PayPill (<code className="text-xs">/api/admin/knowledge-base/document</code>)
-					so the browser never calls the webhook directly. History below is stored only in this browser (
-					<code className="text-xs">localStorage</code>).
+					so the browser never calls the webhook directly. History below is loaded from server records.
 				</p>
 			</div>
 
@@ -327,16 +339,14 @@ export default function KnowledgeBasePage() {
 			<Card className="border-none bg-card shadow-sm">
 				<CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 border-b border-border/50 pb-4">
 					<div>
-						<CardTitle className="text-lg">Recent uploads (this browser)</CardTitle>
+						<CardTitle className="text-lg">Recent uploads (server)</CardTitle>
 						<CardDescription>
-							Stored in <code className="text-xs">localStorage</code> — not synced to the server.
+							Uploaded file metadata in Supabase; deleting removes storage + vector chunks for that upload ID.
 						</CardDescription>
 					</div>
-					{recent.length > 0 && (
-						<Button type="button" variant="outline" size="sm" onClick={clearHistory}>
-							Clear history
-						</Button>
-					)}
+					<Button type="button" variant="outline" size="sm" onClick={loadRecentFromServer}>
+						Refresh
+					</Button>
 				</CardHeader>
 				<CardContent className="p-0">
 					{recent.length === 0 ? (
@@ -361,11 +371,25 @@ export default function KnowledgeBasePage() {
 											{row.error && <p className="mt-1 text-xs text-destructive">{row.error}</p>}
 										</div>
 									</div>
-									{row.success ? (
-										<CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-label="Sent" />
-									) : (
-										<XCircle className="h-5 w-5 shrink-0 text-destructive" aria-label="Failed" />
-									)}
+									<div className="flex shrink-0 items-center gap-2">
+										{row.uploadedFileId && (
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon"
+												className="h-9 w-9 text-muted-foreground hover:text-destructive"
+												onClick={() => deleteUploadedFile(row.uploadedFileId)}
+												aria-label={`Delete ${row.fileName}`}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										)}
+										{row.success ? (
+											<CheckCircle2 className="h-5 w-5 text-emerald-600" aria-label="Sent" />
+										) : (
+											<XCircle className="h-5 w-5 text-destructive" aria-label="Failed" />
+										)}
+									</div>
 								</li>
 							))}
 						</ul>

@@ -61,7 +61,7 @@ router.post('/', async (req, res) => {
 
 	const n8nWebhookUrl =
 		process.env.N8N_AI_RECOMMENDATIONS_WEBHOOK_URL?.trim() ||
-		'https://silentminds.app.n8n.cloud/webhook/ai';
+		'https://northsnow.app.n8n.cloud/webhook/ai';
 
 	const ackTimeoutMs = Math.min(
 		60_000,
