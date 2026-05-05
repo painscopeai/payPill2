@@ -18,6 +18,11 @@ export type FormTemplateDefinition = {
 	category: string;
 	settings: Record<string, unknown>;
 	questions: TemplateQuestion[];
+	/**
+	 * Shown in the templates modal for guidance only. Does not create a form via /forms/from-template
+	 * (pricing rows use Provider Onboarding → post-questionnaire Services & pricing step).
+	 */
+	infoOnly?: boolean;
 };
 
 export const FORM_TEMPLATE_IDS = [
@@ -25,6 +30,7 @@ export const FORM_TEMPLATE_IDS = [
 	'employer_wellness',
 	'insurance_claim',
 	'provider_feedback',
+	'provider_services_menu',
 ] as const;
 
 const defaultPresentation = {
@@ -169,5 +175,16 @@ export const FORM_TEMPLATE_CATALOG: Record<string, FormTemplateDefinition> = {
 				required: false,
 			},
 		],
+	},
+	provider_services_menu: {
+		id: 'provider_services_menu',
+		name: 'Provider services & pricing',
+		description:
+			'Service and medication prices are collected automatically on the step **after** your applicant submits the provider questionnaire—not as Form Builder questions. Send invitations from Provider Onboarding; after submit, applicants enter their pricing menu row-by-row.',
+		form_type: 'custom',
+		category: 'Provider',
+		settings: {},
+		questions: [],
+		infoOnly: true,
 	},
 };

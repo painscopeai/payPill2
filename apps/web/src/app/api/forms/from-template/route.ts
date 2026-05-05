@@ -26,6 +26,16 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Unknown template' }, { status: 400 });
 	}
 
+	if (tpl.infoOnly) {
+		return NextResponse.json(
+			{
+				error:
+					'This card is informational only. Provider pricing is captured after questionnaire submit; use Providers → Provider onboarding and Providers → Service List.',
+			},
+			{ status: 400 },
+		);
+	}
+
 	const sb = getSupabaseAdmin();
 	const now = new Date().toISOString();
 
