@@ -1,293 +1,262 @@
-
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { UploadCloud, FileText, Search, BarChart3, Bot, FileCheck, Trash2, Edit } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import apiServerClient from '@/lib/apiServerClient';
-import LoadingSpinner from '@/components/LoadingSpinner';
 
-// Import subcomponents
-import { DocumentSearch } from '@/components/admin/knowledge-base/DocumentSearch';
-import { DocumentAnalytics } from '@/components/admin/knowledge-base/DocumentAnalytics';
-import { AIIntegration } from '@/components/admin/knowledge-base/AIIntegration';
-import { DocumentPreview } from '@/components/admin/knowledge-base/DocumentPreview';
-import { DocumentIndexing } from '@/components/admin/knowledge-base/DocumentIndexing';
-import { ChunkManager } from '@/components/admin/knowledge-base/ChunkManager';
-import { DocumentVersioning } from '@/components/admin/knowledge-base/DocumentVersioning';
-import { DocumentPermissions } from '@/components/admin/knowledge-base/DocumentPermissions';
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
+const KB_STORAGE_KEY = 'paypill-kb-recent-uploads';
+const MAX_RECENT = 25;
+const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
 
+function loadRecent() {
+	if (typeof window === 'undefined') return [];
+	try {
+		const raw = localStorage.getItem(KB_STORAGE_KEY);
+		if (!raw) return [];
+		const parsed = JSON.parse(raw);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
+
+function saveRecent(entries) {
+	try {
+		localStorage.setItem(KB_STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_RECENT)));
+	} catch {
+		/* ignore quota */
+	}
+}
+
+/**
+ * Admin AI Knowledge Base — upload files to the n8n document webhook (server-proxied).
+ */
 export default function KnowledgeBasePage() {
-  const [documents, setDocuments] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isUploading, setIsUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState('list');
-  const [selectedDocId, setSelectedDocId] = useState(null);
-  const [documentDetails, setDocumentDetails] = useState(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
+	const [recent, setRecent] = useState([]);
+	const [isUploading, setIsUploading] = useState(false);
+	const inputRef = useRef(null);
 
-  const fetchDocuments = async () => {
-    setIsLoading(true);
-    try {
-      const response = await apiServerClient.fetch('/knowledge-base?limit=50');
-      const data = await response.json();
-      setDocuments(data.items || []);
-    } catch (err) {
-      toast.error('Failed to fetch documents');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+	useEffect(() => {
+		setRecent(loadRecent());
+	}, []);
 
-  useEffect(() => {
-    if (activeTab === 'list') {
-      fetchDocuments();
-    }
-  }, [activeTab]);
+	const pushRecent = useCallback((entry) => {
+		setRecent((prev) => {
+			const next = [entry, ...prev.filter((e) => e.id !== entry.id)].slice(0, MAX_RECENT);
+			saveRecent(next);
+			return next;
+		});
+	}, []);
 
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
+	const uploadOne = async (file) => {
+		const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+		const formData = new FormData();
+		formData.append('file', file, file.name);
 
-    setIsUploading(true);
-    let successCount = 0;
+		const res = await apiServerClient.fetch('/api/admin/knowledge-base/document', {
+			method: 'POST',
+			body: formData,
+			timeoutMs: 300_000,
+		});
 
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('title', file.name);
-      formData.append('category', 'general');
+		let payload = null;
+		try {
+			payload = await res.json();
+		} catch {
+			payload = { error: await res.text() };
+		}
 
-      try {
-        const response = await apiServerClient.fetch('/knowledge-base/upload', {
-          method: 'POST',
-          body: formData
-        });
-        if (response.ok) successCount++;
-      } catch (err) {
-        toast.error(`Failed to upload ${file.name}`);
-      }
-    }
+		if (!res.ok || !payload?.ok) {
+			const msg =
+				(typeof payload === 'object' && payload && 'error' in payload && payload.error) ||
+				`Upload failed (${res.status})`;
+			throw new Error(typeof msg === 'string' ? msg : 'Upload failed');
+		}
 
-    setIsUploading(false);
-    if (successCount > 0) {
-      toast.success(`Successfully uploaded ${successCount} document(s)`);
-      if (activeTab === 'list') fetchDocuments();
-      else setActiveTab('list');
-    }
-    
-    // Reset file input
-    e.target.value = '';
-  };
+		pushRecent({
+			id,
+			fileName: file.name,
+			size: file.size,
+			sentAt: new Date().toISOString(),
+			success: true,
+		});
+	};
 
-  const handleOpenDocument = async (docId) => {
-    setSelectedDocId(docId);
-    setIsSheetOpen(true);
-    try {
-      const response = await apiServerClient.fetch(`/knowledge-base/${docId}`);
-      const doc = await response.json();
-      setDocumentDetails(doc);
-    } catch (err) {
-      toast.error('Failed to load document details');
-      setIsSheetOpen(false);
-    }
-  };
+	const handleFiles = async (fileList) => {
+		const files = Array.from(fileList).filter((f) => f instanceof File);
+		if (!files.length) return;
 
-  const handleDeleteDocument = async (docId, title) => {
-    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
-    try {
-      await apiServerClient.fetch(`/knowledge-base/${docId}`, { method: 'DELETE' });
-      toast.success('Document deleted');
-      setDocuments(documents.filter(d => d.id !== docId));
-    } catch (err) {
-      toast.error('Failed to delete document');
-    }
-  };
+		for (const file of files) {
+			if (file.size > MAX_FILE_BYTES) {
+				toast.error(`${file.name} is over 50MB`);
+				continue;
+			}
+		}
 
-  // Callback to refresh doc details when subcomponents make updates
-  const refreshDocumentDetails = async () => {
-    if (!selectedDocId) return;
-    try {
-      const response = await apiServerClient.fetch(`/knowledge-base/${selectedDocId}`);
-      const doc = await response.json();
-      setDocumentDetails(doc);
-    } catch (err) {
-      console.error('Failed to refresh details');
-    }
-  };
+		const valid = files.filter((f) => f.size <= MAX_FILE_BYTES);
+		if (!valid.length) return;
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <h1 className="text-3xl font-bold font-display">AI Knowledge Base</h1>
-          <p className="text-muted-foreground">Manage documents and context data for the Integrated AI.</p>
-        </div>
-      </div>
+		setIsUploading(true);
+		let ok = 0;
+		for (const file of valid) {
+			try {
+				await uploadOne(file);
+				ok++;
+			} catch (e) {
+				const id = `${Date.now()}-err-${Math.random().toString(36).slice(2, 8)}`;
+				pushRecent({
+					id,
+					fileName: file.name,
+					size: file.size,
+					sentAt: new Date().toISOString(),
+					success: false,
+					error: e instanceof Error ? e.message : 'Failed',
+				});
+				toast.error(`${file.name}: ${e instanceof Error ? e.message : 'upload failed'}`);
+			}
+		}
+		setIsUploading(false);
+		if (ok > 0) {
+			toast.success(
+				ok === valid.length
+					? `Sent ${ok} document${ok === 1 ? '' : 's'} to the indexing pipeline`
+					: `Sent ${ok} of ${valid.length} document(s)`,
+			);
+		}
+		if (inputRef.current) inputRef.current.value = '';
+	};
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-muted/50 border border-border mb-6">
-          <TabsTrigger value="list" className="gap-2"><FileText className="w-4 h-4"/> Documents</TabsTrigger>
-          <TabsTrigger value="search" className="gap-2"><Search className="w-4 h-4"/> Global Search</TabsTrigger>
-          <TabsTrigger value="analytics" className="gap-2"><BarChart3 className="w-4 h-4"/> Analytics</TabsTrigger>
-          <TabsTrigger value="ai" className="gap-2"><Bot className="w-4 h-4"/> AI Simulator</TabsTrigger>
-        </TabsList>
+	const onInputChange = (e) => {
+		handleFiles(e.target.files);
+	};
 
-        <TabsContent value="list" className="m-0 space-y-6 animate-in fade-in duration-300">
-          {/* Upload Zone */}
-          <div className="file-upload-zone relative overflow-hidden">
-            <input 
-              type="file" 
-              multiple 
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
-              onChange={handleFileUpload}
-              disabled={isUploading}
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-            />
-            {isUploading ? (
-              <div className="flex flex-col items-center text-primary">
-                <LoadingSpinner size="lg" />
-                <p className="mt-4 font-medium">Uploading and Indexing...</p>
-              </div>
-            ) : (
-              <>
-                <div className="w-16 h-16 bg-background rounded-full shadow-sm flex items-center justify-center mb-4 text-primary border border-border">
-                  <UploadCloud className="w-8 h-8" />
-                </div>
-                <h3 className="text-lg font-bold">Upload Documents</h3>
-                <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                  Drag and drop or click to browse. Supported formats: PDF, Word, Excel, CSV, Text. Max 50MB per file.
-                </p>
-                <div className="mt-4 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  <span className="bg-background px-2 py-1 rounded-md border border-border">Auto-indexing enabled</span>
-                </div>
-              </>
-            )}
-          </div>
+	const onDrop = (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		handleFiles(e.dataTransfer.files);
+	};
 
-          {/* Document List */}
-          <Card className="border-none shadow-sm bg-card">
-            <CardHeader className="pb-0 border-b border-border/50">
-              <CardTitle className="text-lg">Indexed Documents</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="p-12 flex justify-center"><LoadingSpinner size="md" /></div>
-              ) : documents.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground">No documents uploaded yet.</div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {documents.map((doc) => (
-                    <div key={doc.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group">
-                      <div className="flex items-start gap-4">
-                        <div className="mt-1">
-                          {doc.indexed ? (
-                            <FileCheck className="w-5 h-5 text-success" />
-                          ) : (
-                            <FileText className="w-5 h-5 text-muted-foreground" />
-                          )}
-                        </div>
-                        <div>
-                          <button 
-                            className="font-semibold text-foreground hover:text-primary transition-colors text-left"
-                            onClick={() => handleOpenDocument(doc.id)}
-                          >
-                            {doc.title}
-                          </button>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                            <span className="uppercase">{doc.content_type}</span>
-                            <span>•</span>
-                            <span>{format(new Date(doc.created), 'MMM d, yyyy')}</span>
-                            <span>•</span>
-                            <span>{doc.chunk_count || 0} chunks</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="sm" onClick={() => handleOpenDocument(doc.id)}>
-                          <Edit className="w-4 h-4 mr-2" /> Manage
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteDocument(doc.id, doc.title)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+	const onDragOver = (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+	};
 
-        <TabsContent value="search" className="m-0">
-          <DocumentSearch onSelectDocument={handleOpenDocument} />
-        </TabsContent>
+	const clearHistory = () => {
+		saveRecent([]);
+		setRecent([]);
+		toast.message('Recent upload history cleared');
+	};
 
-        <TabsContent value="analytics" className="m-0">
-          <DocumentAnalytics />
-        </TabsContent>
+	return (
+		<div className="space-y-6">
+			<div>
+				<h1 className="font-display text-3xl font-bold">AI Knowledge Base</h1>
+				<p className="mt-1 text-muted-foreground">
+					Upload documents from your computer. Files are sent securely through PayPill to your n8n
+					indexing webhook — nothing is stored in this screen except a local history list on your
+					browser.
+				</p>
+			</div>
 
-        <TabsContent value="ai" className="m-0">
-          <AIIntegration />
-        </TabsContent>
-      </Tabs>
+			<input
+				ref={inputRef}
+				type="file"
+				multiple
+				className="hidden"
+				accept={ACCEPT}
+				disabled={isUploading}
+				onChange={onInputChange}
+			/>
 
-      {/* Document Details Sheet */}
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-xl md:max-w-3xl overflow-y-auto p-0 border-l-0 sm:border-l sm:border-border">
-          {documentDetails ? (
-            <div className="flex flex-col h-full bg-background">
-              <SheetHeader className="p-6 border-b border-border bg-card shrink-0">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <SheetTitle className="text-xl font-bold font-display">{documentDetails.title}</SheetTitle>
-                    <p className="text-sm text-muted-foreground mt-1">ID: {documentDetails.id}</p>
-                  </div>
-                </div>
-              </SheetHeader>
-              
-              <div className="flex-1 overflow-y-auto p-6 bg-muted/10">
-                <Tabs defaultValue="preview" className="w-full">
-                  <TabsList className="w-full bg-card border border-border mb-6">
-                    <TabsTrigger value="preview" className="flex-1">Preview</TabsTrigger>
-                    <TabsTrigger value="chunks" className="flex-1">Chunks</TabsTrigger>
-                    <TabsTrigger value="versions" className="flex-1">Versions</TabsTrigger>
-                    <TabsTrigger value="indexing" className="flex-1">Indexing</TabsTrigger>
-                    <TabsTrigger value="permissions" className="flex-1">Access</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="preview" className="m-0">
-                    <DocumentPreview document={documentDetails} />
-                  </TabsContent>
-                  
-                  <TabsContent value="chunks" className="m-0">
-                    <ChunkManager document={documentDetails} onUpdate={refreshDocumentDetails} />
-                  </TabsContent>
-                  
-                  <TabsContent value="versions" className="m-0">
-                    <DocumentVersioning document={documentDetails} onUpdate={refreshDocumentDetails} />
-                  </TabsContent>
-                  
-                  <TabsContent value="indexing" className="m-0">
-                    <DocumentIndexing document={documentDetails} onUpdate={refreshDocumentDetails} />
-                  </TabsContent>
+			<div
+				className="file-upload-zone relative overflow-hidden"
+				onDrop={onDrop}
+				onDragOver={onDragOver}
+				role="presentation"
+			>
+				<button
+					type="button"
+					disabled={isUploading}
+					className="absolute inset-0 z-10 cursor-pointer disabled:cursor-not-allowed"
+					aria-label="Choose files to upload"
+					onClick={() => inputRef.current?.click()}
+				/>
+				{isUploading ? (
+					<div className="flex flex-col items-center text-primary">
+						<Loader2 className="h-10 w-10 animate-spin" />
+						<p className="mt-4 font-medium">Sending to pipeline…</p>
+					</div>
+				) : (
+					<>
+						<div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-border bg-background text-primary shadow-sm">
+							<UploadCloud className="h-8 w-8" />
+						</div>
+						<h3 className="text-lg font-bold">Upload documents</h3>
+						<p className="mt-1 max-w-md text-sm text-muted-foreground">
+							Drag and drop files here, or click to browse. Formats: PDF, Word, Excel, CSV, text — max
+							50MB per file.
+						</p>
+						<p className="mt-4 text-xs text-muted-foreground">
+							Forwarded via{' '}
+							<code className="rounded bg-muted px-1 py-0.5 text-[11px]">/api/admin/knowledge-base/document</code>{' '}
+							to your n8n document webhook.
+						</p>
+					</>
+				)}
+			</div>
 
-                  <TabsContent value="permissions" className="m-0">
-                    <DocumentPermissions document={documentDetails} onUpdate={refreshDocumentDetails} />
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </div>
-          ) : (
-            <div className="h-full flex items-center justify-center bg-background">
-              <LoadingSpinner size="lg" />
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
+			<Card className="border-none bg-card shadow-sm">
+				<CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 border-b border-border/50 pb-4">
+					<div>
+						<CardTitle className="text-lg">Recent uploads (this browser)</CardTitle>
+						<CardDescription>
+							Stored in <code className="text-xs">localStorage</code> for your convenience — not synced to
+							the server.
+						</CardDescription>
+					</div>
+					{recent.length > 0 && (
+						<Button type="button" variant="outline" size="sm" onClick={clearHistory}>
+							Clear history
+						</Button>
+					)}
+				</CardHeader>
+				<CardContent className="p-0">
+					{recent.length === 0 ? (
+						<div className="p-10 text-center text-muted-foreground">
+							No uploads recorded yet. Successful and failed sends appear here.
+						</div>
+					) : (
+						<ul className="divide-y divide-border">
+							{recent.map((row) => (
+								<li
+									key={row.id}
+									className="flex items-start justify-between gap-4 px-4 py-3 hover:bg-muted/30"
+								>
+									<div className="flex min-w-0 flex-1 items-start gap-3">
+										<FileText className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+										<div className="min-w-0">
+											<p className="truncate font-medium">{row.fileName}</p>
+											<p className="text-xs text-muted-foreground">
+												{format(new Date(row.sentAt), 'MMM d, yyyy HH:mm')}
+												{typeof row.size === 'number' ? ` · ${(row.size / 1024).toFixed(1)} KB` : ''}
+											</p>
+											{row.error && <p className="mt-1 text-xs text-destructive">{row.error}</p>}
+										</div>
+									</div>
+									{row.success ? (
+										<CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-label="Sent" />
+									) : (
+										<XCircle className="h-5 w-5 shrink-0 text-destructive" aria-label="Failed" />
+									)}
+								</li>
+							))}
+						</ul>
+					)}
+				</CardContent>
+			</Card>
+		</div>
+	);
 }
