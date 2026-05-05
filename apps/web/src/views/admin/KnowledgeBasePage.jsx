@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { UploadCloud, FileText, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle2, XCircle, Loader2, X, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import apiServerClient from '@/lib/apiServerClient';
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -31,11 +32,25 @@ function saveRecent(entries) {
 	}
 }
 
+/** Read JSON from fetch Response exactly once (never call .json() then .text()). */
+async function readResponsePayload(res) {
+	const text = await res.text();
+	if (!text || !text.trim()) {
+		return { _empty: true };
+	}
+	try {
+		return JSON.parse(text);
+	} catch {
+		return { error: 'Non-JSON response', raw: text.slice(0, 500) };
+	}
+}
+
 /**
  * Admin AI Knowledge Base — upload files to the n8n document webhook (server-proxied).
  */
 export default function KnowledgeBasePage() {
 	const [recent, setRecent] = useState([]);
+	const [pendingFiles, setPendingFiles] = useState([]);
 	const [isUploading, setIsUploading] = useState(false);
 	const inputRef = useRef(null);
 
@@ -51,6 +66,37 @@ export default function KnowledgeBasePage() {
 		});
 	}, []);
 
+	const addFilesToQueue = (fileList) => {
+		const next = Array.from(fileList).filter((f) => f instanceof File);
+		if (!next.length) return;
+
+		setPendingFiles((prev) => {
+			const seen = new Set(prev.map((p) => `${p.name}-${p.size}`));
+			const merged = [...prev];
+			for (const f of next) {
+				if (f.size > MAX_FILE_BYTES) {
+					toast.error(`${f.name} is over 50MB — skipped`);
+					continue;
+				}
+				const key = `${f.name}-${f.size}`;
+				if (seen.has(key)) continue;
+				seen.add(key);
+				merged.push(f);
+			}
+			return merged;
+		});
+		if (inputRef.current) inputRef.current.value = '';
+	};
+
+	const removePending = (index) => {
+		setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+	};
+
+	const clearPending = () => {
+		setPendingFiles([]);
+		if (inputRef.current) inputRef.current.value = '';
+	};
+
 	const uploadOne = async (file) => {
 		const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 		const formData = new FormData();
@@ -62,18 +108,21 @@ export default function KnowledgeBasePage() {
 			timeoutMs: 300_000,
 		});
 
-		let payload = null;
-		try {
-			payload = await res.json();
-		} catch {
-			payload = { error: await res.text() };
+		const payload = await readResponsePayload(res);
+
+		if (!res.ok) {
+			const msg =
+				(typeof payload?.error === 'string' && payload.error) ||
+				(typeof payload?.message === 'string' && payload.message) ||
+				`Request failed (${res.status})`;
+			throw new Error(msg);
 		}
 
-		if (!res.ok || !payload?.ok) {
+		if (!payload || typeof payload !== 'object' || payload.ok !== true) {
 			const msg =
-				(typeof payload === 'object' && payload && 'error' in payload && payload.error) ||
-				`Upload failed (${res.status})`;
-			throw new Error(typeof msg === 'string' ? msg : 'Upload failed');
+				(typeof payload?.error === 'string' && payload.error) ||
+				'Pipeline did not confirm success — check n8n execution logs.';
+			throw new Error(msg);
 		}
 
 		pushRecent({
@@ -85,58 +134,57 @@ export default function KnowledgeBasePage() {
 		});
 	};
 
-	const handleFiles = async (fileList) => {
-		const files = Array.from(fileList).filter((f) => f instanceof File);
-		if (!files.length) return;
-
-		for (const file of files) {
-			if (file.size > MAX_FILE_BYTES) {
-				toast.error(`${file.name} is over 50MB`);
-				continue;
-			}
-		}
-
-		const valid = files.filter((f) => f.size <= MAX_FILE_BYTES);
-		if (!valid.length) return;
+	const sendPipeline = async () => {
+		if (!pendingFiles.length || isUploading) return;
 
 		setIsUploading(true);
 		let ok = 0;
-		for (const file of valid) {
-			try {
-				await uploadOne(file);
-				ok++;
-			} catch (e) {
-				const id = `${Date.now()}-err-${Math.random().toString(36).slice(2, 8)}`;
-				pushRecent({
-					id,
-					fileName: file.name,
-					size: file.size,
-					sentAt: new Date().toISOString(),
-					success: false,
-					error: e instanceof Error ? e.message : 'Failed',
-				});
-				toast.error(`${file.name}: ${e instanceof Error ? e.message : 'upload failed'}`);
+		const queue = [...pendingFiles];
+
+		const failed = [];
+		try {
+			for (const file of queue) {
+				try {
+					await uploadOne(file);
+					ok++;
+				} catch (e) {
+					failed.push(file);
+					const errId = `${Date.now()}-err-${Math.random().toString(36).slice(2, 8)}`;
+					pushRecent({
+						id: errId,
+						fileName: file.name,
+						size: file.size,
+						sentAt: new Date().toISOString(),
+						success: false,
+						error: e instanceof Error ? e.message : 'Failed',
+					});
+					toast.error(`${file.name}: ${e instanceof Error ? e.message : 'upload failed'}`);
+				}
 			}
+
+			setPendingFiles(failed);
+
+			if (ok > 0) {
+				toast.success(
+					ok === queue.length
+						? `Sent ${ok} document${ok === 1 ? '' : 's'} to the indexing pipeline`
+						: `Sent ${ok} of ${queue.length}. ${failed.length ? 'Fix issues and retry the rest.' : ''}`,
+				);
+			}
+		} finally {
+			setIsUploading(false);
+			if (inputRef.current) inputRef.current.value = '';
 		}
-		setIsUploading(false);
-		if (ok > 0) {
-			toast.success(
-				ok === valid.length
-					? `Sent ${ok} document${ok === 1 ? '' : 's'} to the indexing pipeline`
-					: `Sent ${ok} of ${valid.length} document(s)`,
-			);
-		}
-		if (inputRef.current) inputRef.current.value = '';
 	};
 
 	const onInputChange = (e) => {
-		handleFiles(e.target.files);
+		addFilesToQueue(e.target.files);
 	};
 
 	const onDrop = (e) => {
 		e.preventDefault();
 		e.stopPropagation();
-		handleFiles(e.dataTransfer.files);
+		addFilesToQueue(e.dataTransfer.files);
 	};
 
 	const onDragOver = (e) => {
@@ -155,9 +203,10 @@ export default function KnowledgeBasePage() {
 			<div>
 				<h1 className="font-display text-3xl font-bold">AI Knowledge Base</h1>
 				<p className="mt-1 text-muted-foreground">
-					Upload documents from your computer. Files are sent securely through PayPill to your n8n
-					indexing webhook — nothing is stored in this screen except a local history list on your
-					browser.
+					Choose files, review the queue, then use <strong>Send to pipeline</strong> to post them to n8n.
+					Requests go through PayPill (<code className="text-xs">/api/admin/knowledge-base/document</code>)
+					so the browser never calls the webhook directly. History below is stored only in this browser (
+					<code className="text-xs">localStorage</code>).
 				</p>
 			</div>
 
@@ -171,50 +220,114 @@ export default function KnowledgeBasePage() {
 				onChange={onInputChange}
 			/>
 
-			<div
-				className="file-upload-zone relative overflow-hidden"
-				onDrop={onDrop}
-				onDragOver={onDragOver}
-				role="presentation"
-			>
-				<button
-					type="button"
-					disabled={isUploading}
-					className="absolute inset-0 z-10 cursor-pointer disabled:cursor-not-allowed"
-					aria-label="Choose files to upload"
-					onClick={() => inputRef.current?.click()}
-				/>
-				{isUploading ? (
-					<div className="flex flex-col items-center text-primary">
-						<Loader2 className="h-10 w-10 animate-spin" />
-						<p className="mt-4 font-medium">Sending to pipeline…</p>
-					</div>
-				) : (
-					<>
-						<div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-border bg-background text-primary shadow-sm">
-							<UploadCloud className="h-8 w-8" />
+			<Card className="overflow-hidden border border-border shadow-sm">
+				<CardContent className="p-0">
+					<div
+						className={cn(
+							'file-upload-zone relative border-b border-border/80 bg-muted/20',
+							isUploading && 'pointer-events-none opacity-80',
+						)}
+						onDrop={onDrop}
+						onDragOver={onDragOver}
+						role="presentation"
+					>
+						<div className="flex flex-col items-center py-10 px-4 text-center">
+							<div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-border bg-background text-primary shadow-sm">
+								{isUploading ? (
+									<Loader2 className="h-8 w-8 animate-spin" />
+								) : (
+									<UploadCloud className="h-8 w-8" />
+								)}
+							</div>
+							<h3 className="text-lg font-bold">
+								{isUploading ? 'Sending to pipeline…' : 'Add documents'}
+							</h3>
+							<p className="mt-1 max-w-md text-sm text-muted-foreground">
+								Drag and drop here, or click below. PDF, Word, Excel, CSV, text — max 50MB each.
+							</p>
+							<div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+								<Button
+									type="button"
+									variant="outline"
+									disabled={isUploading}
+									onClick={() => inputRef.current?.click()}
+								>
+									<UploadCloud className="mr-2 h-4 w-4" />
+									Choose files
+								</Button>
+								<Button
+									type="button"
+									disabled={isUploading || pendingFiles.length === 0}
+									onClick={sendPipeline}
+									className="gap-2"
+								>
+									{isUploading ? (
+										<>
+											<Loader2 className="h-4 w-4 animate-spin" />
+											Sending…
+										</>
+									) : (
+										<>
+											<Send className="h-4 w-4" />
+											Send to pipeline
+										</>
+									)}
+								</Button>
+							</div>
+							{pendingFiles.length > 0 && (
+								<p className="mt-3 text-xs text-muted-foreground">
+									{pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} queued — click{' '}
+									<strong>Send to pipeline</strong> when ready.
+								</p>
+							)}
 						</div>
-						<h3 className="text-lg font-bold">Upload documents</h3>
-						<p className="mt-1 max-w-md text-sm text-muted-foreground">
-							Drag and drop files here, or click to browse. Formats: PDF, Word, Excel, CSV, text — max
-							50MB per file.
-						</p>
-						<p className="mt-4 text-xs text-muted-foreground">
-							Forwarded via{' '}
-							<code className="rounded bg-muted px-1 py-0.5 text-[11px]">/api/admin/knowledge-base/document</code>{' '}
-							to your n8n document webhook.
-						</p>
-					</>
-				)}
-			</div>
+					</div>
+
+					{pendingFiles.length > 0 && (
+						<div className="border-b border-border bg-card px-4 py-3">
+							<div className="mb-2 flex items-center justify-between">
+								<span className="text-sm font-medium">Queued for upload</span>
+								<Button type="button" variant="ghost" size="sm" onClick={clearPending} disabled={isUploading}>
+									Clear queue
+								</Button>
+							</div>
+							<ul className="max-h-48 space-y-2 overflow-y-auto">
+								{pendingFiles.map((file, index) => (
+									<li
+										key={`${file.name}-${file.size}-${index}`}
+										className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm"
+									>
+										<span className="min-w-0 truncate font-medium">{file.name}</span>
+										<div className="flex shrink-0 items-center gap-2">
+											<span className="text-xs text-muted-foreground">
+												{(file.size / 1024).toFixed(1)} KB
+											</span>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon"
+												className="h-8 w-8"
+												disabled={isUploading}
+												onClick={() => removePending(index)}
+												aria-label={`Remove ${file.name}`}
+											>
+												<X className="h-4 w-4" />
+											</Button>
+										</div>
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</CardContent>
+			</Card>
 
 			<Card className="border-none bg-card shadow-sm">
 				<CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 border-b border-border/50 pb-4">
 					<div>
 						<CardTitle className="text-lg">Recent uploads (this browser)</CardTitle>
 						<CardDescription>
-							Stored in <code className="text-xs">localStorage</code> for your convenience — not synced to
-							the server.
+							Stored in <code className="text-xs">localStorage</code> — not synced to the server.
 						</CardDescription>
 					</div>
 					{recent.length > 0 && (
