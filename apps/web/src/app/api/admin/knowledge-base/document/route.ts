@@ -128,9 +128,10 @@ export async function POST(request: NextRequest) {
 		const f = files[i];
 		const bytes = forwardBuffers[i];
 		if (!bytes) continue;
+		const blobPart = new Uint8Array(bytes);
 		forward.append(
 			'file',
-			new Blob([bytes], { type: f.type || 'application/octet-stream' }),
+			new Blob([blobPart], { type: f.type || 'application/octet-stream' }),
 			f.name,
 		);
 	}
