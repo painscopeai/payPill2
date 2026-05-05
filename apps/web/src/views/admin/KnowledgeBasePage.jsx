@@ -10,7 +10,9 @@ import apiServerClient from '@/lib/apiServerClient';
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const KB_STORAGE_KEY = 'paypill-kb-recent-uploads';
 const MAX_RECENT = 25;
-const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
+/** `apiServerClient` prepends `/api` — paths must be `/admin/...`, never `/api/admin/...` (avoids `/api/api/...`). */
+const ACCEPT =
+	'.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 function loadRecent() {
 	if (typeof window === 'undefined') return [];
@@ -102,7 +104,7 @@ export default function KnowledgeBasePage() {
 		const formData = new FormData();
 		formData.append('file', file, file.name);
 
-		const res = await apiServerClient.fetch('/api/admin/knowledge-base/document', {
+		const res = await apiServerClient.fetch('/admin/knowledge-base/document', {
 			method: 'POST',
 			body: formData,
 			timeoutMs: 300_000,
@@ -243,7 +245,7 @@ export default function KnowledgeBasePage() {
 								{isUploading ? 'Sending to pipeline…' : 'Add documents'}
 							</h3>
 							<p className="mt-1 max-w-md text-sm text-muted-foreground">
-								Drag and drop here, or click below. PDF, Word, Excel, CSV, text — max 50MB each.
+								Drag and drop here, or click below. PDF and Word (.doc, .docx), Excel, CSV, text — max 50MB each.
 							</p>
 							<div className="mt-6 flex flex-wrap items-center justify-center gap-3">
 								<Button
