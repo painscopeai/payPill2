@@ -9,6 +9,7 @@ import {
 	type BulkImportResult,
 	type RowFailure,
 } from '@/server/bulk/parseSpreadsheet';
+import { assertEmployerImportTarget } from '@/server/admin/employerAccountsAdmin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,16 +51,9 @@ export async function POST(request: NextRequest) {
 	}
 
 	const sb = getSupabaseAdmin();
-	const { data: empProf, error: epErr } = await sb
-		.from('profiles')
-		.select('id,role')
-		.eq('id', employerUserId)
-		.maybeSingle();
-	if (epErr) {
-		return NextResponse.json({ error: epErr.message }, { status: 500 });
-	}
-	if (!empProf || empProf.role !== 'employer') {
-		return NextResponse.json({ error: 'employerUserId must be a profile with role employer.' }, { status: 400 });
+	const employerCheck = await assertEmployerImportTarget(sb, employerUserId);
+	if (!employerCheck.ok) {
+		return NextResponse.json({ error: employerCheck.message }, { status: 400 });
 	}
 
 	const failures: RowFailure[] = [];

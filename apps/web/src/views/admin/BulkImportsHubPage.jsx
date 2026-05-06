@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
+import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
@@ -23,13 +24,6 @@ const TAB_KEYS = [
 	'contracts',
 ];
 
-function employerLabel(p) {
-	const company = p.company_name?.trim();
-	const name = [p.first_name, p.last_name].filter(Boolean).join(' ');
-	const bits = [company, name, p.email].filter(Boolean);
-	return bits.join(' · ') || p.email || p.id;
-}
-
 export default function BulkImportsHubPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const tabFromUrl = searchParams.get('tab');
@@ -49,16 +43,19 @@ export default function BulkImportsHubPage() {
 		let cancelled = false;
 		(async () => {
 			try {
-				const { data, error } = await supabase
-					.from('profiles')
-					.select('id,email,company_name,first_name,last_name')
-					.eq('role', 'employer')
-					.order('email', { ascending: true });
-				if (error) throw error;
-				if (!cancelled) setEmployers(data || []);
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+				const token = session?.access_token;
+				const res = await apiServerClient.fetch('/admin/bulk/employer-options', {
+					headers: token ? { Authorization: `Bearer ${token}` } : {},
+				});
+				const body = await res.json().catch(() => ({}));
+				if (!res.ok) throw new Error(body.error || 'Failed to load employers');
+				if (!cancelled) setEmployers(body.items || []);
 			} catch (e) {
 				console.error(e);
-				toast.error('Could not load employer accounts');
+				toast.error(e.message || 'Could not load employer accounts');
 			}
 		})();
 		return () => {
@@ -124,11 +121,17 @@ export default function BulkImportsHubPage() {
 								<SelectContent>
 									{employers.map((p) => (
 										<SelectItem key={p.id} value={p.id}>
-											{employerLabel(p)}
+											{p.label || p.email || p.id}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
+							{employers.length === 0 && (
+								<p className="text-xs text-muted-foreground">
+									No employer accounts found. Ensure profiles have role &quot;employer&quot; or a row in employers with
+									user_id set to that login.
+								</p>
+							)}
 						</div>
 					</BulkImportPanel>
 				</TabsContent>
@@ -212,7 +215,7 @@ export default function BulkImportsHubPage() {
 								<SelectContent>
 									{employers.map((p) => (
 										<SelectItem key={p.id} value={p.id}>
-											{employerLabel(p)}
+											{p.label || p.email || p.id}
 										</SelectItem>
 									))}
 								</SelectContent>

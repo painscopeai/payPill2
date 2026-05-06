@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { auditLog } from '@/server/express-api/middleware/rbac.js';
 import { parseSpreadsheetBuffer, validateHeadersForKind, type BulkImportResult } from '@/server/bulk/parseSpreadsheet';
 import type { RowFailure } from '@/server/bulk/parseSpreadsheet';
+import { assertEmployerImportTarget } from '@/server/admin/employerAccountsAdmin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,16 +48,9 @@ export async function POST(request: NextRequest) {
 	}
 
 	const sb = getSupabaseAdmin();
-	const { data: employerProf, error: epErr } = await sb
-		.from('profiles')
-		.select('id,role')
-		.eq('id', employerId)
-		.maybeSingle();
-	if (epErr) {
-		return NextResponse.json({ error: epErr.message }, { status: 500 });
-	}
-	if (!employerProf || employerProf.role !== 'employer') {
-		return NextResponse.json({ error: 'employerId must be a profile with role employer.' }, { status: 400 });
+	const employerCheck = await assertEmployerImportTarget(sb, employerId);
+	if (!employerCheck.ok) {
+		return NextResponse.json({ error: employerCheck.message }, { status: 400 });
 	}
 
 	const failures: RowFailure[] = [];
