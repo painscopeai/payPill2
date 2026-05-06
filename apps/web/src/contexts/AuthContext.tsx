@@ -64,6 +64,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 	const [currentUser, setCurrentUser] = useState<ReturnType<typeof mapProfileToCurrentUser>>(null);
 	const [userRole, setUserRoleState] = useState<string | null>(null);
 	const [session, setSession] = useState<import('@supabase/supabase-js').Session | null>(null);
+	const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
 	const [isInitializing, setIsInitializing] = useState(true);
 	const [isAuthPending, setIsAuthPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -74,8 +75,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 		if (!nextSession?.user) {
 			setCurrentUser(null);
 			setUserRoleState(null);
+			setPasswordChangeRequired(false);
 			return null;
 		}
+		const meta = (nextSession.user.user_metadata || {}) as Record<string, unknown>;
+		setPasswordChangeRequired(meta.must_change_password === true);
 		const user = await withTimeout(
 			fetchProfileWithRetry(nextSession.user.id, nextSession.user.email),
 			18_000,
@@ -294,6 +298,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 		() => ({
 			currentUser,
 			userRole,
+			passwordChangeRequired,
 			isInitializing,
 			isAuthPending,
 			error,
@@ -307,6 +312,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 		[
 			currentUser,
 			userRole,
+			passwordChangeRequired,
 			isInitializing,
 			isAuthPending,
 			error,
@@ -330,6 +336,7 @@ export const useAuth = () => {
 	return context as {
 		currentUser: ReturnType<typeof mapProfileToCurrentUser>;
 		userRole: string | null;
+		passwordChangeRequired: boolean;
 		isInitializing: boolean;
 		isAuthPending: boolean;
 		error: string | null;

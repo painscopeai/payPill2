@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import Header from '@/components/Header.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertCircle, ArrowRight, XC
 import { toast } from 'sonner';
 
 export default function BulkOnboardingPage() {
+  const fileInputRef = useRef(null);
   const [step, setStep] = useState(1); // 1: Upload, 2: Review, 3: Results
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState(null);
@@ -22,16 +23,53 @@ export default function BulkOnboardingPage() {
     { name: 'Lucia Torres', email: 'lucia.t@company.com', dept: 'Marketing', status: 'valid' },
   ];
 
+  const processCsvFile = (csvFile) => {
+    if (!csvFile) return;
+    if (csvFile.type === 'text/csv' || csvFile.name.toLowerCase().endsWith('.csv')) {
+      setFile(csvFile);
+      simulateValidation();
+      return;
+    }
+    toast.error('Please upload a valid CSV file.');
+  };
+
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile?.type === 'text/csv' || droppedFile?.name.endsWith('.csv')) {
-      setFile(droppedFile);
-      simulateValidation();
-    } else {
-      toast.error('Please upload a valid CSV file.');
-    }
+    processCsvFile(e.dataTransfer.files[0]);
+  };
+
+  const handleSelectFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e) => {
+    processCsvFile(e.target.files?.[0]);
+    e.target.value = '';
+  };
+
+  const handleDownloadTemplate = () => {
+    const header = [
+      'first_name',
+      'last_name',
+      'email',
+      'department',
+      'hire_date',
+      'status',
+      'health_score',
+    ];
+    const sampleRows = [
+      ['Maya', 'Chen', 'maya.c@company.com', 'Engineering', '2023-01-15', 'active', '85'],
+      ['Marcus', 'Johnson', 'mjohnson@company.com', 'Sales', '2022-11-01', 'active', '72'],
+    ];
+    const csv = [header, ...sampleRows].map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'employee-roster-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const simulateValidation = () => {
@@ -99,10 +137,17 @@ export default function BulkOnboardingPage() {
             </CardHeader>
             <CardContent>
               <div className="flex justify-end mb-4">
-                <Button variant="outline" size="sm" className="gap-2 rounded-xl">
+                <Button variant="outline" size="sm" className="gap-2 rounded-xl" onClick={handleDownloadTemplate}>
                   <FileSpreadsheet className="h-4 w-4" /> Download Template
                 </Button>
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleFileChange}
+              />
 
               <div 
                 className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors ${isDragging ? 'border-primary bg-primary/5' : 'border-border/60 bg-muted/10'}`}
@@ -117,7 +162,9 @@ export default function BulkOnboardingPage() {
                     </div>
                     <h3 className="text-lg font-semibold mb-2">Drag & drop your CSV here</h3>
                     <p className="text-sm text-muted-foreground mb-6">or click to browse from your computer</p>
-                    <Button className="rounded-xl">Select File</Button>
+                    <Button className="rounded-xl" type="button" onClick={handleSelectFile}>
+                      Select File
+                    </Button>
                   </>
                 )}
                 {status === 'validating' && (

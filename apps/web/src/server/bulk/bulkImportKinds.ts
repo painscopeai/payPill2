@@ -1,0 +1,112 @@
+export const BULK_TEMPLATE_KINDS = [
+	'employees',
+	'providers',
+	'provider_types',
+	'visit_types',
+	'insurance_options',
+	'provider_services',
+	'employer_contracts',
+] as const;
+
+export type BulkTemplateKind = (typeof BULK_TEMPLATE_KINDS)[number];
+
+export function isBulkTemplateKind(s: string): s is BulkTemplateKind {
+	return (BULK_TEMPLATE_KINDS as readonly string[]).includes(s);
+}
+
+/** Ordered header row for each template (source of truth for validation + downloads). */
+export const BULK_HEADERS: Record<BulkTemplateKind, readonly string[]> = {
+	employees: [
+		'email',
+		'password',
+		'first_name',
+		'last_name',
+		'department',
+		'hire_date',
+		'insurance_option_slug',
+	],
+	providers: [
+		'name',
+		'email',
+		'phone',
+		'category',
+		'specialty',
+		'address',
+		'status',
+		'telemedicine_available',
+	],
+	provider_types: ['slug', 'label', 'sort_order', 'active'],
+	visit_types: ['slug', 'label', 'sort_order', 'active'],
+	insurance_options: ['slug', 'label', 'sort_order', 'active', 'copay_estimate'],
+	provider_services: ['name', 'category', 'unit', 'price', 'currency', 'notes', 'is_active', 'sort_order'],
+	employer_contracts: ['name', 'effective_date', 'status', 'notes'],
+};
+
+export const BULK_TEMPLATE_FILENAMES: Record<BulkTemplateKind, string> = {
+	employees: 'paypill-bulk-employees-template.csv',
+	providers: 'paypill-bulk-providers-template.csv',
+	provider_types: 'paypill-bulk-provider-types-template.csv',
+	visit_types: 'paypill-bulk-visit-types-template.csv',
+	insurance_options: 'paypill-bulk-insurance-options-template.csv',
+	provider_services: 'paypill-bulk-provider-services-template.csv',
+	employer_contracts: 'paypill-bulk-employer-contracts-template.csv',
+};
+
+export function buildTemplateCsv(kind: BulkTemplateKind): string {
+	const headers = [...BULK_HEADERS[kind]];
+	const sampleRows: Record<BulkTemplateKind, string[][]> = {
+		employees: [
+			[
+				'alex.smith@company.com',
+				'TemporaryPass1!',
+				'Alex',
+				'Smith',
+				'Engineering',
+				'2024-01-15',
+				'',
+			],
+			[
+				'jamie.lee@company.com',
+				'TemporaryPass2!',
+				'Jamie',
+				'Lee',
+				'HR',
+				'',
+				'aetna',
+			],
+		],
+		providers: [
+			[
+				'Example Clinic',
+				'care@example-clinic.com',
+				'555-0100',
+				'clinic',
+				'Primary Care',
+				'123 Main St',
+				'pending',
+				'false',
+			],
+		],
+		provider_types: [['primary-care', 'Primary Care', '10', 'true']],
+		visit_types: [['follow-up', 'Follow-up visit', '20', 'true']],
+		insurance_options: [['cigna', 'Cigna', '15', 'true', '30.00']],
+		provider_services: [
+			['Office visit', 'service', 'per_visit', '150.00', 'USD', '', 'true', '0'],
+		],
+		employer_contracts: [
+			['2025 Health Plan', '2025-01-01', 'active', 'Renewal notes optional'],
+		],
+	};
+	const lines = [headers.join(',')];
+	for (const row of sampleRows[kind]) {
+		lines.push(row.map(escapeCsvCell).join(','));
+	}
+	return lines.join('\n') + '\n';
+}
+
+function escapeCsvCell(val: string): string {
+	if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+		return `"${val.replace(/"/g, '""')}"`;
+	}
+	return val;
+}

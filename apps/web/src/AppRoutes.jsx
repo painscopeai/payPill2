@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import ScrollToTop from './components/ScrollToTop.jsx';
 import ProtectedRoleRoute from './components/ProtectedRoleRoute.jsx';
 import LoadingSpinner from './components/LoadingSpinner.jsx';
@@ -7,6 +7,7 @@ import PatientLayout from './components/PatientLayout.jsx';
 
 import RoleSelectionLandingPage from './views/RoleSelectionLandingPage.jsx';
 import AuthIndividualPage from './views/AuthIndividualPage.jsx';
+import AuthResetPasswordRequiredPage from './views/AuthResetPasswordRequiredPage.jsx';
 import AuthEmployerPage from './views/AuthEmployerPage.jsx';
 import AuthInsurancePage from './views/AuthInsurancePage.jsx';
 import AuthAdminPage from './views/AuthAdminPage.jsx';
@@ -73,6 +74,7 @@ const ProviderTypesPage = React.lazy(() => import('./views/admin/ProviderTypesPa
 const AppointmentOptionsPage = React.lazy(() => import('./views/admin/AppointmentOptionsPage.jsx'));
 const ProfileReferenceDataPage = React.lazy(() => import('./views/admin/ProfileReferenceDataPage.jsx'));
 const BulkProviderUploadPage = React.lazy(() => import('./views/admin/BulkProviderUploadPage.jsx'));
+const BulkImportsHubPage = React.lazy(() => import('./views/admin/BulkImportsHubPage.jsx'));
 const ProviderServicesPage = React.lazy(() => import('./views/admin/ProviderServicesPage.jsx'));
 const ProviderServicesIntakePreviewPage = React.lazy(() =>
 	import('./views/admin/ProviderServicesIntakePreviewPage.jsx')
@@ -103,6 +105,7 @@ export default function AppRoutes() {
 				<Routes>
 					<Route path="/" element={<RoleSelectionLandingPage />} />
 					<Route path="/auth/individual" element={<AuthIndividualPage />} />
+					<Route path="/auth/reset-password-required" element={<AuthResetPasswordRequiredPage />} />
 					<Route path="/auth/employer" element={<AuthEmployerPage />} />
 					<Route path="/auth/insurance" element={<AuthInsurancePage />} />
 					<Route path="/auth/admin" element={<AuthAdminPage />} />
@@ -147,6 +150,11 @@ export default function AppRoutes() {
 											<Route path="provider-types" element={<ProviderTypesPage />} />
 											<Route path="appointment-options" element={<AppointmentOptionsPage />} />
 											<Route path="profile-reference-data" element={<ProfileReferenceDataPage />} />
+											<Route path="bulk-imports" element={<BulkImportsHubPage />} />
+											<Route
+												path="bulk-employees"
+												element={<Navigate to="/admin/bulk-imports?tab=employees" replace />}
+											/>
 											<Route path="bulk-provider-upload" element={<BulkProviderUploadPage />} />
 											<Route path="provider-services" element={<ProviderServicesPage />} />
 											<Route

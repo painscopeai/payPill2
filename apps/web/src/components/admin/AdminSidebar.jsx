@@ -41,6 +41,7 @@ const sections = [
       { title: 'Patients', path: '/admin/patients', icon: Users },
       { title: 'Employers', path: '/admin/employers', icon: Building2 },
       { title: 'Insurance', path: '/admin/insurance-users', icon: ShieldCheck },
+      { title: 'Bulk upload', path: '/admin/bulk-imports?tab=employees', icon: FileSpreadsheet },
     ]
   },
   {
@@ -50,7 +51,7 @@ const sections = [
       { title: 'Onboarding', path: '/admin/provider-onboarding', icon: FileText },
       { title: 'Provider types', path: '/admin/provider-types', icon: Tags },
       { title: 'Appointment options', path: '/admin/appointment-options', icon: CalendarClock },
-      { title: 'Bulk Upload', path: '/admin/bulk-provider-upload', icon: FileSpreadsheet },
+      { title: 'Bulk Upload', path: '/admin/bulk-imports?tab=providers', icon: FileSpreadsheet },
       { title: 'Service List', path: '/admin/provider-services', icon: ListChecks },
     ]
   },
