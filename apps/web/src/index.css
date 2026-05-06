@@ -106,6 +106,14 @@ html {
 }
 
 @layer utilities {
+  .admin-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6;
+  }
+
+  .chart-container {
+    @apply h-[280px] w-full;
+  }
+
   .interactive-card {
     @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer;
   }

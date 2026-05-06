@@ -16,6 +16,9 @@ const COLLECTION_TO_TABLE = {
 	lab_results: 'lab_results',
 	patient_provider_relationships: 'patient_provider_relationships',
 	provider_profiles: 'providers',
+	employers: 'employers',
+	employer_employees: 'employer_employees',
+	employer_health_metrics: 'employer_health_metrics',
 };
 
 function toSnake(s) {

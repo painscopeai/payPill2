@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import Header from '@/components/Header.jsx';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,26 +21,20 @@ export default function EmployeeManagementPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [formData, setFormData] = useState({ first_name: '', last_name: '', email: '', department: '', hire_date: '' });
 
-  // Mock data fallback if none in db
   const fetchEmployees = async () => {
+    if (!currentUser?.id) {
+      setEmployees([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const records = await pb.collection('employer_employees').getFullList({
-        filter: `employer_id = "${currentUser?.id}"`,
+        filter: `employer_id="${currentUser.id}"`,
         sort: '-created',
         $autoCancel: false
       });
-      if (records.length > 0) {
-        setEmployees(records);
-      } else {
-        // Fallback realistic mock data
-        setEmployees([
-          { id: '1', first_name: 'Maya', last_name: 'Chen', email: 'maya.c@company.com', department: 'Engineering', hire_date: '2023-01-15', status: 'active', health_score: 85 },
-          { id: '2', first_name: 'Marcus', last_name: 'Johnson', email: 'mjohnson@company.com', department: 'Sales', hire_date: '2022-11-01', status: 'active', health_score: 72 },
-          { id: '3', first_name: 'Sarah', last_name: 'Williams', email: 'swilliams@company.com', department: 'Marketing', hire_date: '2024-02-10', status: 'pending', health_score: null },
-          { id: '4', first_name: 'David', last_name: 'Kim', email: 'd.kim@company.com', department: 'Engineering', hire_date: '2021-06-20', status: 'inactive', health_score: 65 },
-        ]);
-      }
+      setEmployees(records);
     } catch (e) {
       console.error(e);
       toast.error('Failed to load employees');
@@ -55,15 +49,25 @@ export default function EmployeeManagementPage() {
 
   const handleAddEmployee = async () => {
     try {
-      // In a real flow, this would create user and employer_employees link
-      // For UI demonstration, we add to local state if DB isn't fully configured
-      const newEmp = {
-        id: Math.random().toString(),
-        ...formData,
+      if (!currentUser?.id) {
+        toast.error('Please sign in as an employer.');
+        return;
+      }
+      if (!formData.first_name || !formData.last_name || !formData.email) {
+        toast.error('First name, last name and email are required.');
+        return;
+      }
+      const created = await pb.collection('employer_employees').create({
+        employer_id: currentUser.id,
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        email: formData.email.trim(),
+        department: formData.department?.trim() || null,
+        hire_date: formData.hire_date || null,
         status: 'pending',
         health_score: null
-      };
-      setEmployees([newEmp, ...employees]);
+      }, { $autoCancel: false });
+      setEmployees((prev) => [created, ...prev]);
       setIsAddModalOpen(false);
       setFormData({ first_name: '', last_name: '', email: '', department: '', hire_date: '' });
       toast.success('Employee added successfully. Invitation sent.');
@@ -88,11 +92,14 @@ export default function EmployeeManagementPage() {
     return 'text-destructive font-semibold';
   };
 
-  const filteredEmployees = employees.filter(e => 
-    `${e.first_name} ${e.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.department?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return employees.filter((e) =>
+      `${e.first_name || ''} ${e.last_name || ''}`.toLowerCase().includes(term) ||
+      (e.email || '').toLowerCase().includes(term) ||
+      (e.department || '').toLowerCase().includes(term),
+    );
+  }, [employees, searchTerm]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -177,6 +184,13 @@ export default function EmployeeManagementPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
+                {loading ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-12 text-center text-muted-foreground">
+                      Loading employees...
+                    </td>
+                  </tr>
+                ) : null}
                 {filteredEmployees.length > 0 ? filteredEmployees.map((emp) => (
                   <tr key={emp.id} className="hover:bg-muted/10 transition-colors">
                     <td className="px-6 py-4">
@@ -204,13 +218,15 @@ export default function EmployeeManagementPage() {
                       </DropdownMenu>
                     </td>
                   </tr>
-                )) : (
+                )) : !loading ? (
                   <tr>
                     <td colSpan="6" className="px-6 py-12 text-center text-muted-foreground">
-                      No employees found matching your search.
+                      {employees.length === 0
+                        ? 'No employees added yet. Use Add Employee to create your roster.'
+                        : 'No employees found matching your search.'}
                     </td>
                   </tr>
-                )}
+                ) : null}
               </tbody>
             </table>
           </div>
