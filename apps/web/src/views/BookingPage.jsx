@@ -30,7 +30,6 @@ export default function BookingPage() {
   const [visitTypes, setVisitTypes] = useState([]);
   const [insuranceOptions, setInsuranceOptions] = useState([]);
   const [providers, setProviders] = useState([]);
-  const [copayMatrix, setCopayMatrix] = useState([]);
 
   const [formData, setFormData] = useState({
     providerId: '',
@@ -57,7 +56,6 @@ export default function BookingPage() {
         setVisitTypes(data.visitTypes || []);
         setInsuranceOptions(data.insuranceOptions || []);
         setProviders(data.providers || []);
-        setCopayMatrix(data.copayMatrix || []);
 
         const firstVt = data.visitTypes?.[0];
         const firstIns = data.insuranceOptions?.[0];
@@ -93,39 +91,6 @@ export default function BookingPage() {
     if (!formData.providerServiceId || !selectedProvider?.services?.length) return null;
     return selectedProvider.services.find((s) => s.id === formData.providerServiceId) || null;
   }, [formData.providerServiceId, selectedProvider]);
-
-  const selectedVisitTypeId = useMemo(
-    () => visitTypes.find((v) => v.slug === formData.appointmentType)?.id,
-    [visitTypes, formData.appointmentType],
-  );
-
-  /** Advisory only — server recomputes on submit */
-  const advisoryPricing = useMemo(() => {
-    const ins = selectedInsurance;
-    if (!ins) {
-      return { copay: 0, listPrice: null };
-    }
-    if (selectedVisitTypeId && formData.insuranceOptionId && copayMatrix.length > 0) {
-      const cell = copayMatrix.find(
-        (m) =>
-          m.visit_type_id === selectedVisitTypeId &&
-          m.insurance_option_id === formData.insuranceOptionId,
-      );
-      if (cell) {
-        return {
-          copay: Number(cell.copay_estimate),
-          listPrice: cell.list_price != null ? Number(cell.list_price) : null,
-        };
-      }
-    }
-    const fallback = ins.copay_estimate != null ? Number(ins.copay_estimate) : 0;
-    return { copay: fallback, listPrice: null };
-  }, [
-    selectedInsurance,
-    selectedVisitTypeId,
-    formData.insuranceOptionId,
-    copayMatrix,
-  ]);
 
   const handleBook = async (e) => {
     e.preventDefault();
@@ -377,24 +342,9 @@ export default function BookingPage() {
                       ) : null}
 
                       <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">Estimated copay</span>
-                          <span className="text-xl font-bold text-primary">
-                            ${Number(advisoryPricing.copay || 0).toFixed(2)}
-                          </span>
-                        </div>
-                        {advisoryPricing.listPrice != null ? (
-                          <div className="flex justify-between items-center text-sm text-muted-foreground">
-                            <span>Reference list price</span>
-                            <span>${Number(advisoryPricing.listPrice).toFixed(2)}</span>
-                          </div>
-                        ) : null}
-                        <p className="text-xs text-muted-foreground pt-1">
-                          Estimate only; final amount determined at check-in. Your plan and visit type may
-                          change this figure.
-                        </p>
+                        <p className="font-medium">The selected Service and price</p>
                         {selectedCatalogService ? (
-                          <div className="flex justify-between items-center text-sm border-t pt-2 mt-2">
+                          <div className="flex justify-between items-center text-sm">
                             <span className="text-muted-foreground">
                               Provider list: {selectedCatalogService.name}
                             </span>
@@ -402,7 +352,11 @@ export default function BookingPage() {
                               {formatCatalogLinePrice(selectedCatalogService)}
                             </span>
                           </div>
-                        ) : null}
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Select a provider service to view the price.
+                          </p>
+                        )}
                       </div>
                     </>
                   )}
