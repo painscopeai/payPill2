@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
@@ -107,7 +107,7 @@ export default function BulkImportsHubPage() {
 				<TabsContent value="employees" className="mt-6">
 					<BulkImportPanel
 						title="Bulk employee upload"
-						description="Creates Supabase users (Manage Your Health) and links them to the selected employer. Passwords require change on first login."
+						description="Creates accounts linked to the employer as draft roster rows. Sign-in is blocked until an admin approves them on Employer roster. After approval, employees sign in and must choose a new password."
 						templateKind="employees"
 						uploadPath="/admin/bulk/employees"
 					>
@@ -126,6 +126,13 @@ export default function BulkImportsHubPage() {
 									))}
 								</SelectContent>
 							</Select>
+							<p className="text-xs text-muted-foreground">
+								Insurance is assigned when you approve employees on{' '}
+								<Link to="/admin/employer-employees" className="text-primary underline-offset-4 hover:underline">
+									Employer roster
+								</Link>
+								, not in the CSV.
+							</p>
 							{employers.length === 0 && (
 								<p className="text-xs text-muted-foreground">
 									No employer accounts found. Ensure profiles have role &quot;employer&quot; or a row in employers with

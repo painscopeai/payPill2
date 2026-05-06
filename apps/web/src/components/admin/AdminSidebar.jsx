@@ -42,6 +42,7 @@ const sections = [
       { title: 'Employers', path: '/admin/employers', icon: Building2 },
       { title: 'Insurance', path: '/admin/insurance-users', icon: ShieldCheck },
       { title: 'Bulk upload', path: '/admin/bulk-imports?tab=employees', icon: FileSpreadsheet },
+      { title: 'Employer roster', path: '/admin/employer-employees', icon: ClipboardList },
     ]
   },
   {

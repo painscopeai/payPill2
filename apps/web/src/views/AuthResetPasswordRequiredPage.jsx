@@ -32,6 +32,8 @@ export default function AuthResetPasswordRequiredPage() {
 				data: { must_change_password: false },
 			});
 			if (upErr) throw upErr;
+			const { error: refreshErr } = await supabase.auth.refreshSession();
+			if (refreshErr) console.warn('[AuthResetPasswordRequired] refreshSession:', refreshErr);
 			toast.success('Password updated. You can continue.');
 			const {
 				data: { session },

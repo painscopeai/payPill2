@@ -57,6 +57,9 @@ export async function POST(request: NextRequest) {
 	let successCount = 0;
 	let rowNumber = 1;
 
+	/** Ban until admin approval (cleared with `ban_duration: 'none'` on approve). */
+	const DRAFT_BAN_DURATION = '876000h';
+
 	for (const row of parsed.rows) {
 		rowNumber++;
 		const email = String(row.email ?? '').trim();
@@ -65,7 +68,6 @@ export async function POST(request: NextRequest) {
 		const last_name = String(row.last_name ?? '').trim();
 		const department = String(row.department ?? '').trim() || null;
 		const hire_raw = String(row.hire_date ?? '').trim();
-		const insurance_option_slug = String(row.insurance_option_slug ?? '').trim() || null;
 
 		if (!email || !EMAIL_RE.test(email)) {
 			failures.push({ rowNumber, message: 'Invalid or missing email' });
@@ -88,14 +90,6 @@ export async function POST(request: NextRequest) {
 				continue;
 			}
 			hire_date = hire_raw.slice(0, 10);
-		}
-
-		if (insurance_option_slug) {
-			const { data: ins } = await sb.from('insurance_options').select('slug').eq('slug', insurance_option_slug).maybeSingle();
-			if (!ins) {
-				failures.push({ rowNumber, message: `Unknown insurance_option_slug: ${insurance_option_slug}` });
-				continue;
-			}
 		}
 
 		const { data: existingProf } = await sb.from('profiles').select('id').eq('email', email).maybeSingle();
@@ -127,20 +121,38 @@ export async function POST(request: NextRequest) {
 
 		const uid = created.user.id;
 
-		const { error: insEE } = await sb.from('employer_employees').insert({
-			employer_id: employerId,
-			user_id: uid,
-			email,
-			first_name,
-			last_name,
-			department,
-			hire_date,
-			status: 'active',
-			insurance_option_slug,
+		const { data: insertedRow, error: insEE } = await sb
+			.from('employer_employees')
+			.insert({
+				employer_id: employerId,
+				user_id: uid,
+				email,
+				first_name,
+				last_name,
+				department,
+				hire_date,
+				status: 'draft',
+				insurance_option_slug: null,
+			})
+			.select('id')
+			.maybeSingle();
+
+		if (insEE || !insertedRow?.id) {
+			failures.push({ rowNumber, message: insEE?.message || 'Failed to save employee row' });
+			await sb.auth.admin.deleteUser(uid);
+			continue;
+		}
+
+		const { error: banErr } = await sb.auth.admin.updateUserById(uid, {
+			ban_duration: DRAFT_BAN_DURATION,
 		});
 
-		if (insEE) {
-			failures.push({ rowNumber, message: insEE.message || 'Failed to save employee row' });
+		if (banErr) {
+			failures.push({
+				rowNumber,
+				message: banErr.message || 'Failed to restrict login until approval',
+			});
+			await sb.from('employer_employees').delete().eq('id', insertedRow.id);
 			await sb.auth.admin.deleteUser(uid);
 			continue;
 		}

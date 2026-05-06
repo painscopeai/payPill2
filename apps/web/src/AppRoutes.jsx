@@ -75,6 +75,7 @@ const AppointmentOptionsPage = React.lazy(() => import('./views/admin/Appointmen
 const ProfileReferenceDataPage = React.lazy(() => import('./views/admin/ProfileReferenceDataPage.jsx'));
 const BulkProviderUploadPage = React.lazy(() => import('./views/admin/BulkProviderUploadPage.jsx'));
 const BulkImportsHubPage = React.lazy(() => import('./views/admin/BulkImportsHubPage.jsx'));
+const EmployerEmployeeRosterPage = React.lazy(() => import('./views/admin/EmployerEmployeeRosterPage.jsx'));
 const ProviderServicesPage = React.lazy(() => import('./views/admin/ProviderServicesPage.jsx'));
 const ProviderServicesIntakePreviewPage = React.lazy(() =>
 	import('./views/admin/ProviderServicesIntakePreviewPage.jsx')
@@ -151,6 +152,7 @@ export default function AppRoutes() {
 											<Route path="appointment-options" element={<AppointmentOptionsPage />} />
 											<Route path="profile-reference-data" element={<ProfileReferenceDataPage />} />
 											<Route path="bulk-imports" element={<BulkImportsHubPage />} />
+											<Route path="employer-employees" element={<EmployerEmployeeRosterPage />} />
 											<Route
 												path="bulk-employees"
 												element={<Navigate to="/admin/bulk-imports?tab=employees" replace />}

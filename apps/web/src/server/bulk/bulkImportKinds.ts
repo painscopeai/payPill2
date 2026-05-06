@@ -23,7 +23,6 @@ export const BULK_HEADERS: Record<BulkTemplateKind, readonly string[]> = {
 		'last_name',
 		'department',
 		'hire_date',
-		'insurance_option_slug',
 	],
 	providers: [
 		'name',
@@ -63,7 +62,6 @@ export function buildTemplateCsv(kind: BulkTemplateKind): string {
 				'Smith',
 				'Engineering',
 				'2024-01-15',
-				'',
 			],
 			[
 				'jamie.lee@company.com',
@@ -72,7 +70,6 @@ export function buildTemplateCsv(kind: BulkTemplateKind): string {
 				'Lee',
 				'HR',
 				'',
-				'aetna',
 			],
 		],
 		providers: [
