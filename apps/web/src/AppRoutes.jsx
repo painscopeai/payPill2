@@ -29,6 +29,7 @@ const MarketplaceSearchPage = React.lazy(() => import('./views/MarketplaceSearch
 const BookingPage = React.lazy(() => import('./views/BookingPage.jsx'));
 const PatientAppointmentsPage = React.lazy(() => import('./views/PatientAppointmentsPage.jsx'));
 const PatientPrescriptionsPage = React.lazy(() => import('./views/PatientPrescriptionsPage.jsx'));
+const PatientMessagesPage = React.lazy(() => import('./views/PatientMessagesPage.jsx'));
 
 const PharmacyPage = React.lazy(() => import('./views/PharmacyPage.jsx'));
 const TelemedicinePage = React.lazy(() => import('./views/TelemedicinePage.jsx'));
@@ -85,7 +86,6 @@ const FormResponsesPage = React.lazy(() => import('./views/admin/FormResponsesPa
 const FormResponsesHubPage = React.lazy(() => import('./views/admin/FormResponsesHubPage.jsx'));
 const KnowledgeBasePage = React.lazy(() => import('./views/admin/KnowledgeBasePage.jsx'));
 const AILogsPage = React.lazy(() => import('./views/admin/AILogsPage.jsx'));
-const SystemSettingsPage = React.lazy(() => import('./views/admin/SystemSettingsPage.jsx'));
 
 const ProviderDashboard = React.lazy(() => import('./views/ProviderDashboard.jsx'));
 const ProviderAppointmentsPage = React.lazy(() => import('./views/ProviderAppointmentsPage.jsx'));
@@ -168,7 +168,6 @@ export default function AppRoutes() {
 											<Route path="forms/:formId/responses" element={<FormResponsesPage />} />
 											<Route path="knowledge-base" element={<KnowledgeBasePage />} />
 											<Route path="ai-logs" element={<AILogsPage />} />
-											<Route path="settings" element={<SystemSettingsPage />} />
 											<Route
 												path="*"
 												element={
@@ -196,6 +195,7 @@ export default function AppRoutes() {
 										<Route path="booking" element={<BookingPage />} />
 										<Route path="appointments" element={<PatientAppointmentsPage />} />
 										<Route path="prescriptions" element={<PatientPrescriptionsPage />} />
+										<Route path="messages" element={<PatientMessagesPage />} />
 										<Route path="pharmacy" element={<PharmacyPage />} />
 										<Route path="telemedicine" element={<TelemedicinePage />} />
 										<Route path="health-goals" element={<HealthGoalsPage />} />

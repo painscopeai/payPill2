@@ -671,23 +671,33 @@ export async function payloadAi(query) {
 
 	console.info('[analytics] Fetching AI analytics');
 
-	const aiLogsInRange = await fetchTableInDateRange(
-		'ai_logs',
-		'status,model,response_time_ms,error_message,created_at',
-		start,
-		end,
-	);
+	const [aiLogsInRange, healthReportsInRange] = await Promise.all([
+		fetchTableInDateRange(
+			'ai_logs',
+			'user_id,status,model,response_time_ms,error_message,created_at',
+			start,
+			end,
+		),
+		fetchTableInDateRange('patient_ai_reports', 'user_id,source,title,created_at', start, end),
+	]);
 
-	const totalRequests = aiLogsInRange.length;
-	const successfulRequests = aiLogsInRange.filter((log) => log.status === 'success').length;
-	const successRate = calculatePercentage(successfulRequests, totalRequests);
+	const totalLogRequests = aiLogsInRange.length;
+	const totalReports = healthReportsInRange.length;
+	const totalRequests = totalLogRequests + totalReports;
+
+	const successfulLogs = aiLogsInRange.filter((log) => log.status === 'success').length;
+	const successRate = calculatePercentage(successfulLogs + totalReports, totalRequests);
 
 	const avgProcessingTime =
-		totalRequests > 0
+		totalLogRequests > 0
 			? (
-					aiLogsInRange.reduce((sum, log) => sum + (log.response_time_ms || 0), 0) / totalRequests
+					aiLogsInRange.reduce((sum, log) => sum + (log.response_time_ms || 0), 0) / totalLogRequests
 				).toFixed(2)
 			: 0;
+
+	const distinctReportPatients = new Set(
+		healthReportsInRange.map((r) => r.user_id).filter(Boolean),
+	).size;
 
 	const totalCost = (totalRequests * 0.001).toFixed(4);
 
@@ -696,6 +706,9 @@ export async function payloadAi(query) {
 		const model = log.model || 'unknown';
 		modelUsage[model] = (modelUsage[model] || 0) + 1;
 	});
+	if (totalReports > 0) {
+		modelUsage['health_action_plan'] = (modelUsage['health_action_plan'] || 0) + totalReports;
+	}
 
 	const errorsByModel = {};
 	aiLogsInRange
@@ -717,21 +730,36 @@ export async function payloadAi(query) {
 		.slice(0, 5)
 		.map(([error, count]) => ({ error, count }));
 
+	const reportsBySource = {};
+	healthReportsInRange.forEach((r) => {
+		const src = r.source || 'unknown';
+		reportsBySource[src] = (reportsBySource[src] || 0) + 1;
+	});
+
 	const totalTokens = totalRequests * 500;
+
+	const combinedSeries = [
+		...aiLogsInRange.map((r) => ({ created: r.created || r.created_at })),
+		...healthReportsInRange.map((r) => ({ created: r.created || r.created_at })),
+	];
 
 	console.info('[analytics] AI analytics calculated');
 
 	return {
 		kpis: {
 			total_requests: totalRequests,
+			ai_log_requests: totalLogRequests,
+			health_reports: totalReports,
+			distinct_report_patients: distinctReportPatients,
 			success_rate: successRate,
 			avg_processing_time_ms: parseFloat(avgProcessingTime),
 			total_cost: parseFloat(totalCost),
 			total_tokens: totalTokens,
 		},
-		trends: generate12MonthTrend(aiLogsInRange),
+		trends: generate12MonthTrend(combinedSeries),
 		breakdown: {
 			by_model: modelUsage,
+			by_report_source: reportsBySource,
 			error_rate_by_model: errorsByModel,
 			top_errors: topErrors,
 		},

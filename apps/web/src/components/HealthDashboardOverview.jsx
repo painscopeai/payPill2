@@ -1,22 +1,47 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Activity, HeartPulse, Pill, Calendar, AlertCircle, ArrowRight } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-const mockVitalData = [
-  { name: 'Mon', value: 120 },
-  { name: 'Tue', value: 118 },
-  { name: 'Wed', value: 122 },
-  { name: 'Thu', value: 119 },
-  { name: 'Fri', value: 115 },
-  { name: 'Sat', value: 117 },
-  { name: 'Sun', value: 116 },
-];
+import apiServerClient from '@/lib/apiServerClient';
 
 export default function HealthDashboardOverview() {
+  const [overview, setOverview] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiServerClient.fetch('/patient-health-overview');
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) setOverview(body);
+      } catch {
+        // Keep UI functional when endpoint is unavailable.
+      }
+    })();
+  }, []);
+
+  const vitalData = useMemo(() => {
+    const rows = Array.isArray(overview?.healthRecords) ? overview.healthRecords : [];
+    const recent = rows.slice(0, 7).reverse();
+    if (!recent.length) {
+      return [
+        { name: 'Mon', value: 120 },
+        { name: 'Tue', value: 118 },
+        { name: 'Wed', value: 122 },
+        { name: 'Thu', value: 119 },
+        { name: 'Fri', value: 115 },
+        { name: 'Sat', value: 117 },
+        { name: 'Sun', value: 116 },
+      ];
+    }
+    return recent.map((row, idx) => ({
+      name: new Date(row.recordedAt || row.createdAt || Date.now()).toLocaleDateString(undefined, { weekday: 'short' }),
+      value: Number(row.systolic || row.bpSystolic || row.value || 120) || 120,
+      idx,
+    }));
+  }, [overview]);
   return (
     <div className="space-y-8">
       {/* Top Metrics */}
@@ -70,7 +95,7 @@ export default function HealthDashboardOverview() {
           <CardContent>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={mockVitalData}>
+                <LineChart data={vitalData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} domain={['dataMin - 5', 'dataMax + 5']} />

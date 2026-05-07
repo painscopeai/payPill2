@@ -1,7 +1,5 @@
-
-import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { adminPagedList } from '@/lib/adminSupabaseList.js';
+import React, { useCallback, useEffect, useState } from 'react';
+import apiServerClient from '@/lib/apiServerClient';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,12 +8,17 @@ import { SearchBar } from '@/components/admin/SearchBar.jsx';
 import { ExportButton } from '@/components/admin/ExportButton.jsx';
 import { FilterPanel } from '@/components/admin/FilterPanel.jsx';
 import { StatusBadge } from '@/components/admin/StatusBadge.jsx';
-import { ConfirmDialog } from '@/components/admin/ConfirmDialog.jsx';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { MoreHorizontal, Building2, Eye, Ban, CheckCircle } from 'lucide-react';
+import { MoreHorizontal, Building2, Eye, Ban, CheckCircle, Trash2, Save, UserPlus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+function employerLabel(p) {
+  return p.company_name || p.name || [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email || p.id;
+}
 
 export default function EmployersManagementPage() {
   const [data, setData] = useState([]);
@@ -26,55 +29,143 @@ export default function EmployersManagementPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedEmployer, setSelectedEmployer] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ company_name: '', phone: '', subscription_plan: '' });
+  const [saving, setSaving] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({ company_name: '', email: '', phone: '', password: '' });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { items, totalPages: tp } = await adminPagedList('employers', page, 10, {
-        searchColumn: searchTerm ? 'name' : undefined,
-        searchTerm: searchTerm || undefined,
-        statusColumn: 'status',
-        statusFilter: statusFilter,
-      });
-      setData(items);
-      setTotalPages(tp);
+      const q = new URLSearchParams({ role: 'employer', page: String(page), pageSize: '10' });
+      if (searchTerm) q.set('search', searchTerm);
+      if (statusFilter !== 'all') q.set('status', statusFilter);
+      const res = await apiServerClient.fetch(`/admin/users?${q.toString()}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Failed to load employers');
+      setData(body.items || []);
+      setTotalPages(body.totalPages || 1);
     } catch (error) {
       console.error(error);
-      toast.error('Failed to fetch employers');
+      toast.error(error.message || 'Failed to fetch employers');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [page, searchTerm, statusFilter]);
 
-  useEffect(() => {
-    fetchData();
-  }, [searchTerm, statusFilter, page]);
+  useEffect(() => { void fetchData(); }, [fetchData]);
 
   const handleAction = async (id, action) => {
     try {
       const newStatus = action === 'suspend' ? 'inactive' : 'active';
-      const { error } = await supabase.from('employers').update({ status: newStatus }).eq('id', id);
-      if (error) throw error;
+      const res = await apiServerClient.fetch(`/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Action failed');
       toast.success(`Employer ${newStatus}`);
-      fetchData();
+      void fetchData();
     } catch (e) {
-      toast.error('Action failed');
+      toast.error(e.message || 'Action failed');
+    }
+  };
+
+  const deleteEmployer = async (id) => {
+    if (!window.confirm('Soft-disable this employer account? They will no longer be able to sign in.')) return;
+    try {
+      const res = await apiServerClient.fetch(`/admin/users/${id}`, { method: 'DELETE' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Delete failed');
+      toast.success('Employer deactivated');
+      void fetchData();
+    } catch (e) {
+      toast.error(e.message || 'Delete failed');
+    }
+  };
+
+  const createEmployer = async () => {
+    if (!createForm.company_name || !createForm.email || !createForm.password) {
+      toast.error('Company name, email, and temporary password are required');
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await apiServerClient.fetch('/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: 'employer',
+          company_name: createForm.company_name,
+          email: createForm.email,
+          phone: createForm.phone || null,
+          password: createForm.password,
+          status: 'active',
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Create failed');
+      toast.success('Employer account created');
+      setCreateOpen(false);
+      setCreateForm({ company_name: '', email: '', phone: '', password: '' });
+      void fetchData();
+    } catch (e) {
+      toast.error(e.message || 'Create failed');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const openDetails = (row) => {
+    setSelectedEmployer(row);
+    setEditForm({
+      company_name: row.company_name || '',
+      phone: row.phone || '',
+      subscription_plan: row.subscription_plan || '',
+    });
+    setIsDetailsOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!selectedEmployer) return;
+    setSaving(true);
+    try {
+      const res = await apiServerClient.fetch(`/admin/users/${selectedEmployer.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Save failed');
+      toast.success('Employer updated');
+      setIsDetailsOpen(false);
+      void fetchData();
+    } catch (e) {
+      toast.error(e.message || 'Save failed');
+    } finally {
+      setSaving(false);
     }
   };
 
   const columns = [
-    { key: 'name', label: 'Company Name', sortable: true },
-    { key: 'industry', label: 'Industry', sortable: true },
-    { key: 'employee_count', label: 'Employees', sortable: true },
-    { 
-      key: 'status', 
-      label: 'Status', 
-      render: (row) => <StatusBadge status={row.status} />
+    { key: 'company', label: 'Company', sortable: true, render: (row) => (
+      <div>
+        <div className="font-medium">{employerLabel(row)}</div>
+        <div className="text-xs text-muted-foreground">{row.email}</div>
+      </div>
+    ) },
+    { key: 'employee_count', label: 'Employees', render: (row) => row.employee_count ?? 0 },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (row) => <StatusBadge status={row.status || 'active'} />
     },
-    { 
-      key: 'created', 
-      label: 'Registered', 
-      render: (row) => format(new Date(row.created), 'MMM d, yyyy')
+    {
+      key: 'created_at',
+      label: 'Registered',
+      render: (row) => row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy') : '—'
     },
     {
       key: 'actions',
@@ -86,8 +177,8 @@ export default function EmployersManagementPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => { setSelectedEmployer(row); setIsDetailsOpen(true); }}>
-              <Eye className="w-4 h-4 mr-2" /> View Details
+            <DropdownMenuItem onClick={() => openDetails(row)}>
+              <Eye className="w-4 h-4 mr-2" /> View / Edit
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {row.status === 'active' ? (
@@ -99,6 +190,10 @@ export default function EmployersManagementPage() {
                 <CheckCircle className="w-4 h-4 mr-2" /> Activate
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => deleteEmployer(row.id)} className="text-destructive">
+              <Trash2 className="w-4 h-4 mr-2" /> Soft-disable
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -112,21 +207,24 @@ export default function EmployersManagementPage() {
           <h1 className="text-3xl font-bold font-display">Employers Management</h1>
           <p className="text-muted-foreground">Manage corporate clients and their subscriptions.</p>
         </div>
-        <ExportButton data={data} filename="employers" />
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setCreateOpen(true)}><UserPlus className="w-4 h-4 mr-2" /> Add employer</Button>
+          <ExportButton data={data} filename="employers" />
+        </div>
       </div>
 
       <Card className="border-none shadow-sm">
         <CardContent className="p-0">
           <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4 justify-between items-center bg-muted/20">
-            <SearchBar 
-              placeholder="Search companies..." 
-              onSearch={setSearchTerm} 
-              className="w-full sm:w-96" 
+            <SearchBar
+              placeholder="Search companies..."
+              onSearch={(t) => { setSearchTerm(t); setPage(1); }}
+              className="w-full sm:w-96"
             />
             <FilterPanel activeFiltersCount={statusFilter !== 'all' ? 1 : 0} onReset={() => setStatusFilter('all')}>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Status</label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
                   <SelectTrigger><SelectValue placeholder="All Statuses" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
@@ -137,12 +235,12 @@ export default function EmployersManagementPage() {
               </div>
             </FilterPanel>
           </div>
-          
+
           <div className="p-4">
-            <DataTable 
-              columns={columns} 
-              data={data} 
-              isLoading={isLoading} 
+            <DataTable
+              columns={columns}
+              data={data}
+              isLoading={isLoading}
               page={page}
               totalPages={totalPages}
               onPageChange={setPage}
@@ -156,40 +254,94 @@ export default function EmployersManagementPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5 text-primary" />
-              {selectedEmployer?.name} Details
+              {selectedEmployer ? employerLabel(selectedEmployer) : 'Employer'} Details
             </DialogTitle>
             <DialogDescription>Full corporate profile and subscription details.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Industry</p>
-                <p className="font-medium">{selectedEmployer?.industry || 'N/A'}</p>
+          {selectedEmployer && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Email</p>
+                  <p className="font-medium">{selectedEmployer.email || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Employees</p>
+                  <p className="font-medium">{selectedEmployer.employee_count || 0}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Subscription Status</p>
+                  <p className="font-medium">{selectedEmployer.subscription_status || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <StatusBadge status={selectedEmployer.status || 'active'} className="mt-1" />
+                </div>
               </div>
-              <div>
-                <p className="text-muted-foreground">Employees</p>
-                <p className="font-medium">{selectedEmployer?.employee_count || 0}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Address</p>
-                <p className="font-medium">{selectedEmployer?.address || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Status</p>
-                <StatusBadge status={selectedEmployer?.status} className="mt-1" />
+
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="font-medium">Edit details</h4>
+                <div className="space-y-2">
+                  <Label>Company name</Label>
+                  <Input
+                    value={editForm.company_name}
+                    onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Subscription plan</Label>
+                  <Input
+                    value={editForm.subscription_plan}
+                    onChange={(e) => setEditForm({ ...editForm, subscription_plan: e.target.value })}
+                    placeholder="e.g. Standard"
+                  />
+                </div>
               </div>
             </div>
-            {/* Mocked Analytics section */}
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <h4 className="font-medium mb-2">Subscription Analytics</h4>
-              <p className="text-sm text-muted-foreground">Active Plan: {selectedEmployer?.plan_type || 'Basic'}</p>
-              <p className="text-sm text-muted-foreground">Utilization: 78%</p>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
+          )}
+          <DialogFooter>
             <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Close</Button>
-            <Button>Edit Employer</Button>
+            <Button onClick={saveEdit} disabled={saving} className="gap-2">
+              <Save className="w-4 h-4" />
+              {saving ? 'Saving…' : 'Save changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Create employer account</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-2">
+              <Label>Company name</Label>
+              <Input value={createForm.company_name} onChange={(e) => setCreateForm((p) => ({ ...p, company_name: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input value={createForm.phone} onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Temporary password</Label>
+              <Input value={createForm.password} onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))} />
+            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button onClick={createEmployer} disabled={creating}>{creating ? 'Creating…' : 'Create'}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

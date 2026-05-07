@@ -225,7 +225,7 @@ export default function EmployerDashboardPage() {
             <Button variant="outline" onClick={handleDownloadReport}>
               Download Report
             </Button>
-            <Button onClick={() => navigate('/employer/bulk-onboarding')}>Invite Employees</Button>
+            <Button onClick={() => navigate('/employer/employees')}>Manage Employees</Button>
           </div>
         </div>
 

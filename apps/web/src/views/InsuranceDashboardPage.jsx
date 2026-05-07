@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Users, FileText, Heart, AlertCircle, Plus, ChevronRight, Activity, Clock } from 'lucide-react';
-import pb from '@/lib/supabaseMappedCollections';
+import apiServerClient from '@/lib/apiServerClient';
+import { toast } from 'sonner';
 
 export default function InsuranceDashboardPage() {
   const { currentUser } = useAuth();
@@ -38,8 +39,30 @@ export default function InsuranceDashboardPage() {
   const COLORS = ['hsl(199 89% 48%)', 'hsl(160 84% 39%)', 'hsl(32 95% 54%)', 'hsl(280 65% 60%)', 'hsl(340 75% 55%)'];
 
   useEffect(() => {
-    // Mock fetch for presentation
-    setStats({ members: 12450, claims: 842, healthScore: 76, exposure: 12400000 });
+    (async () => {
+      try {
+        const [insRes, finRes] = await Promise.all([
+          apiServerClient.fetch('/analytics/insurance'),
+          apiServerClient.fetch('/analytics/financial'),
+        ]);
+        const insBody = await insRes.json().catch(() => ({}));
+        const finBody = await finRes.json().catch(() => ({}));
+        if (!insRes.ok) throw new Error(insBody.error || 'Failed to load insurance dashboard');
+        if (!finRes.ok) throw new Error(finBody.error || 'Failed to load financial dashboard');
+        const totalClaims = Number(insBody?.kpis?.total_claims || 0);
+        const activePartners = Number(insBody?.kpis?.active_partners || 0);
+        const totalPartners = Number(insBody?.kpis?.total_partners || 0);
+        const exposure = Number(finBody?.kpis?.total_revenue || 0);
+        setStats({
+          members: Number(insBody?.breakdown?.top_partners?.reduce((sum, p) => sum + Number(p.claims_processed || 0), 0) || 0),
+          claims: totalClaims,
+          healthScore: Math.max(0, Math.min(100, Math.round((activePartners / Math.max(totalPartners, 1)) * 100))),
+          exposure,
+        });
+      } catch (e) {
+        toast.error(e.message || 'Failed to load dashboard');
+      }
+    })();
   }, []);
 
   return (

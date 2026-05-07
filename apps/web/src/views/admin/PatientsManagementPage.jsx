@@ -1,12 +1,12 @@
-
-import React, { useState, useEffect } from 'react';
-import { adminPagedList } from '@/lib/adminSupabaseList.js';
+import React, { useCallback, useEffect, useState } from 'react';
+import apiServerClient from '@/lib/apiServerClient';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, Filter, MoreHorizontal, Download, UserX, UserCheck } from 'lucide-react';
+import { Search, MoreHorizontal, Download, UserX, UserCheck, Trash2, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,37 +16,132 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+
+function fullName(p) {
+  const first = (p.first_name || '').trim();
+  const last = (p.last_name || '').trim();
+  const composed = [first, last].filter(Boolean).join(' ');
+  if (composed) return composed;
+  return p.name || p.email || p.id;
+}
 
 export default function PatientsManagementPage() {
   const [patients, setPatients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({ first_name: '', last_name: '', email: '', password: '' });
 
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { items, totalPages: tp } = await adminPagedList('patients', page, 10, {
-        orIlike: searchTerm
-          ? { columns: ['first_name', 'last_name', 'email', 'phone'], term: searchTerm }
-          : undefined,
+      const q = new URLSearchParams({
+        role: 'individual',
+        page: String(page),
+        pageSize: '10',
       });
-      setPatients(items);
-      setTotalPages(tp);
+      if (searchTerm) q.set('search', searchTerm);
+      if (statusFilter && statusFilter !== 'all') q.set('status', statusFilter);
+      const res = await apiServerClient.fetch(`/admin/users?${q.toString()}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Failed to load patients');
+      setPatients(body.items || []);
+      setTotalPages(body.totalPages || 1);
     } catch (error) {
       console.error("Error fetching patients:", error);
+      toast.error(error.message || 'Failed to load patients');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [page, searchTerm, statusFilter]);
 
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      fetchPatients();
-    }, 300);
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, page]);
+    const t = setTimeout(() => { void fetchPatients(); }, 300);
+    return () => clearTimeout(t);
+  }, [fetchPatients]);
+
+  const updateStatus = async (id, status) => {
+    try {
+      const res = await apiServerClient.fetch(`/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Update failed');
+      toast.success(`Patient ${status}`);
+      void fetchPatients();
+    } catch (e) {
+      toast.error(e.message || 'Update failed');
+    }
+  };
+
+  const deleteUser = async (id) => {
+    if (!window.confirm('Soft-disable this patient account? They will no longer be able to sign in.')) return;
+    try {
+      const res = await apiServerClient.fetch(`/admin/users/${id}`, { method: 'DELETE' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Delete failed');
+      toast.success('Patient deactivated');
+      void fetchPatients();
+    } catch (e) {
+      toast.error(e.message || 'Delete failed');
+    }
+  };
+
+  const createPatient = async () => {
+    if (!createForm.email || !createForm.first_name || !createForm.last_name || !createForm.password) {
+      toast.error('First name, last name, email, and temporary password are required');
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await apiServerClient.fetch('/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...createForm, role: 'individual', status: 'active' }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Create failed');
+      toast.success('Patient account created');
+      setCreateOpen(false);
+      setCreateForm({ first_name: '', last_name: '', email: '', password: '' });
+      void fetchPatients();
+    } catch (e) {
+      toast.error(e.message || 'Create failed');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleExport = () => {
+    const rows = [
+      ['First Name', 'Last Name', 'Email', 'Phone', 'Status', 'Registered'],
+      ...patients.map((p) => [
+        p.first_name || '',
+        p.last_name || '',
+        p.email || '',
+        p.phone || '',
+        p.status || 'active',
+        p.created_at ? format(new Date(p.created_at), 'yyyy-MM-dd') : '',
+      ]),
+    ];
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'patients.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -56,7 +151,10 @@ export default function PatientsManagementPage() {
           <p className="text-muted-foreground">View and manage patient accounts and records.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline">
+          <Button onClick={() => setCreateOpen(true)}>
+            <UserPlus className="w-4 h-4 mr-2" /> Add patient
+          </Button>
+          <Button variant="outline" onClick={handleExport}>
             <Download className="w-4 h-4 mr-2" /> Export CSV
           </Button>
         </div>
@@ -67,16 +165,25 @@ export default function PatientsManagementPage() {
           <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4 justify-between items-center bg-muted/20">
             <div className="relative w-full sm:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search by name, email or phone..." 
+              <Input
+                placeholder="Search by name, email or phone..."
                 className="pl-9 bg-background"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
               />
             </div>
-            <Button variant="outline" className="w-full sm:w-auto">
-              <Filter className="w-4 h-4 mr-2" /> Filters
-            </Button>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+              <SelectTrigger className="w-full sm:w-[180px] bg-background">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="overflow-x-auto">
@@ -107,7 +214,7 @@ export default function PatientsManagementPage() {
                   patients.map((patient) => (
                     <tr key={patient.id} className="border-b border-border hover:bg-muted/20 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="font-medium text-foreground">{patient.first_name} {patient.last_name}</div>
+                        <div className="font-medium text-foreground">{fullName(patient)}</div>
                         <div className="text-xs text-muted-foreground">ID: {patient.id}</div>
                       </td>
                       <td className="px-6 py-4">
@@ -116,11 +223,11 @@ export default function PatientsManagementPage() {
                       </td>
                       <td className="px-6 py-4">
                         <Badge variant={patient.status === 'active' ? 'default' : 'secondary'} className={patient.status === 'active' ? 'bg-success hover:bg-success/90' : ''}>
-                          {patient.status || 'Active'}
+                          {patient.status || 'active'}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
-                        {format(new Date(patient.created), 'MMM d, yyyy')}
+                        {patient.created_at ? format(new Date(patient.created_at), 'MMM d, yyyy') : '—'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <DropdownMenu>
@@ -131,11 +238,18 @@ export default function PatientsManagementPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>View Full Profile</DropdownMenuItem>
-                            <DropdownMenuItem>View Health Records</DropdownMenuItem>
+                            {patient.status === 'active' ? (
+                              <DropdownMenuItem className="text-warning" onClick={() => updateStatus(patient.id, 'inactive')}>
+                                <UserX className="w-4 h-4 mr-2" /> Deactivate Account
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem className="text-success" onClick={() => updateStatus(patient.id, 'active')}>
+                                <UserCheck className="w-4 h-4 mr-2" /> Reactivate Account
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-warning">
-                              <UserX className="w-4 h-4 mr-2" /> Suspend Account
+                            <DropdownMenuItem className="text-destructive" onClick={() => deleteUser(patient.id)}>
+                              <Trash2 className="w-4 h-4 mr-2" /> Soft-disable
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -147,24 +261,23 @@ export default function PatientsManagementPage() {
             </table>
           </div>
 
-          {/* Pagination */}
           {!isLoading && totalPages > 1 && (
             <div className="p-4 border-t border-border flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
                 Page {page} of {totalPages}
               </span>
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
                 >
                   Previous
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
                 >
@@ -175,6 +288,37 @@ export default function PatientsManagementPage() {
           )}
         </CardContent>
       </Card>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create patient account</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>First name</Label>
+                <Input value={createForm.first_name} onChange={(e) => setCreateForm((p) => ({ ...p, first_name: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Last name</Label>
+                <Input value={createForm.last_name} onChange={(e) => setCreateForm((p) => ({ ...p, last_name: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Email</Label>
+              <Input type="email" value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Temporary password</Label>
+              <Input value={createForm.password} onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button onClick={createPatient} disabled={creating}>{creating ? 'Creating…' : 'Create'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

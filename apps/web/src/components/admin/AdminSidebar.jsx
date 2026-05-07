@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Building2, ShieldCheck, 
-  FileText, Brain, Settings,
+  FileText, Brain,
   LogOut, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, BookOpen, FileSpreadsheet,
   PieChart, TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library, ListChecks
 } from 'lucide-react';
@@ -52,7 +52,6 @@ const sections = [
       { title: 'Onboarding', path: '/admin/provider-onboarding', icon: FileText },
       { title: 'Provider types', path: '/admin/provider-types', icon: Tags },
       { title: 'Appointment options', path: '/admin/appointment-options', icon: CalendarClock },
-      { title: 'Bulk Upload', path: '/admin/bulk-imports?tab=providers', icon: FileSpreadsheet },
       { title: 'Service List', path: '/admin/provider-services', icon: ListChecks },
     ]
   },
@@ -64,12 +63,6 @@ const sections = [
       { title: 'Profile reference data', path: '/admin/profile-reference-data', icon: Library },
       { title: 'Knowledge Base', path: '/admin/knowledge-base', icon: BookOpen },
       { title: 'AI Logs', path: '/admin/ai-logs', icon: Brain },
-    ]
-  },
-  {
-    title: 'System',
-    items: [
-      { title: 'Settings', path: '/admin/settings', icon: Settings },
     ]
   }
 ];

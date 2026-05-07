@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Menu, Bell, Moon, Sun, LogOut, User } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Menu, Bell, Moon, Sun, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
@@ -17,7 +17,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function AdminNavigation({ setIsMobileOpen }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const { currentUser: currentAdmin, logout: adminLogout } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -88,10 +87,6 @@ export default function AdminNavigation({ setIsMobileOpen }) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate('/admin/settings')}>
-              <User className="h-4 w-4 mr-2" />
-              Profile Settings
-            </DropdownMenuItem>
             <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer" onClick={adminLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Log out

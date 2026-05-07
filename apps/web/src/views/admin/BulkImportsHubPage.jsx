@@ -16,11 +16,8 @@ import BulkImportPanel from '@/components/admin/BulkImportPanel.jsx';
 
 const TAB_KEYS = [
 	'employees',
-	'providers',
 	'provider_types',
 	'visit_types',
-	'insurance_options',
-	'provider_services',
 	'contracts',
 ];
 
@@ -34,9 +31,7 @@ export default function BulkImportsHubPage() {
 	};
 
 	const [employers, setEmployers] = useState([]);
-	const [providers, setProviders] = useState([]);
 	const [employerId, setEmployerId] = useState('');
-	const [providerId, setProviderId] = useState('');
 	const [contractEmployerId, setContractEmployerId] = useState('');
 
 	useEffect(() => {
@@ -63,30 +58,6 @@ export default function BulkImportsHubPage() {
 		};
 	}, []);
 
-	useEffect(() => {
-		let cancelled = false;
-		(async () => {
-			try {
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-				const token = session?.access_token;
-				const res = await apiServerClient.fetch('/admin/bulk/provider-options', {
-					headers: token ? { Authorization: `Bearer ${token}` } : {},
-				});
-				const body = await res.json().catch(() => ({}));
-				if (!res.ok) throw new Error(body.error || 'Failed to load providers');
-				if (!cancelled) setProviders(body.items || []);
-			} catch (e) {
-				console.error(e);
-				toast.error(e.message || 'Could not load providers');
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
 	return (
 		<div className="space-y-6 max-w-4xl mx-auto">
 			<div>
@@ -99,11 +70,8 @@ export default function BulkImportsHubPage() {
 			<Tabs value={activeTab} onValueChange={setTab} className="w-full">
 				<TabsList className="flex flex-wrap h-auto gap-1 justify-start">
 					<TabsTrigger value="employees">Employees</TabsTrigger>
-					<TabsTrigger value="providers">Providers</TabsTrigger>
 					<TabsTrigger value="provider_types">Provider types</TabsTrigger>
 					<TabsTrigger value="visit_types">Visit types</TabsTrigger>
-					<TabsTrigger value="insurance_options">Insurance options</TabsTrigger>
-					<TabsTrigger value="provider_services">Provider services</TabsTrigger>
 					<TabsTrigger value="contracts">Employer contracts</TabsTrigger>
 				</TabsList>
 
@@ -146,15 +114,6 @@ export default function BulkImportsHubPage() {
 					</BulkImportPanel>
 				</TabsContent>
 
-				<TabsContent value="providers" className="mt-6">
-					<BulkImportPanel
-						title="Bulk provider upload"
-						description="Import provider organizations into the directory."
-						templateKind="providers"
-						uploadPath="/admin/bulk/providers"
-					/>
-				</TabsContent>
-
 				<TabsContent value="provider_types" className="mt-6">
 					<BulkImportPanel
 						title="Bulk provider types"
@@ -171,41 +130,6 @@ export default function BulkImportsHubPage() {
 						templateKind="visit_types"
 						uploadPath="/admin/bulk/visit-types"
 					/>
-				</TabsContent>
-
-				<TabsContent value="insurance_options" className="mt-6">
-					<BulkImportPanel
-						title="Bulk insurance options"
-						description="Insurance selections for booking; separate template from visit types."
-						templateKind="insurance_options"
-						uploadPath="/admin/bulk/insurance-options"
-					/>
-				</TabsContent>
-
-				<TabsContent value="provider_services" className="mt-6">
-					<BulkImportPanel
-						title="Bulk provider services"
-						description="Services or pricing rows for one provider. Choose the provider below."
-						templateKind="provider_services"
-						uploadPath="/admin/bulk/provider-services"
-					>
-						<div className="space-y-2 max-w-md">
-							<Label htmlFor="prov-pick">Provider</Label>
-							<input type="hidden" name="providerId" value={providerId} />
-							<Select value={providerId} onValueChange={setProviderId} required>
-								<SelectTrigger id="prov-pick">
-									<SelectValue placeholder="Select provider" />
-								</SelectTrigger>
-								<SelectContent>
-									{providers.map((p) => (
-										<SelectItem key={p.id} value={p.id}>
-											{p.name || p.id}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-					</BulkImportPanel>
 				</TabsContent>
 
 				<TabsContent value="contracts" className="mt-6">

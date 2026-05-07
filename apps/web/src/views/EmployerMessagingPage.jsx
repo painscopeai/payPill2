@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import Header from '@/components/Header.jsx';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,162 +7,408 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Send, FileText, Mail, Inbox, Clock, Paperclip, Reply } from 'lucide-react';
-import pb from '@/lib/supabaseMappedCollections';
+import { Badge } from '@/components/ui/badge';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Search, Send, Mail, Inbox, Reply as ReplyIcon, Loader2, ChevronLeft } from 'lucide-react';
+import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+
+function emptyCompose() {
+	return { subject: '', body: '', audience: 'all', department: '' };
+}
 
 export default function EmployerMessagingPage() {
-  const { currentUser } = useAuth();
-  const [messages, setMessages] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // Compose State
-  const [composeData, setComposeData] = useState({ subject: '', content: '', to: 'all_employees' });
+	const { currentUser } = useAuth();
+	const [broadcasts, setBroadcasts] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [searchTerm, setSearchTerm] = useState('');
+	const [activeTab, setActiveTab] = useState('inbox');
+	const [compose, setCompose] = useState(emptyCompose());
+	const [sending, setSending] = useState(false);
+	const [openBroadcast, setOpenBroadcast] = useState(null);
+	const [openLoading, setOpenLoading] = useState(false);
+	const [replyDrafts, setReplyDrafts] = useState({});
+	const [departments, setDepartments] = useState([]);
 
-  useEffect(() => {
-    // In a real implementation, query pb.collection('messages')
-    // For now, mock data to ensure robust presentation
-    setMessages([
-      { id: '1', sender: 'System Alerts', subject: 'Quarterly compliance review due', date: '2026-04-22', read: false, type: 'inbox' },
-      { id: '2', sender: 'Benefits Admin', subject: 'New wellness program enrollment', date: '2026-04-20', read: true, type: 'inbox' },
-      { id: '3', sender: 'Me', subject: 'Company-wide: Open Enrollment Starts', date: '2026-04-15', read: true, type: 'sent' },
-    ]);
-  }, []);
+	const loadBroadcasts = useCallback(async () => {
+		setLoading(true);
+		try {
+			const res = await apiServerClient.fetch('/employer/broadcasts');
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'Failed to load messages');
+			setBroadcasts(body.items || []);
+		} catch (e) {
+			toast.error(e.message || 'Failed to load messages');
+		} finally {
+			setLoading(false);
+		}
+	}, []);
 
-  const handleSend = () => {
-    if (!composeData.subject || !composeData.content) {
-      toast.error('Subject and content are required.');
-      return;
-    }
-    toast.success('Message sent successfully!');
-    setComposeData({ subject: '', content: '', to: 'all_employees' });
-  };
+	useEffect(() => {
+		void loadBroadcasts();
+	}, [loadBroadcasts]);
 
-  const inboxMessages = messages.filter(m => m.type === 'inbox' && (m.subject.toLowerCase().includes(searchTerm.toLowerCase()) || m.sender.toLowerCase().includes(searchTerm.toLowerCase())));
-  const sentMessages = messages.filter(m => m.type === 'sent' && (m.subject.toLowerCase().includes(searchTerm.toLowerCase())));
+	useEffect(() => {
+		(async () => {
+			try {
+				const res = await apiServerClient.fetch('/employer/employees');
+				const body = await res.json().catch(() => ({}));
+				if (!res.ok) return;
+				const setVals = new Set();
+				(body.items || []).forEach((e) => {
+					if (e.department) setVals.add(e.department);
+				});
+				setDepartments(Array.from(setVals));
+			} catch {
+				/* noop */
+			}
+		})();
+	}, []);
 
-  const renderMessageList = (list) => {
-    if (list.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground border rounded-xl bg-card">
-          <Inbox className="h-12 w-12 mb-4 opacity-20" />
-          <p>No messages found.</p>
-        </div>
-      );
-    }
-    return (
-      <div className="border rounded-xl bg-card divide-y">
-        {list.map(msg => (
-          <div key={msg.id} className={`p-4 flex items-center gap-4 hover:bg-muted/30 cursor-pointer transition-colors ${!msg.read ? 'bg-primary/5' : ''}`}>
-            <div className="shrink-0 h-10 w-10 rounded-full bg-secondary/10 flex items-center justify-center">
-              <Mail className={`h-5 w-5 ${!msg.read ? 'text-primary' : 'text-muted-foreground'}`} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-baseline mb-1">
-                <p className={`text-sm truncate ${!msg.read ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'}`}>
-                  {msg.sender}
-                </p>
-                <p className="text-xs text-muted-foreground ml-2 whitespace-nowrap">{msg.date}</p>
-              </div>
-              <p className={`text-sm truncate ${!msg.read ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
-                {msg.subject}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
+	const filteredBroadcasts = useMemo(() => {
+		const term = searchTerm.toLowerCase();
+		if (!term) return broadcasts;
+		return broadcasts.filter(
+			(b) => b.subject?.toLowerCase().includes(term) || b.body?.toLowerCase().includes(term),
+		);
+	}, [broadcasts, searchTerm]);
 
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <Helmet><title>Messaging - PayPill</title></Helmet>
-      <Header />
-      
-      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Communications Hub</h1>
-          <p className="text-muted-foreground">Manage announcements, alerts, and employee messages.</p>
-        </div>
+	const handleSend = async () => {
+		if (!compose.subject.trim() || !compose.body.trim()) {
+			toast.error('Subject and message are required.');
+			return;
+		}
+		setSending(true);
+		try {
+			const payload = {
+				subject: compose.subject.trim(),
+				body: compose.body.trim(),
+				audience: compose.audience,
+				department: compose.audience === 'department' ? compose.department.trim() : null,
+			};
+			const res = await apiServerClient.fetch('/employer/broadcasts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload),
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'Send failed');
+			toast.success(`Sent to ${body.recipientCount} recipient(s).`);
+			setCompose(emptyCompose());
+			setActiveTab('inbox');
+			void loadBroadcasts();
+		} catch (e) {
+			toast.error(e.message || 'Send failed');
+		} finally {
+			setSending(false);
+		}
+	};
 
-        <Tabs defaultValue="inbox" className="w-full">
-          <div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
-            <TabsList className="grid w-full md:w-[400px] grid-cols-3">
-              <TabsTrigger value="inbox">Inbox</TabsTrigger>
-              <TabsTrigger value="sent">Sent</TabsTrigger>
-              <TabsTrigger value="compose">Compose</TabsTrigger>
-            </TabsList>
-            
-            <div className="relative w-full md:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search messages..." 
-                className="pl-9"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
+	const openThread = async (broadcastId) => {
+		setOpenLoading(true);
+		try {
+			const res = await apiServerClient.fetch(`/employer/broadcasts/${broadcastId}`);
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'Failed to open thread');
+			setOpenBroadcast(body);
+			void loadBroadcasts();
+		} catch (e) {
+			toast.error(e.message || 'Failed to open thread');
+		} finally {
+			setOpenLoading(false);
+		}
+	};
 
-          <TabsContent value="inbox" className="mt-0">
-            {renderMessageList(inboxMessages)}
-          </TabsContent>
-          
-          <TabsContent value="sent" className="mt-0">
-            {renderMessageList(sentMessages)}
-          </TabsContent>
+	const sendReply = async (recipientId) => {
+		if (!openBroadcast?.broadcast?.id) return;
+		const text = (replyDrafts[recipientId] || '').trim();
+		if (!text) {
+			toast.error('Reply cannot be empty');
+			return;
+		}
+		try {
+			const res = await apiServerClient.fetch(
+				`/employer/broadcasts/${openBroadcast.broadcast.id}/replies`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ recipient_id: recipientId, body: text }),
+				},
+			);
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'Reply failed');
+			toast.success('Reply sent');
+			setReplyDrafts((d) => ({ ...d, [recipientId]: '' }));
+			void openThread(openBroadcast.broadcast.id);
+		} catch (e) {
+			toast.error(e.message || 'Reply failed');
+		}
+	};
 
-          <TabsContent value="compose" className="mt-0">
-            <Card className="shadow-sm border-border/50">
-              <CardContent className="p-6 space-y-6">
-                <div className="space-y-4">
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium">To:</label>
-                    <select 
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      value={composeData.to}
-                      onChange={(e) => setComposeData({...composeData, to: e.target.value})}
-                    >
-                      <option value="all_employees">All Employees</option>
-                      <option value="dept_engineering">Department: Engineering</option>
-                      <option value="dept_sales">Department: Sales</option>
-                      <option value="custom">Custom Selection...</option>
-                    </select>
-                  </div>
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium">Subject:</label>
-                    <Input 
-                      placeholder="Enter subject" 
-                      value={composeData.subject}
-                      onChange={(e) => setComposeData({...composeData, subject: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium">Message:</label>
-                    <Textarea 
-                      placeholder="Write your message here..." 
-                      className="min-h-[250px] resize-y"
-                      value={composeData.content}
-                      onChange={(e) => setComposeData({...composeData, content: e.target.value})}
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex justify-between items-center pt-4 border-t">
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="icon"><Paperclip className="h-4 w-4" /></Button>
-                    <Button variant="outline" size="icon"><FileText className="h-4 w-4" /></Button>
-                  </div>
-                  <div className="flex gap-3">
-                    <Button variant="ghost">Save Draft</Button>
-                    <Button onClick={handleSend} className="gap-2"><Send className="h-4 w-4" /> Send Message</Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
-  );
+	const renderBroadcastList = () => {
+		if (loading) {
+			return (
+				<div className="flex items-center justify-center p-12 text-muted-foreground">
+					<Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading messages…
+				</div>
+			);
+		}
+		if (filteredBroadcasts.length === 0) {
+			return (
+				<div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground border rounded-xl bg-card">
+					<Inbox className="h-12 w-12 mb-4 opacity-20" />
+					<p>No messages yet. Compose one to broadcast to your team.</p>
+				</div>
+			);
+		}
+		return (
+			<div className="border rounded-xl bg-card divide-y">
+				{filteredBroadcasts.map((b) => (
+					<button
+						key={b.id}
+						type="button"
+						className="w-full text-left p-4 flex items-center gap-4 hover:bg-muted/30 transition-colors"
+						onClick={() => openThread(b.id)}
+					>
+						<div className="shrink-0 h-10 w-10 rounded-full bg-secondary/10 flex items-center justify-center">
+							<Mail className="h-5 w-5 text-primary" />
+						</div>
+						<div className="flex-1 min-w-0">
+							<div className="flex justify-between items-baseline mb-1 gap-2">
+								<p className="text-sm font-semibold truncate">{b.subject}</p>
+								<p className="text-xs text-muted-foreground whitespace-nowrap">
+									{b.created_at ? format(new Date(b.created_at), 'MMM d, h:mm a') : ''}
+								</p>
+							</div>
+							<p className="text-sm text-muted-foreground truncate">{b.body}</p>
+							<div className="flex flex-wrap gap-2 mt-2 text-xs">
+								<Badge variant="outline">{b.audience}</Badge>
+								<span className="text-muted-foreground">
+									{b.recipient_count} recipient(s) · {b.read_count} read
+								</span>
+								{b.reply_count > 0 && (
+									<Badge variant="secondary" className="gap-1">
+										<ReplyIcon className="h-3 w-3" />
+										{b.reply_count} replies
+										{b.unread_replies > 0 ? ` (${b.unread_replies} new)` : ''}
+									</Badge>
+								)}
+							</div>
+						</div>
+					</button>
+				))}
+			</div>
+		);
+	};
+
+	const replyThreads = useMemo(() => {
+		if (!openBroadcast) return [];
+		const repliesByRecipient = new Map();
+		(openBroadcast.replies || []).forEach((r) => {
+			const arr = repliesByRecipient.get(r.recipient_id) || [];
+			arr.push(r);
+			repliesByRecipient.set(r.recipient_id, arr);
+		});
+		return (openBroadcast.recipients || []).map((rec) => ({
+			recipient: rec,
+			replies: repliesByRecipient.get(rec.id) || [],
+		}));
+	}, [openBroadcast]);
+
+	const renderThread = () => {
+		if (!openBroadcast) return null;
+		const { broadcast } = openBroadcast;
+		return (
+			<div className="space-y-4">
+				<div className="flex items-center gap-2">
+					<Button variant="outline" size="sm" onClick={() => setOpenBroadcast(null)} className="gap-2">
+						<ChevronLeft className="h-4 w-4" /> Back
+					</Button>
+					<div>
+						<h2 className="text-xl font-semibold">{broadcast.subject}</h2>
+						<p className="text-xs text-muted-foreground">
+							{broadcast.created_at ? format(new Date(broadcast.created_at), 'PPpp') : ''} · {broadcast.audience}
+						</p>
+					</div>
+				</div>
+				<Card>
+					<CardContent className="p-4 whitespace-pre-wrap text-sm">{broadcast.body}</CardContent>
+				</Card>
+				<h3 className="font-semibold mt-4">Conversations ({replyThreads.length} recipients)</h3>
+				<div className="space-y-3">
+					{replyThreads.map(({ recipient, replies }) => (
+						<Card key={recipient.id}>
+							<CardContent className="p-4 space-y-3">
+								<div className="flex justify-between items-baseline gap-2 flex-wrap">
+									<div className="font-medium text-sm">
+										{recipient.name || recipient.email || recipient.patient_user_id}
+									</div>
+									<div className="text-xs text-muted-foreground">
+										{recipient.read_at ? `Read ${format(new Date(recipient.read_at), 'MMM d, h:mm a')}` : 'Unread'}
+									</div>
+								</div>
+								{replies.length > 0 && (
+									<div className="space-y-2">
+										{replies.map((r) => (
+											<div
+												key={r.id}
+												className={`text-sm p-3 rounded-md border ${r.sender_role === 'employer' ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-border'}`}
+											>
+												<div className="text-xs text-muted-foreground mb-1">
+													{r.sender_role === 'employer' ? 'You' : recipient.name || recipient.email} ·{' '}
+													{r.created_at ? format(new Date(r.created_at), 'MMM d, h:mm a') : ''}
+												</div>
+												<div className="whitespace-pre-wrap">{r.body}</div>
+											</div>
+										))}
+									</div>
+								)}
+								<div className="flex gap-2 items-end">
+									<Textarea
+										placeholder="Reply…"
+										className="min-h-[60px]"
+										value={replyDrafts[recipient.id] || ''}
+										onChange={(e) =>
+											setReplyDrafts((d) => ({ ...d, [recipient.id]: e.target.value }))
+										}
+									/>
+									<Button onClick={() => sendReply(recipient.id)} className="gap-2">
+										<Send className="h-4 w-4" /> Send
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			</div>
+		);
+	};
+
+	return (
+		<div className="min-h-screen bg-background flex flex-col">
+			<Helmet><title>Messaging - PayPill</title></Helmet>
+			<Header />
+
+			<main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-6xl">
+				<div className="mb-8">
+					<h1 className="text-3xl font-bold tracking-tight">Communications Hub</h1>
+					<p className="text-muted-foreground">
+						Welcome{currentUser?.first_name ? `, ${currentUser.first_name}` : ''}. Compose announcements to your team
+						and follow up on individual replies.
+					</p>
+				</div>
+
+				{openBroadcast ? (
+					openLoading ? (
+						<div className="flex items-center justify-center p-12 text-muted-foreground">
+							<Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading thread…
+						</div>
+					) : (
+						renderThread()
+					)
+				) : (
+					<Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+						<div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
+							<TabsList className="grid w-full md:w-[300px] grid-cols-2">
+								<TabsTrigger value="inbox">Inbox / Sent</TabsTrigger>
+								<TabsTrigger value="compose">Compose</TabsTrigger>
+							</TabsList>
+
+							<div className="relative w-full md:w-64">
+								<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+								<Input
+									placeholder="Search messages..."
+									className="pl-9"
+									value={searchTerm}
+									onChange={(e) => setSearchTerm(e.target.value)}
+								/>
+							</div>
+						</div>
+
+						<TabsContent value="inbox" className="mt-0">
+							{renderBroadcastList()}
+						</TabsContent>
+
+						<TabsContent value="compose" className="mt-0">
+							<Card className="shadow-sm border-border/50">
+								<CardContent className="p-6 space-y-6">
+									<div className="space-y-4">
+										<div className="grid gap-2">
+											<Label>Audience</Label>
+											<Select
+												value={compose.audience}
+												onValueChange={(v) => setCompose({ ...compose, audience: v })}
+											>
+												<SelectTrigger>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All active employees</SelectItem>
+													<SelectItem value="department">Department</SelectItem>
+												</SelectContent>
+											</Select>
+										</div>
+										{compose.audience === 'department' && (
+											<div className="grid gap-2">
+												<Label>Department</Label>
+												<Select
+													value={compose.department || undefined}
+													onValueChange={(v) => setCompose({ ...compose, department: v })}
+												>
+													<SelectTrigger>
+														<SelectValue placeholder="Pick a department" />
+													</SelectTrigger>
+													<SelectContent>
+														{departments.length === 0 ? (
+															<SelectItem value="" disabled>No departments on roster yet</SelectItem>
+														) : (
+															departments.map((d) => (
+																<SelectItem key={d} value={d}>{d}</SelectItem>
+															))
+														)}
+													</SelectContent>
+												</Select>
+											</div>
+										)}
+										<div className="grid gap-2">
+											<Label>Subject</Label>
+											<Input
+												placeholder="Enter subject"
+												value={compose.subject}
+												onChange={(e) => setCompose({ ...compose, subject: e.target.value })}
+											/>
+										</div>
+										<div className="grid gap-2">
+											<Label>Message</Label>
+											<Textarea
+												placeholder="Write your message here..."
+												className="min-h-[250px] resize-y"
+												value={compose.body}
+												onChange={(e) => setCompose({ ...compose, body: e.target.value })}
+											/>
+										</div>
+									</div>
+
+									<div className="flex justify-end items-center pt-4 border-t">
+										<Button onClick={handleSend} disabled={sending} className="gap-2">
+											{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+											{sending ? 'Sending…' : 'Send broadcast'}
+										</Button>
+									</div>
+								</CardContent>
+							</Card>
+						</TabsContent>
+					</Tabs>
+				)}
+			</main>
+		</div>
+	);
 }
