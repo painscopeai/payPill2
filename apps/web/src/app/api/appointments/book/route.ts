@@ -5,7 +5,6 @@ import { getSupabaseAdmin } from '@/server/supabase/admin';
 import {
 	getInsuranceOption,
 	getVisitTypeBySlug,
-	resolveCopayEstimate,
 } from '@/server/admin/appointmentReferenceService';
 import { sendBookingConfirmationEmails } from '@/server/email/bookingConfirmationEmail';
 import { normalizeAppointmentTime } from '@/lib/appointmentDateTime';
@@ -204,23 +203,8 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Invalid or inactive insurance option' }, { status: 400 });
 	}
 
-	let copay_estimate: number;
-	try {
-		const resolved = await resolveCopayEstimate({
-			visitTypeId: visitType.id,
-			insuranceOptionId: insuranceRow.id,
-		});
-		copay_estimate = sanitizeCopayAmount(resolved.copay_estimate);
-	} catch (e) {
-		console.error('[appointments/book] resolveCopayEstimate', e);
-		return NextResponse.json(
-			{
-				error:
-					'Could not compute pricing for this visit. Ensure database migrations are applied (appointment_copay_matrix).',
-			},
-			{ status: 503 },
-		);
-	}
+	// Contract foundation: all insurance options cover provider services fully (no co-pay).
+	const copay_estimate = sanitizeCopayAmount(0);
 
 	const pname = providerName || prov.provider_name || prov.name;
 	const confirmationNumber = `APT-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`;

@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireEmployer } from '@/server/auth/requireEmployer';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { ensureEmployerInsuranceContract } from '@/server/contracts/employerContracts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -187,6 +188,11 @@ export async function POST(request: NextRequest) {
 			{ status: 500 },
 		);
 	}
+
+	await ensureEmployerInsuranceContract(sb, {
+		employerId: ctx.employerId,
+		insuranceId: insurance_option_slug,
+	});
 
 	return NextResponse.json({ item: insertedRow }, { status: 201 });
 }

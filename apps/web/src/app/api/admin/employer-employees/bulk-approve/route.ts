@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { assertEmployerImportTarget } from '@/server/admin/employerAccountsAdmin';
 import { auditLog } from '@/server/express-api/middleware/rbac.js';
 import { isPendingPasswordTableUnavailableError } from '@/server/admin/pendingPasswordTable';
+import { ensureEmployerInsuranceContract } from '@/server/contracts/employerContracts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -169,6 +170,13 @@ export async function PATCH(request: NextRequest) {
 		}
 
 		approvedCount++;
+	}
+
+	if (approvedCount > 0) {
+		await ensureEmployerInsuranceContract(sb, {
+			employerId,
+			insuranceId: insurancePatch,
+		});
 	}
 
 	await auditLog({

@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireEmployer } from '@/server/auth/requireEmployer';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { syncEmployerInsuranceContractsForEmployer } from '@/server/contracts/employerContracts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -92,6 +93,10 @@ export async function PATCH(
 				console.warn('[employer/employees PATCH] unban failed:', (e as Error).message);
 			}
 		}
+	}
+
+	if (updates.status !== undefined || updates.insurance_option_slug !== undefined) {
+		await syncEmployerInsuranceContractsForEmployer(sb, ctx.employerId);
 	}
 
 	return NextResponse.json(data);

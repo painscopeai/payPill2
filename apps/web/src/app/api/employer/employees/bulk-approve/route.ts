@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireEmployer } from '@/server/auth/requireEmployer';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { isPendingPasswordTableUnavailableError } from '@/server/admin/pendingPasswordTable';
+import { ensureEmployerInsuranceContract } from '@/server/contracts/employerContracts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -149,6 +150,13 @@ export async function PATCH(request: NextRequest) {
 		}
 
 		approvedCount++;
+	}
+
+	if (approvedCount > 0) {
+		await ensureEmployerInsuranceContract(sb, {
+			employerId: ctx.employerId,
+			insuranceId: insurancePatch,
+		});
 	}
 
 	return NextResponse.json({ approvedCount, failures, credentials });
