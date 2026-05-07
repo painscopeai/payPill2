@@ -54,7 +54,6 @@ export async function POST(request: NextRequest) {
 	}
 
 	const failures: RowFailure[] = [];
-	const sheetCredentials: { rowNumber: number; email: string; spreadsheetPassword: string }[] = [];
 	let successCount = 0;
 	let rowNumber = 1;
 
@@ -157,11 +156,25 @@ export async function POST(request: NextRequest) {
 			continue;
 		}
 
-		sheetCredentials.push({ rowNumber, email, spreadsheetPassword: password });
+		const { error: pendErr } = await sb.from('employer_employee_pending_passwords').insert({
+			employer_employee_id: insertedRow.id,
+			plaintext_password: password,
+		});
+
+		if (pendErr) {
+			failures.push({
+				rowNumber,
+				message: pendErr.message || 'Failed to save credentials for roster approval',
+			});
+			await sb.from('employer_employees').delete().eq('id', insertedRow.id);
+			await sb.auth.admin.deleteUser(uid);
+			continue;
+		}
+
 		successCount++;
 	}
 
-	const result: BulkImportResult = { successCount, failures, sheetCredentials };
+	const result: BulkImportResult = { successCount, failures };
 
 	await auditLog({
 		adminId: ctx.adminId,

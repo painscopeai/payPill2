@@ -98,16 +98,7 @@ export function validateHeadersForKind(
 
 export type RowFailure = { rowNumber: number; message: string };
 
-/** Returned only by employee bulk import: same values as the sheet, for one-time admin copy (not stored). */
-export type SheetCredentialRow = {
-	rowNumber: number;
-	email: string;
-	spreadsheetPassword: string;
-};
-
 export type BulkImportResult = {
 	successCount: number;
 	failures: RowFailure[];
-	/** Present for employee imports only; mirrors the uploaded file for sharing initial sign-in passwords. */
-	sheetCredentials?: SheetCredentialRow[];
 };

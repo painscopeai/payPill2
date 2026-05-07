@@ -107,7 +107,7 @@ export default function BulkImportsHubPage() {
 				<TabsContent value="employees" className="mt-6">
 					<BulkImportPanel
 						title="Bulk employee upload"
-						description="Creates accounts linked to the employer as draft roster rows. Sign-in is blocked until an admin approves them on Employer roster. After approval, employees sign in and must choose a new password."
+						description="Creates accounts linked to the employer as draft roster rows. Sign-in is blocked until an admin approves them on Employer roster; there you can copy each employee’s initial password (from the file) to share. After approval, they sign in with that password and must choose a new password."
 						templateKind="employees"
 						uploadPath="/admin/bulk/employees"
 					>

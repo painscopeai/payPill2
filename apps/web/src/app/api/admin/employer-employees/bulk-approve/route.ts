@@ -21,9 +21,12 @@ type EmployerEmployeeApproveRow = {
 	id: string;
 	employer_id: string;
 	user_id: string | null;
+	email: string;
 	status: string;
 	insurance_option_slug: string | null;
 };
+
+type ShareCredential = { email: string; initialPassword: string };
 
 async function validateInsuranceSlug(sb: ReturnType<typeof getSupabaseAdmin>, slug: string): Promise<boolean> {
 	const [profileRes, legacyOptionRes] = await Promise.all([
@@ -74,9 +77,21 @@ export async function PATCH(request: NextRequest) {
 		return NextResponse.json({ error: `Unknown insurance_option_slug: ${insurancePatch}` }, { status: 400 });
 	}
 
+	const { data: pendingPwRows } = await sb
+		.from('employer_employee_pending_passwords')
+		.select('employer_employee_id, plaintext_password')
+		.in('employer_employee_id', ids);
+
+	const pendingByEmployeeId = new Map<string, string>(
+		(pendingPwRows ?? []).map((r: { employer_employee_id: string; plaintext_password: string }) => [
+			r.employer_employee_id,
+			r.plaintext_password,
+		]),
+	);
+
 	const { data: rows, error: fetchErr } = await sb
 		.from('employer_employees')
-		.select('id, employer_id, user_id, status, insurance_option_slug')
+		.select('id, employer_id, user_id, email, status, insurance_option_slug')
 		.eq('employer_id', employerId)
 		.in('id', ids);
 
@@ -87,6 +102,7 @@ export async function PATCH(request: NextRequest) {
 	const typedRows = (rows ?? []) as EmployerEmployeeApproveRow[];
 	const byId = new Map(typedRows.map((r) => [r.id, r]));
 	const failures: RowFail[] = [];
+	const credentials: ShareCredential[] = [];
 	let approvedCount = 0;
 
 	for (const id of ids) {
@@ -139,6 +155,12 @@ export async function PATCH(request: NextRequest) {
 			continue;
 		}
 
+		const sharePw = pendingByEmployeeId.get(id);
+		if (sharePw) {
+			await sb.from('employer_employee_pending_passwords').delete().eq('employer_employee_id', id);
+			credentials.push({ email: row.email, initialPassword: sharePw });
+		}
+
 		approvedCount++;
 	}
 
@@ -152,10 +174,11 @@ export async function PATCH(request: NextRequest) {
 			approvedCount,
 			failureCount: failures.length,
 			insurance_option_slug: insurancePatch,
+			credentialsReturned: credentials.length,
 		},
 		ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
 		userAgent: request.headers.get('user-agent'),
 	});
 
-	return NextResponse.json({ approvedCount, failures });
+	return NextResponse.json({ approvedCount, failures, credentials });
 }
