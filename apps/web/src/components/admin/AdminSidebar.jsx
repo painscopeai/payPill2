@@ -23,7 +23,37 @@ const sections = [
     ]
   },
   {
-    title: 'Insights & Reporting',
+    title: 'User Management',
+    items: [
+      { title: 'Patients', path: '/admin/patients', icon: Users },
+      { title: 'Employers', path: '/admin/employers', icon: Building2 },
+      { title: 'Insurance Accounts', path: '/admin/insurance-users', icon: ShieldCheck },
+      { title: 'Employee Roster', path: '/admin/employer-employees', icon: ClipboardList },
+      { title: 'Bulk Onboarding', path: '/admin/bulk-imports?tab=employees', icon: FileSpreadsheet },
+    ]
+  },
+  {
+    title: 'Provider Management',
+    items: [
+      { title: 'Provider Directory', path: '/admin/providers', icon: Building2 },
+      { title: 'Credentialing Queue', path: '/admin/provider-onboarding', icon: FileText },
+      { title: 'Provider Specialties', path: '/admin/provider-types', icon: Tags },
+      { title: 'Appointment Types', path: '/admin/appointment-options', icon: CalendarClock },
+      { title: 'Service Catalog', path: '/admin/provider-services', icon: ListChecks },
+    ]
+  },
+  {
+    title: 'Content Management',
+    items: [
+      { title: 'Form Builder', path: '/admin/forms', icon: FileText },
+      { title: 'Form Submissions', path: '/admin/form-responses', icon: ClipboardList },
+      { title: 'Profile Reference Data', path: '/admin/profile-reference-data', icon: Library },
+      { title: 'Knowledge Base', path: '/admin/knowledge-base', icon: BookOpen },
+      { title: 'AI Activity Logs', path: '/admin/ai-logs', icon: Brain },
+    ]
+  },
+  {
+    title: 'Analytics',
     items: [
       { title: 'Financial', path: '/admin/analytics/financial', icon: TrendingUp },
       { title: 'Patients', path: '/admin/analytics/patients', icon: Users },
@@ -34,45 +64,15 @@ const sections = [
       { title: 'Forms Analytics', path: '/admin/analytics/forms', icon: LineChart },
       { title: 'AI Usage Analytics', path: '/admin/analytics/ai', icon: Brain },
     ]
-  },
-  {
-    title: 'User & Access Management',
-    items: [
-      { title: 'Patients', path: '/admin/patients', icon: Users },
-      { title: 'Employers', path: '/admin/employers', icon: Building2 },
-      { title: 'Insurance Accounts', path: '/admin/insurance-users', icon: ShieldCheck },
-      { title: 'Employee Roster', path: '/admin/employer-employees', icon: ClipboardList },
-      { title: 'Bulk Onboarding', path: '/admin/bulk-imports?tab=employees', icon: FileSpreadsheet },
-    ]
-  },
-  {
-    title: 'Provider Network',
-    items: [
-      { title: 'Provider Directory', path: '/admin/providers', icon: Building2 },
-      { title: 'Credentialing Queue', path: '/admin/provider-onboarding', icon: FileText },
-      { title: 'Provider Specialties', path: '/admin/provider-types', icon: Tags },
-      { title: 'Appointment Types', path: '/admin/appointment-options', icon: CalendarClock },
-      { title: 'Service Catalog', path: '/admin/provider-services', icon: ListChecks },
-    ]
-  },
-  {
-    title: 'Content & Knowledge',
-    items: [
-      { title: 'Form Builder', path: '/admin/forms', icon: FileText },
-      { title: 'Form Submissions', path: '/admin/form-responses', icon: ClipboardList },
-      { title: 'Profile Reference Data', path: '/admin/profile-reference-data', icon: Library },
-      { title: 'Knowledge Base', path: '/admin/knowledge-base', icon: BookOpen },
-      { title: 'AI Activity Logs', path: '/admin/ai-logs', icon: Brain },
-    ]
   }
 ];
 
 /** Sidebar groups that start collapsed and can be toggled open. Overview + System stay always open. */
 const COLLAPSIBLE_SECTION_TITLES = new Set([
-  'Insights & Reporting',
-  'User & Access Management',
-  'Provider Network',
-  'Content & Knowledge',
+  'User Management',
+  'Provider Management',
+  'Content Management',
+  'Analytics',
 ]);
 
 function sectionContainsActivePath(section, pathname) {
