@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Helmet } from 'react-helmet';
 import Header from '@/components/Header.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 import { Download, Filter } from 'lucide-react';
+import { toast } from 'sonner';
+import { exportChartElementAsPng } from '@/lib/chartExport';
 
 const scoreDistData = [
   { range: '0-50', employees: 12 },
@@ -34,6 +36,16 @@ const trendData = [
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', 'hsl(var(--destructive))', 'hsl(var(--muted-foreground))'];
 
 export default function EmployerHealthAnalyticsPage() {
+  const chartsRef = useRef(null);
+  const handleExportReport = async () => {
+    try {
+      await exportChartElementAsPng(chartsRef.current, 'employer-health-analytics');
+      toast.success('Chart image exported');
+    } catch (e) {
+      toast.error(e.message || 'Could not export chart image');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Helmet><title>Health Analytics - PayPill</title></Helmet>
@@ -54,11 +66,11 @@ export default function EmployerHealthAnalyticsPage() {
                 <SelectItem value="last_year">Last Year</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" className="rounded-xl gap-2"><Download className="h-4 w-4"/> Export Report</Button>
+            <Button variant="outline" className="rounded-xl gap-2" onClick={handleExportReport}><Download className="h-4 w-4"/> Export Report</Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div ref={chartsRef} className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <Card className="rounded-2xl shadow-sm border-border/60">
             <CardHeader>
               <CardTitle>Health Score Distribution</CardTitle>
