@@ -12,16 +12,16 @@ type InsuranceProfileRow = {
 	id: string;
 	email: string | null;
 	company_name: string | null;
-	first_name: string | null;
-	last_name: string | null;
+	name: string | null;
 	status: string | null;
 };
 
 function insuranceLabel(row: InsuranceProfileRow): string {
-	const org = (row.company_name || '').trim();
-	if (org) return org;
-	const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim();
-	return name || row.email || row.id;
+	const company = (row.company_name || '').trim();
+	if (company) return company;
+	const profileName = (row.name || '').trim();
+	if (profileName) return profileName;
+	return row.email || row.id;
 }
 
 export async function GET(request: NextRequest) {
@@ -56,7 +56,11 @@ export async function GET(request: NextRequest) {
 
 	const [{ data: items, error }, insuranceProfilesRes] = await Promise.all([
 		q,
-		sb.from('profiles').select('id,email,company_name,first_name,last_name,status').eq('role', 'insurance').order('email', { ascending: true }),
+		sb
+			.from('profiles')
+			.select('id,email,company_name,name,status')
+			.eq('role', 'insurance')
+			.order('email', { ascending: true }),
 	]);
 
 	if (error) {

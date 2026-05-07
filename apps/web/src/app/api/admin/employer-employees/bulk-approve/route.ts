@@ -54,18 +54,14 @@ export async function PATCH(request: NextRequest) {
 		return NextResponse.json({ error: 'ids must be a non-empty array' }, { status: 400 });
 	}
 
-	let insurancePatch: string | null | undefined;
-	if ('insurance_option_slug' in body) {
-		const raw = body.insurance_option_slug;
-		if (raw === null || raw === '') {
-			insurancePatch = null;
-		} else if (typeof raw === 'string') {
-			const s = raw.trim();
-			insurancePatch = s || null;
-		} else {
-			return NextResponse.json({ error: 'insurance_option_slug must be string or null' }, { status: 400 });
-		}
+	const rawInsurance = body.insurance_option_slug;
+	if (rawInsurance === undefined || rawInsurance === null) {
+		return NextResponse.json({ error: 'insurance_option_slug is required' }, { status: 400 });
 	}
+	if (typeof rawInsurance !== 'string' || !rawInsurance.trim()) {
+		return NextResponse.json({ error: 'insurance_option_slug is required' }, { status: 400 });
+	}
+	const insurancePatch = rawInsurance.trim();
 
 	const sb = getSupabaseAdmin();
 	const employerCheck = await assertEmployerImportTarget(sb, employerId);
@@ -73,11 +69,9 @@ export async function PATCH(request: NextRequest) {
 		return NextResponse.json({ error: employerCheck.message }, { status: 400 });
 	}
 
-	if (insurancePatch) {
-		const ok = await validateInsuranceSlug(sb, insurancePatch);
-		if (!ok) {
-			return NextResponse.json({ error: `Unknown insurance_option_slug: ${insurancePatch}` }, { status: 400 });
-		}
+	const insuranceOk = await validateInsuranceSlug(sb, insurancePatch);
+	if (!insuranceOk) {
+		return NextResponse.json({ error: `Unknown insurance_option_slug: ${insurancePatch}` }, { status: 400 });
 	}
 
 	const { data: rows, error: fetchErr } = await sb
@@ -118,9 +112,7 @@ export async function PATCH(request: NextRequest) {
 			approved_at: nowIso,
 			approved_by: ctx.adminId,
 		};
-		if (insurancePatch !== undefined) {
-			updatePayload.insurance_option_slug = insurancePatch;
-		}
+		updatePayload.insurance_option_slug = insurancePatch;
 
 		const { error: upErr } = await sb.from('employer_employees').update(updatePayload).eq('id', id);
 

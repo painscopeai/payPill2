@@ -33,8 +33,6 @@ const STATUS_FILTER = [
 	{ value: 'inactive', label: 'Inactive' },
 ];
 
-const OMIT_INSURANCE = '__omit__';
-
 export default function EmployerEmployeeRosterPage() {
 	const [employers, setEmployers] = useState([]);
 	const [employerId, setEmployerId] = useState('');
@@ -44,7 +42,7 @@ export default function EmployerEmployeeRosterPage() {
 	const [loading, setLoading] = useState(false);
 	const [approving, setApproving] = useState(false);
 	const [selected, setSelected] = useState(() => new Set());
-	const [assignInsurance, setAssignInsurance] = useState(OMIT_INSURANCE);
+	const [assignInsurance, setAssignInsurance] = useState('');
 
 	const draftRows = useMemo(() => items.filter((r) => r.status === 'draft'), [items]);
 	const insuranceLabelBySlug = useMemo(
@@ -78,6 +76,7 @@ export default function EmployerEmployeeRosterPage() {
 		if (!employerId) {
 			setItems([]);
 			setInsuranceOptions([]);
+			setAssignInsurance('');
 			setSelected(new Set());
 			return;
 		}
@@ -90,6 +89,7 @@ export default function EmployerEmployeeRosterPage() {
 			if (!res.ok) throw new Error(body.error || 'Failed to load roster');
 			setItems(body.items || []);
 			setInsuranceOptions(body.insuranceOptions || []);
+			setAssignInsurance('');
 			setSelected(new Set());
 		} catch (e) {
 			console.error(e);
@@ -135,12 +135,13 @@ export default function EmployerEmployeeRosterPage() {
 			toast.error('Select at least one draft employee.');
 			return;
 		}
+		if (!assignInsurance) {
+			toast.error('Select an insurance provider.');
+			return;
+		}
 		setApproving(true);
 		try {
-			const payload = { employerId, ids };
-			if (assignInsurance !== OMIT_INSURANCE) {
-				payload.insurance_option_slug = assignInsurance;
-			}
+			const payload = { employerId, ids, insurance_option_slug: assignInsurance };
 			const res = await apiServerClient.fetch('/admin/employer-employees/bulk-approve', {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
@@ -217,13 +218,17 @@ export default function EmployerEmployeeRosterPage() {
 
 			<div className="flex flex-col sm:flex-row gap-3 flex-wrap items-end border rounded-lg p-4 bg-muted/30">
 				<div className="space-y-2 min-w-[220px] flex-1">
-					<Label>Insurance at approval (optional)</Label>
-					<Select value={assignInsurance} onValueChange={setAssignInsurance}>
+					<Label>
+						Insurance at approval{' '}
+						<span className="text-destructive" aria-hidden="true">
+							*
+						</span>
+					</Label>
+					<Select value={assignInsurance || undefined} onValueChange={setAssignInsurance}>
 						<SelectTrigger>
-							<SelectValue placeholder="Keep existing / omit" />
+							<SelectValue placeholder="Select insurance provider" />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value={OMIT_INSURANCE}>Do not change insurance field</SelectItem>
 							{insuranceOptions.map((o) => (
 								<SelectItem key={o.slug} value={o.slug}>
 									{o.label}
@@ -234,7 +239,9 @@ export default function EmployerEmployeeRosterPage() {
 				</div>
 				<Button
 					className="gap-2"
-					disabled={approving || !employerId || selected.size === 0}
+					disabled={
+						approving || !employerId || selected.size === 0 || !assignInsurance || insuranceOptions.length === 0
+					}
 					onClick={() => void handleApprove()}
 				>
 					{approving ? (
