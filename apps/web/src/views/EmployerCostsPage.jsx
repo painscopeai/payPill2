@@ -1,28 +1,41 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import Header from '@/components/Header.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Download, DollarSign, TrendingDown } from 'lucide-react';
+import apiServerClient from '@/lib/apiServerClient';
+import { toast } from 'sonner';
 
 export default function EmployerCostsPage() {
+  const [payload, setPayload] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const monthlyCosts = [
-    { month: 'Jan', medical: 35000, pharmacy: 12000, preventive: 5000 },
-    { month: 'Feb', medical: 32000, pharmacy: 11000, preventive: 6500 },
-    { month: 'Mar', medical: 34000, pharmacy: 12500, preventive: 7000 },
-    { month: 'Apr', medical: 29000, pharmacy: 10000, preventive: 8500 },
-    { month: 'May', medical: 31000, pharmacy: 11500, preventive: 8000 },
-    { month: 'Jun', medical: 28000, pharmacy: 10500, preventive: 9500 },
-  ];
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await apiServerClient.fetch('/employer/costs');
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'Failed to load employer costs');
+        setPayload(body);
+      } catch (e) {
+        toast.error(e.message || 'Failed to load costs');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-  const savingsCategories = [
-    { name: 'Generic Substitution', value: 24500 },
-    { name: 'ER Avoidance', value: 18000 },
-    { name: 'Telemedicine Use', value: 9200 },
-    { name: 'Wellness Incentives', value: 4500 },
-  ];
+  const monthlyCosts = payload?.monthlyCosts || [];
+  const savingsCategories = payload?.savingsCategories || [];
+  const kpis = payload?.kpis || {
+    totalHealthcareCosts: 0,
+    totalSavings: 0,
+    avgCostPerEmployee: 0,
+    pharmacySpendPercent: 0,
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -42,7 +55,7 @@ export default function EmployerCostsPage() {
           <Card className="shadow-sm border-border/50">
             <CardContent className="p-6">
               <p className="text-sm font-medium text-muted-foreground mb-1">Total Healthcare Costs YTD</p>
-              <p className="text-3xl font-bold text-foreground">$246,500</p>
+              <p className="text-3xl font-bold text-foreground">{loading ? '—' : `$${Number(kpis.totalHealthcareCosts || 0).toLocaleString()}`}</p>
               <div className="mt-4 flex items-center text-sm text-emerald-600 font-medium">
                 <TrendingDown className="h-4 w-4 mr-1" /> 4% below budget
               </div>
@@ -51,7 +64,7 @@ export default function EmployerCostsPage() {
           <Card className="shadow-sm border-border/50 bg-primary/5 border-primary/20">
             <CardContent className="p-6">
               <p className="text-sm font-medium text-primary mb-1">Total Savings YTD</p>
-              <p className="text-3xl font-bold text-primary">$56,200</p>
+              <p className="text-3xl font-bold text-primary">{loading ? '—' : `$${Number(kpis.totalSavings || 0).toLocaleString()}`}</p>
               <div className="mt-4 flex items-center text-sm text-primary font-medium">
                 <TrendingDown className="h-4 w-4 mr-1" /> On track for 15% ROI
               </div>
@@ -60,14 +73,14 @@ export default function EmployerCostsPage() {
           <Card className="shadow-sm border-border/50">
             <CardContent className="p-6">
               <p className="text-sm font-medium text-muted-foreground mb-1">Avg Cost per Employee</p>
-              <p className="text-3xl font-bold text-foreground">$1,735</p>
+              <p className="text-3xl font-bold text-foreground">{loading ? '—' : `$${Number(kpis.avgCostPerEmployee || 0).toLocaleString()}`}</p>
               <p className="text-sm text-muted-foreground mt-4">Per year estimation</p>
             </CardContent>
           </Card>
           <Card className="shadow-sm border-border/50">
             <CardContent className="p-6">
               <p className="text-sm font-medium text-muted-foreground mb-1">Pharmacy Spend %</p>
-              <p className="text-3xl font-bold text-foreground">27.4%</p>
+              <p className="text-3xl font-bold text-foreground">{loading ? '—' : `${Number(kpis.pharmacySpendPercent || 0).toFixed(1)}%`}</p>
               <div className="mt-4 flex items-center text-sm text-emerald-600 font-medium">
                 <TrendingDown className="h-4 w-4 mr-1" /> Decreasing trend
               </div>

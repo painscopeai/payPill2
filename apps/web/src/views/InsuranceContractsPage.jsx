@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Plus, Filter, MoreHorizontal, Download, FileText, CalendarDays } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import pb from '@/lib/supabaseMappedCollections';
+import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 
 export default function InsuranceContractsPage() {
@@ -18,15 +18,39 @@ export default function InsuranceContractsPage() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [employers, setEmployers] = useState([]);
+  const [createForm, setCreateForm] = useState({
+    employer_user_id: '',
+    name: '',
+    contract_type: 'ppo',
+    member_count: '',
+    contract_value: '',
+    start_date: '',
+    end_date: '',
+    status: 'pending',
+    notes: '',
+  });
 
   useEffect(() => {
-    // Mock data for UI functionality
-    setContracts([
-      { id: 'CTR-2024-001', employer: 'Acme Corp', type: 'PPO', members: 1250, value: 4500000, start: '2024-01-01', end: '2025-12-31', status: 'active' },
-      { id: 'CTR-2024-002', employer: 'TechFlow', type: 'HDHP', members: 340, value: 1200000, start: '2024-06-01', end: '2025-05-31', status: 'active' },
-      { id: 'CTR-2023-088', employer: 'GlobalNet', type: 'HMO', members: 890, value: 3100000, start: '2023-01-01', end: '2023-12-31', status: 'expired' },
-      { id: 'CTR-2024-045', employer: 'CityGov', type: 'PPO', members: 5200, value: 18500000, start: '2024-09-01', end: '2026-08-31', status: 'pending' },
-    ]);
+    void (async () => {
+      setLoading(true);
+      try {
+        const [contractsRes, employersRes] = await Promise.all([
+          apiServerClient.fetch('/insurance/contracts'),
+          apiServerClient.fetch('/admin/bulk/employer-options'),
+        ]);
+        const contractsBody = await contractsRes.json().catch(() => ({}));
+        const employersBody = await employersRes.json().catch(() => ({}));
+        if (!contractsRes.ok) throw new Error(contractsBody.error || 'Failed to load contracts');
+        if (!employersRes.ok) throw new Error(employersBody.error || 'Failed to load employers');
+        setContracts(contractsBody.items || []);
+        setEmployers(employersBody.items || []);
+      } catch (e) {
+        toast.error(e.message || 'Failed to load contracts');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const getStatusBadge = (status) => {
@@ -40,8 +64,45 @@ export default function InsuranceContractsPage() {
 
   const handleCreate = (e) => {
     e.preventDefault();
-    toast.success('Contract created successfully');
-    setIsModalOpen(false);
+    void (async () => {
+      try {
+        const res = await apiServerClient.fetch('/insurance/contracts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employer_user_id: createForm.employer_user_id,
+            name: createForm.name.trim(),
+            contract_type: createForm.contract_type,
+            member_count: Number(createForm.member_count || 0),
+            contract_value: Number(createForm.contract_value || 0),
+            start_date: createForm.start_date || null,
+            end_date: createForm.end_date || null,
+            status: createForm.status,
+            notes: createForm.notes || null,
+          }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'Could not create contract');
+        toast.success('Contract created successfully');
+        setIsModalOpen(false);
+        setCreateForm({
+          employer_user_id: '',
+          name: '',
+          contract_type: 'ppo',
+          member_count: '',
+          contract_value: '',
+          start_date: '',
+          end_date: '',
+          status: 'pending',
+          notes: '',
+        });
+        const refresh = await apiServerClient.fetch('/insurance/contracts');
+        const refreshBody = await refresh.json().catch(() => ({}));
+        if (refresh.ok) setContracts(refreshBody.items || []);
+      } catch (err) {
+        toast.error(err.message || 'Failed to create contract');
+      }
+    })();
   };
 
   return (
@@ -69,12 +130,23 @@ export default function InsuranceContractsPage() {
                   <div className="grid gap-4 py-4">
                     <div className="space-y-2">
                       <Label>Employer Name</Label>
-                      <Input required placeholder="Enter company name" />
+                      <Select value={createForm.employer_user_id} onValueChange={(v) => setCreateForm((p) => ({ ...p, employer_user_id: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select employer" /></SelectTrigger>
+                        <SelectContent>
+                          {employers.map((e) => (
+                            <SelectItem key={e.id} value={e.id}>{e.label || e.email || e.id}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Contract Name</Label>
+                      <Input required placeholder="e.g. 2026 Employer Health Plan" value={createForm.name} onChange={(ev) => setCreateForm((p) => ({ ...p, name: ev.target.value }))} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Contract Type</Label>
-                        <Select defaultValue="ppo">
+                        <Select value={createForm.contract_type} onValueChange={(v) => setCreateForm((p) => ({ ...p, contract_type: v }))}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="ppo">PPO</SelectItem>
@@ -85,21 +157,21 @@ export default function InsuranceContractsPage() {
                       </div>
                       <div className="space-y-2">
                         <Label>Est. Member Count</Label>
-                        <Input type="number" required placeholder="e.g. 500" />
+                        <Input type="number" required placeholder="e.g. 500" value={createForm.member_count} onChange={(ev) => setCreateForm((p) => ({ ...p, member_count: ev.target.value }))} />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Total Contract Value ($)</Label>
-                      <Input type="number" required placeholder="e.g. 1500000" />
+                      <Input type="number" required placeholder="e.g. 1500000" value={createForm.contract_value} onChange={(ev) => setCreateForm((p) => ({ ...p, contract_value: ev.target.value }))} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Start Date</Label>
-                        <Input type="date" required />
+                        <Input type="date" required value={createForm.start_date} onChange={(ev) => setCreateForm((p) => ({ ...p, start_date: ev.target.value }))} />
                       </div>
                       <div className="space-y-2">
                         <Label>End Date</Label>
-                        <Input type="date" required />
+                        <Input type="date" required value={createForm.end_date} onChange={(ev) => setCreateForm((p) => ({ ...p, end_date: ev.target.value }))} />
                       </div>
                     </div>
                   </div>
@@ -138,15 +210,23 @@ export default function InsuranceContractsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {contracts.filter(c => c.employer.toLowerCase().includes(searchTerm.toLowerCase()) || c.id.toLowerCase().includes(searchTerm.toLowerCase())).map((c) => (
+                {loading ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-10 text-center text-muted-foreground">Loading contracts…</td>
+                  </tr>
+                ) : contracts.filter(c => String(c.employer || '').toLowerCase().includes(searchTerm.toLowerCase()) || String(c.id || '').toLowerCase().includes(searchTerm.toLowerCase())).length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-10 text-center text-muted-foreground">No contracts found.</td>
+                  </tr>
+                ) : contracts.filter(c => String(c.employer || '').toLowerCase().includes(searchTerm.toLowerCase()) || String(c.id || '').toLowerCase().includes(searchTerm.toLowerCase())).map((c) => (
                   <tr key={c.id} className="hover:bg-muted/10 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-medium text-foreground">{c.employer}</div>
                       <div className="text-muted-foreground text-xs">{c.id}</div>
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground">{c.type}</td>
-                    <td className="px-6 py-4 text-foreground">{c.members.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-foreground">${(c.value / 1000000).toFixed(1)}M</td>
+                    <td className="px-6 py-4 text-muted-foreground">{String(c.type || '').toUpperCase()}</td>
+                    <td className="px-6 py-4 text-foreground">{Number(c.members || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-foreground">${(Number(c.value || 0) / 1000000).toFixed(1)}M</td>
                     <td className="px-6 py-4 text-muted-foreground text-xs hidden md:table-cell">
                       {c.start} to {c.end}
                     </td>

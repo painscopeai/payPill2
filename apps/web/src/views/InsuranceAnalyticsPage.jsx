@@ -34,8 +34,8 @@ export default function InsuranceAnalyticsPage() {
   const mlrTrend = useMemo(() => {
     const trends = insurancePayload?.trends || [];
     return trends.slice(-6).map((row) => ({
-      month: String(row.month || '').slice(5, 7),
-      mlr: Math.min(99, Math.max(60, 85 - Number(insurancePayload?.kpis?.approval_rate || 0) / 6 + Number(row.count || 0) / 10)),
+      month: new Date(`${String(row.month || '2000-01')}-01`).toLocaleString('default', { month: 'short' }),
+      mlr: Math.min(99, Math.max(60, Number(insurancePayload?.kpis?.approval_rate || 0))),
       benchmark: 85,
     }));
   }, [insurancePayload]);
@@ -43,12 +43,15 @@ export default function InsuranceAnalyticsPage() {
   const financialAnalytics = useMemo(() => {
     const trends = financialPayload?.trends || [];
     return trends.slice(-6).map((row) => ({
-      month: String(row.month || '').slice(5, 7),
+      month: new Date(`${String(row.month || '2000-01')}-01`).toLocaleString('default', { month: 'short' }),
       revenue: Number(row.value || 0),
-      claims: Math.round(Number(row.value || 0) * 0.75),
-      admin: Math.round(Number(row.value || 0) * 0.08),
+      claims: Number(row.value || 0),
+      admin: Number((Number(row.value || 0) * 0.12).toFixed(2)),
     }));
   }, [financialPayload]);
+
+  const kpis = insurancePayload?.kpis || {};
+  const finKpis = financialPayload?.kpis || {};
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -73,8 +76,8 @@ export default function InsuranceAnalyticsPage() {
               <h3 className="font-semibold text-primary flex items-center gap-2 mb-2">
                 <BarChart3 className="h-4 w-4" /> MLR Performance
               </h3>
-              <p className="text-3xl font-bold text-primary mb-1">81.3%</p>
-              <p className="text-sm text-foreground">Current Medical Loss Ratio across all active contracts. Running below the 85% industry benchmark.</p>
+              <p className="text-3xl font-bold text-primary mb-1">{Number(kpis.approval_rate || 0).toFixed(1)}%</p>
+              <p className="text-sm text-foreground">Claims approval ratio across the selected period.</p>
             </CardContent>
           </Card>
           <Card className="bg-orange-500/5 border-orange-500/20">
@@ -82,8 +85,8 @@ export default function InsuranceAnalyticsPage() {
               <h3 className="font-semibold text-orange-600 flex items-center gap-2 mb-2">
                 <AlertTriangle className="h-4 w-4" /> High-Risk Churn
               </h3>
-              <p className="text-3xl font-bold text-orange-600 mb-1">2.4%</p>
-              <p className="text-sm text-foreground">Projected employer churn risk in Q3 based on utilization and satisfaction metrics.</p>
+              <p className="text-3xl font-bold text-orange-600 mb-1">{Number(kpis.avg_processing_time_days || 0).toFixed(1)}d</p>
+              <p className="text-sm text-foreground">Average claim processing time from real claims records.</p>
             </CardContent>
           </Card>
           <Card className="bg-emerald-500/5 border-emerald-500/20">
@@ -91,8 +94,8 @@ export default function InsuranceAnalyticsPage() {
               <h3 className="font-semibold text-emerald-600 flex items-center gap-2 mb-2">
                 <Lightbulb className="h-4 w-4" /> Preventive Impact
               </h3>
-              <p className="text-3xl font-bold text-emerald-600 mb-1">$2.1M</p>
-              <p className="text-sm text-foreground">Estimated cost avoidance from early interventions and medication adherence programs YTD.</p>
+              <p className="text-3xl font-bold text-emerald-600 mb-1">${Number(finKpis.total_revenue || 0).toLocaleString()}</p>
+              <p className="text-sm text-foreground">Total financial volume tracked for the selected period.</p>
             </CardContent>
           </Card>
         </div>

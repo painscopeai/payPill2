@@ -736,6 +736,20 @@ export async function payloadAi(query) {
 		reportsBySource[src] = (reportsBySource[src] || 0) + 1;
 	});
 
+	const isHealthActionPlanSource = (src) => {
+		const s = String(src || '').toLowerCase();
+		return (
+			s.includes('health_action_plan') ||
+			s.includes('health action plan') ||
+			s.includes('send_data_to_ai') ||
+			s.includes('send data to ai')
+		);
+	};
+	const healthActionReports = healthReportsInRange.filter((r) => isHealthActionPlanSource(r.source));
+	const healthActionDistinctPatients = new Set(
+		healthActionReports.map((r) => r.user_id).filter(Boolean),
+	).size;
+
 	const totalTokens = totalRequests * 500;
 
 	const combinedSeries = [
@@ -755,6 +769,8 @@ export async function payloadAi(query) {
 			avg_processing_time_ms: parseFloat(avgProcessingTime),
 			total_cost: parseFloat(totalCost),
 			total_tokens: totalTokens,
+			health_action_plan_requests: healthActionReports.length,
+			health_action_plan_unique_patients: healthActionDistinctPatients,
 		},
 		trends: generate12MonthTrend(combinedSeries),
 		breakdown: {

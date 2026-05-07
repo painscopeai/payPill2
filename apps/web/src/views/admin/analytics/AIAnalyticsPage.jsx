@@ -27,6 +27,8 @@ export default function AIAnalyticsPage() {
       </div>
 
       <div className="analytics-grid">
+        <KPICard title="Health Action Plan Sends" value={(kpis.health_action_plan_requests || 0).toLocaleString()} icon={Brain} />
+        <KPICard title="Unique HAP Patients" value={(kpis.health_action_plan_unique_patients || 0).toLocaleString()} icon={Users} />
         <KPICard title="Health Action Reports" value={(kpis.health_reports || 0).toLocaleString()} icon={FileText} />
         <KPICard title="Patients With Reports" value={(kpis.distinct_report_patients || 0).toLocaleString()} icon={Users} />
         <KPICard title="AI Requests (logs)" value={(kpis.ai_log_requests || 0).toLocaleString()} icon={Brain} />

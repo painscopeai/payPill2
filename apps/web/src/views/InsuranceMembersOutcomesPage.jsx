@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import Header from '@/components/Header.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -8,39 +8,59 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Download, Search, Filter, TrendingUp, Activity, ShieldCheck, Heart } from 'lucide-react';
+import apiServerClient from '@/lib/apiServerClient';
+import { toast } from 'sonner';
 
 export default function InsuranceMembersOutcomesPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [payload, setPayload] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data for outcomes
-  const chronicConditions = [
-    { name: 'Hypertension', count: 4200 },
-    { name: 'Type 2 Diabetes', count: 2800 },
-    { name: 'Asthma', count: 1950 },
-    { name: 'Depression', count: 1800 },
-    { name: 'Osteoarthritis', count: 1200 },
-  ];
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await apiServerClient.fetch('/insurance/members');
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'Failed to load members outcomes');
+        setPayload(body);
+      } catch (e) {
+        toast.error(e.message || 'Failed to load outcomes');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-  const adherenceData = [
-    { name: 'Adherent (>80%)', value: 65, color: 'hsl(160 84% 39%)' },
-    { name: 'Partial (50-80%)', value: 25, color: 'hsl(32 95% 54%)' },
-    { name: 'Non-Adherent (<50%)', value: 10, color: 'hsl(0 84% 60%)' },
-  ];
-
-  const healthScores = [
-    { range: '0-20', count: 150 },
-    { range: '21-40', count: 850 },
-    { range: '41-60', count: 2100 },
-    { range: '61-80', count: 5400 },
-    { range: '81-100', count: 3950 },
-  ];
-
-  const members = [
-    { id: 'MEM-8821', name: 'James Wilson', score: 82, chronic: 1, adherence: 'High', risk: 'Low', lastActive: '2 days ago' },
-    { id: 'MEM-3392', name: 'Maria Garcia', score: 65, chronic: 2, adherence: 'Medium', risk: 'Medium', lastActive: '1 week ago' },
-    { id: 'MEM-1104', name: 'Robert Chen', score: 45, chronic: 3, adherence: 'Low', risk: 'High', lastActive: 'Yesterday' },
-    { id: 'MEM-9923', name: 'Sarah Jenkins', score: 91, chronic: 0, adherence: 'N/A', risk: 'Low', lastActive: '1 month ago' },
-  ];
+  const chronicConditions = payload?.chronicConditions || [];
+  const adherenceData = useMemo(
+    () => (payload?.adherenceData || []).map((row, idx) => ({
+      ...row,
+      color: ['hsl(160 84% 39%)', 'hsl(32 95% 54%)', 'hsl(0 84% 60%)'][idx % 3],
+    })),
+    [payload],
+  );
+  const healthScores = payload?.healthScores || [];
+  const members = useMemo(() => payload?.members || [], [payload]);
+  const kpis = payload?.kpis || {
+    averageHealthScore: 0,
+    chronicConditionRate: 0,
+    adherenceRate: 0,
+    preventiveCompletion: 0,
+  };
+  const filteredMembers = useMemo(
+    () =>
+      members.filter(
+        (m) =>
+          String(m.name || '')
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          String(m.id || '')
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()),
+      ),
+    [members, searchTerm],
+  );
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -71,7 +91,7 @@ export default function InsuranceMembersOutcomesPage() {
           <Card className="shadow-sm border-border/50 border-l-4 border-l-primary">
             <CardContent className="p-6">
               <p className="text-sm font-medium text-muted-foreground">Avg Health Score</p>
-              <p className="text-3xl font-bold mt-2">74.2</p>
+              <p className="text-3xl font-bold mt-2">{loading ? '—' : kpis.averageHealthScore}</p>
               <div className="mt-2 flex items-center text-sm text-emerald-600 font-medium">
                 <TrendingUp className="h-4 w-4 mr-1" /> +1.5 pts YTD
               </div>
@@ -80,21 +100,21 @@ export default function InsuranceMembersOutcomesPage() {
           <Card className="shadow-sm border-border/50 border-l-4 border-l-secondary">
             <CardContent className="p-6">
               <p className="text-sm font-medium text-muted-foreground">Chronic Conditions</p>
-              <p className="text-3xl font-bold mt-2">38%</p>
+              <p className="text-3xl font-bold mt-2">{loading ? '—' : `${kpis.chronicConditionRate}%`}</p>
               <p className="text-sm text-muted-foreground mt-2">Of total population</p>
             </CardContent>
           </Card>
           <Card className="shadow-sm border-border/50 border-l-4 border-l-emerald-500">
             <CardContent className="p-6">
               <p className="text-sm font-medium text-muted-foreground">Medication Adherence</p>
-              <p className="text-3xl font-bold mt-2">65%</p>
+              <p className="text-3xl font-bold mt-2">{loading ? '—' : `${kpis.adherenceRate}%`}</p>
               <p className="text-sm text-muted-foreground mt-2">Taking as prescribed</p>
             </CardContent>
           </Card>
           <Card className="shadow-sm border-border/50 border-l-4 border-l-accent-foreground">
             <CardContent className="p-6">
               <p className="text-sm font-medium text-muted-foreground">Preventive Completion</p>
-              <p className="text-3xl font-bold mt-2">42%</p>
+              <p className="text-3xl font-bold mt-2">{loading ? '—' : `${kpis.preventiveCompletion}%`}</p>
               <div className="mt-2 flex items-center text-sm text-emerald-600 font-medium">
                 <TrendingUp className="h-4 w-4 mr-1" /> +5% YoY
               </div>
@@ -176,15 +196,15 @@ export default function InsuranceMembersOutcomesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {members.filter(m => m.name.toLowerCase().includes(searchTerm.toLowerCase()) || m.id.toLowerCase().includes(searchTerm.toLowerCase())).map((m) => (
+                {filteredMembers.map((m) => (
                   <tr key={m.id} className="hover:bg-muted/10 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-medium text-foreground">{m.name}</div>
+                      <div className="font-medium text-foreground">{m.name || m.email || '—'}</div>
                       <div className="text-muted-foreground text-xs">{m.id}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`font-semibold ${m.score >= 80 ? 'text-emerald-600' : m.score >= 60 ? 'text-orange-500' : 'text-destructive'}`}>
-                        {m.score}/100
+                      <span className={`font-semibold ${Number(m.score) >= 80 ? 'text-emerald-600' : Number(m.score) >= 60 ? 'text-orange-500' : 'text-destructive'}`}>
+                        {Number.isFinite(Number(m.score)) ? `${m.score}/100` : '—'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-foreground">{m.chronic}</td>
