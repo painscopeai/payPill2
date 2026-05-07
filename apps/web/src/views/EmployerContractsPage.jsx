@@ -23,7 +23,6 @@ export default function EmployerContractsPage() {
   const [query, setQuery] = useState('');
   const [selectedContractId, setSelectedContractId] = useState(null);
   const [savingMemberId, setSavingMemberId] = useState('');
-  const [insuranceByMember, setInsuranceByMember] = useState({});
 
   const selectedContract = useMemo(
     () => contracts.find((item) => item.id === selectedContractId) || null,
@@ -92,9 +91,14 @@ export default function EmployerContractsPage() {
     }
   };
 
-  const updateMemberInsurance = async (member) => {
-    const nextInsurance = insuranceByMember[member.id] ?? member.insurance_option_slug ?? '';
+  const updateMemberInsurance = async (member, nextInsurance) => {
     if (!nextInsurance || nextInsurance === member.insurance_option_slug) return;
+    const label =
+      insuranceOptions.find((opt) => opt.id === nextInsurance)?.label || 'the selected insurance';
+    const ok = window.confirm(
+      `Move ${member.name} to ${label}?\n\nThis will save immediately and route future billing to the new insurance.`,
+    );
+    if (!ok) return;
     setSavingMemberId(member.id);
     try {
       const res = await apiServerClient.fetch(`/employer/employees/${member.id}`, {
@@ -235,10 +239,9 @@ export default function EmployerContractsPage() {
                                 <td className="px-4 py-3 text-muted-foreground">{member.department || '—'}</td>
                                 <td className="px-4 py-3">
                                   <Select
-                                    value={insuranceByMember[member.id] ?? member.insurance_option_slug ?? undefined}
-                                    onValueChange={(value) =>
-                                      setInsuranceByMember((prev) => ({ ...prev, [member.id]: value }))
-                                    }
+                                    value={member.insurance_option_slug ?? undefined}
+                                    onValueChange={(value) => void updateMemberInsurance(member, value)}
+                                    disabled={savingMemberId === member.id}
                                   >
                                     <SelectTrigger className="w-[220px]">
                                       <SelectValue placeholder="Select insurance" />
@@ -258,34 +261,20 @@ export default function EmployerContractsPage() {
                                   </Badge>
                                 </td>
                                 <td className="px-4 py-3 text-right">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={
-                                        savingMemberId === member.id ||
-                                        !insuranceByMember[member.id] ||
-                                        insuranceByMember[member.id] === member.insurance_option_slug
-                                      }
-                                      onClick={() => updateMemberInsurance(member)}
-                                    >
-                                      Move insurance
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant={member.status === 'active' ? 'outline' : 'default'}
-                                      disabled={savingMemberId === member.id}
-                                      onClick={() => toggleMemberStatus(member)}
-                                    >
-                                      {savingMemberId === member.id ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : member.status === 'active' ? (
-                                        'Set inactive'
-                                      ) : (
-                                        'Set active'
-                                      )}
-                                    </Button>
-                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant={member.status === 'active' ? 'outline' : 'default'}
+                                    disabled={savingMemberId === member.id}
+                                    onClick={() => toggleMemberStatus(member)}
+                                  >
+                                    {savingMemberId === member.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : member.status === 'active' ? (
+                                      'Set inactive'
+                                    ) : (
+                                      'Set active'
+                                    )}
+                                  </Button>
                                 </td>
                               </tr>
                             ))

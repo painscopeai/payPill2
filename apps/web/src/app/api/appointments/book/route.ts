@@ -144,10 +144,6 @@ export async function POST(request: NextRequest) {
 		);
 	}
 
-	if (!insuranceOptionId) {
-		return NextResponse.json({ error: 'insuranceOptionId is required' }, { status: 400 });
-	}
-
 	const dt = validateAppointmentDateTime(appointmentDate, appointmentTime);
 	if (!dt.valid) {
 		return NextResponse.json({ error: dt.error }, { status: 400 });
@@ -155,6 +151,23 @@ export async function POST(request: NextRequest) {
 	const appointmentTimeStored = normalizeAppointmentTime(appointmentTime)!;
 
 	const sb = getSupabaseAdmin();
+
+	const { data: employeeCoverage } = await sb
+		.from('employer_employees')
+		.select('insurance_option_slug, status, updated_at')
+		.eq('user_id', uid)
+		.not('insurance_option_slug', 'is', null)
+		.order('updated_at', { ascending: false })
+		.limit(1)
+		.maybeSingle();
+
+	const effectiveInsuranceOptionId =
+		String((employeeCoverage as { insurance_option_slug?: string | null } | null)?.insurance_option_slug || '')
+			.trim() || String(insuranceOptionId || '').trim();
+
+	if (!effectiveInsuranceOptionId) {
+		return NextResponse.json({ error: 'insuranceOptionId is required' }, { status: 400 });
+	}
 
 	const { data: provider, error: pErr } = await sb
 		.from('providers')
@@ -198,7 +211,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Invalid or inactive visit type' }, { status: 400 });
 	}
 
-	const insuranceRow = await getInsuranceOption(insuranceOptionId);
+	const insuranceRow = await getInsuranceOption(effectiveInsuranceOptionId);
 	if (!insuranceRow?.active) {
 		return NextResponse.json({ error: 'Invalid or inactive insurance option' }, { status: 400 });
 	}
