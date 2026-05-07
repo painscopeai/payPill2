@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
 
 		const uid = created.user.id;
 
+		// Omit insurance_option_slug: some DBs lack this column until migrations run; Postgres stores NULL for the column when it exists.
 		const { data: insertedRow, error: insEE } = await sb
 			.from('employer_employees')
 			.insert({
@@ -132,7 +133,6 @@ export async function POST(request: NextRequest) {
 				department,
 				hire_date,
 				status: 'draft',
-				insurance_option_slug: null,
 			})
 			.select('id')
 			.maybeSingle();
