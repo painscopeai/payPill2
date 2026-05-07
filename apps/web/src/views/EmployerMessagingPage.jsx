@@ -161,7 +161,9 @@ export default function EmployerMessagingPage() {
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(body.error || 'Failed to open thread');
 			setOpenBroadcast(body);
-			setReplyTarget('__all__');
+			const singleRecipientId =
+				Array.isArray(body?.recipients) && body.recipients.length === 1 ? body.recipients[0]?.id : null;
+			setReplyTarget(singleRecipientId || '__all__');
 			setThreadReply('');
 			void loadBroadcasts();
 		} catch (e) {
@@ -179,14 +181,18 @@ export default function EmployerMessagingPage() {
 			return;
 		}
 		try {
+			const recipientCount = Number(openBroadcast?.recipients?.length || 0);
 			const isAll = replyTarget === '__all__';
+			const forceSingle = recipientCount === 1;
 			const res = await apiServerClient.fetch(
 				`/employer/broadcasts/${openBroadcast.broadcast.id}/replies`,
 				{
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(
-						isAll
+						forceSingle
+							? { scope: 'single', recipient_id: openBroadcast.recipients[0]?.id, body: text }
+							: isAll
 							? { scope: 'all', body: text }
 							: { scope: 'single', recipient_id: replyTarget, body: text },
 					),
@@ -268,7 +274,11 @@ export default function EmployerMessagingPage() {
 		if (!openBroadcast) return [];
 		const base = [];
 		const b = openBroadcast.broadcast;
-		if (b?.body) {
+		const firstReply = (openBroadcast.replies || [])[0];
+		const looksPatientInitiated =
+			(firstReply?.sender_role === 'patient' && String(firstReply?.body || '').trim() === String(b?.body || '').trim()) ||
+			(b?.audience === 'custom' && (openBroadcast?.recipients?.length || 0) === 1 && firstReply?.sender_role === 'patient');
+		if (b?.body && !looksPatientInitiated) {
 			base.push({
 				id: `seed-${b.id}`,
 				sender_role: 'employer',
@@ -346,12 +356,22 @@ export default function EmployerMessagingPage() {
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="__all__">All recipients (group reply)</SelectItem>
-									{(openBroadcast?.recipients || []).map((rec) => (
-										<SelectItem key={rec.id} value={rec.id}>
-											{rec.name || rec.email || rec.patient_user_id}
-										</SelectItem>
-									))}
+										{(openBroadcast?.recipients || []).length > 1 ? (
+											<>
+												<SelectItem value="__all__">All recipients (group reply)</SelectItem>
+												{(openBroadcast?.recipients || []).map((rec) => (
+													<SelectItem key={rec.id} value={rec.id}>
+														{rec.name || rec.email || rec.patient_user_id}
+													</SelectItem>
+												))}
+											</>
+										) : (
+											(openBroadcast?.recipients || []).map((rec) => (
+												<SelectItem key={rec.id} value={rec.id}>
+													Direct reply to {rec.name || rec.email || rec.patient_user_id}
+												</SelectItem>
+											))
+										)}
 								</SelectContent>
 							</Select>
 						</div>
