@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, Menu, Sparkles } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
+import apiServerClient from '@/lib/apiServerClient';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -12,6 +13,32 @@ export default function Header() {
   const { currentUser, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [employerUnreadReplies, setEmployerUnreadReplies] = useState(0);
+  useEffect(() => {
+    if (!isAuthenticated || currentUser?.role !== 'employer') return;
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await apiServerClient.fetch('/employer/broadcasts');
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !mounted) return;
+        const count = (body.items || []).reduce(
+          (sum, b) => sum + Number(b.unread_replies || 0),
+          0,
+        );
+        setEmployerUnreadReplies(count);
+      } catch {
+        /* no-op */
+      }
+    };
+    void load();
+    const t = window.setInterval(() => void load(), 30000);
+    return () => {
+      mounted = false;
+      window.clearInterval(t);
+    };
+  }, [isAuthenticated, currentUser?.role, location.pathname]);
+
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -40,7 +67,14 @@ export default function Header() {
       <Link to="/employer/employees" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/employees') ? 'text-primary' : 'text-muted-foreground'}`}>Employees</Link>
       <Link to="/employer/analytics" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/analytics') ? 'text-primary' : 'text-muted-foreground'}`}>Analytics</Link>
       <Link to="/employer/costs" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/costs') ? 'text-primary' : 'text-muted-foreground'}`}>Costs</Link>
-      <Link to="/employer/messaging" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/messaging') ? 'text-primary' : 'text-muted-foreground'}`}>Messaging</Link>
+      <Link to="/employer/messaging" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/messaging') ? 'text-primary' : 'text-muted-foreground'} inline-flex items-center gap-1.5`}>
+        Messaging
+        {employerUnreadReplies > 0 ? (
+          <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white">
+            {employerUnreadReplies > 99 ? '99+' : employerUnreadReplies}
+          </span>
+        ) : null}
+      </Link>
       <Link to="/employer/settings" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/settings') ? 'text-primary' : 'text-muted-foreground'}`}>Settings</Link>
       <Link to="/employer/contracts" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/contracts') ? 'text-primary' : 'text-muted-foreground'}`}>Contracts</Link>
       <Link to="/employer/bulk-onboarding" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/bulk-onboarding') ? 'text-primary' : 'text-muted-foreground'}`}>Bulk Onboarding</Link>

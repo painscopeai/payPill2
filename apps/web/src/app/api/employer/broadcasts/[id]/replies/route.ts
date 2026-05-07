@@ -10,12 +10,15 @@ type ReplyBody = {
 	body?: string;
 	recipient_id?: string;
 	patient_user_id?: string;
+	scope?: 'all' | 'single';
 };
 
 /**
  * POST /api/employer/broadcasts/:id/replies
  *
- * Employer replies to a specific recipient thread (recipient_id required).
+ * Employer replies either:
+ * - to one recipient thread (scope=single + recipient_id), or
+ * - as group follow-up to all recipients (scope=all).
  */
 export async function POST(
 	request: NextRequest,
@@ -34,24 +37,30 @@ export async function POST(
 
 	const text = String(body.body ?? '').trim();
 	const recipientId = String(body.recipient_id ?? '').trim();
+	const scope = String(body.scope ?? '').trim().toLowerCase();
 	if (!text) return NextResponse.json({ error: 'Reply body is required' }, { status: 400 });
-	if (!recipientId) return NextResponse.json({ error: 'recipient_id is required' }, { status: 400 });
+	const isAll = scope === 'all';
+	if (!isAll && !recipientId) {
+		return NextResponse.json({ error: 'recipient_id is required' }, { status: 400 });
+	}
 
 	const sb = getSupabaseAdmin();
 
-	const { data: rec, error: recErr } = await sb
+	const recipientsQuery = sb
 		.from('employer_broadcast_recipients')
 		.select('id, broadcast_id, employer_id, patient_user_id')
-		.eq('id', recipientId)
 		.eq('broadcast_id', id)
-		.eq('employer_id', ctx.employerId)
-		.maybeSingle();
+		.eq('employer_id', ctx.employerId);
+	const { data: recipientRows, error: recErr } = isAll
+		? await recipientsQuery
+		: await recipientsQuery.eq('id', recipientId);
 	if (recErr) return NextResponse.json({ error: recErr.message }, { status: 500 });
-	if (!rec) return NextResponse.json({ error: 'Recipient not found' }, { status: 404 });
+	const recipients = recipientRows || [];
+	if (recipients.length === 0) {
+		return NextResponse.json({ error: 'Recipient not found' }, { status: 404 });
+	}
 
-	const { data: reply, error: insErr } = await sb
-		.from('employer_broadcast_replies')
-		.insert({
+	const inserts = recipients.map((rec: { id: string; patient_user_id: string }) => ({
 			broadcast_id: id,
 			recipient_id: rec.id,
 			employer_id: ctx.employerId,
@@ -59,18 +68,24 @@ export async function POST(
 			sender_user_id: ctx.employerId,
 			sender_role: 'employer',
 			body: text,
-		})
+		}));
+	const { data: insertedReplies, error: insErr } = await sb
+		.from('employer_broadcast_replies')
+		.insert(inserts)
 		.select('*')
-		.maybeSingle();
+		.limit(5000);
 	if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
 
-	await sb.from('notifications').insert({
+	await sb.from('notifications').insert(recipients.map((rec: { patient_user_id: string }) => ({
 		user_id: rec.patient_user_id,
 		title: 'New reply from your employer',
 		body: text.slice(0, 240),
 		category: 'employer_reply',
 		link: '/patient/messages',
-	});
+	})));
 
-	return NextResponse.json({ reply }, { status: 201 });
+	return NextResponse.json(
+		{ replies: insertedReplies || [], recipientCount: recipients.length },
+		{ status: 201 },
+	);
 }

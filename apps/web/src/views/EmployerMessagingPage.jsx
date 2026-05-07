@@ -35,7 +35,8 @@ export default function EmployerMessagingPage() {
 	const [sending, setSending] = useState(false);
 	const [openBroadcast, setOpenBroadcast] = useState(null);
 	const [openLoading, setOpenLoading] = useState(false);
-	const [replyDrafts, setReplyDrafts] = useState({});
+	const [threadReply, setThreadReply] = useState('');
+	const [replyTarget, setReplyTarget] = useState('__all__');
 	const [departments, setDepartments] = useState([]);
 	const [employees, setEmployees] = useState([]);
 
@@ -160,6 +161,8 @@ export default function EmployerMessagingPage() {
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(body.error || 'Failed to open thread');
 			setOpenBroadcast(body);
+			setReplyTarget('__all__');
+			setThreadReply('');
 			void loadBroadcasts();
 		} catch (e) {
 			toast.error(e.message || 'Failed to open thread');
@@ -168,26 +171,31 @@ export default function EmployerMessagingPage() {
 		}
 	};
 
-	const sendReply = async (recipientId) => {
+	const sendReply = async () => {
 		if (!openBroadcast?.broadcast?.id) return;
-		const text = (replyDrafts[recipientId] || '').trim();
+		const text = threadReply.trim();
 		if (!text) {
 			toast.error('Reply cannot be empty');
 			return;
 		}
 		try {
+			const isAll = replyTarget === '__all__';
 			const res = await apiServerClient.fetch(
 				`/employer/broadcasts/${openBroadcast.broadcast.id}/replies`,
 				{
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ recipient_id: recipientId, body: text }),
+					body: JSON.stringify(
+						isAll
+							? { scope: 'all', body: text }
+							: { scope: 'single', recipient_id: replyTarget, body: text },
+					),
 				},
 			);
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(body.error || 'Reply failed');
-			toast.success('Reply sent');
-			setReplyDrafts((d) => ({ ...d, [recipientId]: '' }));
+			toast.success(isAll ? `Sent to ${body.recipientCount || 0} recipients` : 'Reply sent');
+			setThreadReply('');
 			void openThread(openBroadcast.broadcast.id);
 		} catch (e) {
 			toast.error(e.message || 'Reply failed');
@@ -250,18 +258,35 @@ export default function EmployerMessagingPage() {
 		);
 	};
 
-	const replyThreads = useMemo(() => {
+	const recipientById = useMemo(() => {
+		const m = new Map();
+		(openBroadcast?.recipients || []).forEach((r) => m.set(r.id, r));
+		return m;
+	}, [openBroadcast]);
+
+	const unifiedThreadMessages = useMemo(() => {
 		if (!openBroadcast) return [];
-		const repliesByRecipient = new Map();
+		const base = [];
+		const b = openBroadcast.broadcast;
+		if (b?.body) {
+			base.push({
+				id: `seed-${b.id}`,
+				sender_role: 'employer',
+				body: b.body,
+				created_at: b.created_at,
+				recipient_id: '__all__',
+				scope: 'all',
+			});
+		}
 		(openBroadcast.replies || []).forEach((r) => {
-			const arr = repliesByRecipient.get(r.recipient_id) || [];
-			arr.push(r);
-			repliesByRecipient.set(r.recipient_id, arr);
+			base.push({
+				...r,
+				scope: r.sender_role === 'employer' ? 'single' : 'single',
+			});
 		});
-		return (openBroadcast.recipients || []).map((rec) => ({
-			recipient: rec,
-			replies: repliesByRecipient.get(rec.id) || [],
-		}));
+		return base.sort(
+			(a, b2) => new Date(a.created_at || 0).getTime() - new Date(b2.created_at || 0).getTime(),
+		);
 	}, [openBroadcast]);
 
 	const renderThread = () => {
@@ -283,51 +308,65 @@ export default function EmployerMessagingPage() {
 				<Card>
 					<CardContent className="p-4 whitespace-pre-wrap text-sm">{broadcast.body}</CardContent>
 				</Card>
-				<h3 className="font-semibold mt-4">Conversations ({replyThreads.length} recipients)</h3>
-				<div className="space-y-3">
-					{replyThreads.map(({ recipient, replies }) => (
-						<Card key={recipient.id}>
-							<CardContent className="p-4 space-y-3">
-								<div className="flex justify-between items-baseline gap-2 flex-wrap">
-									<div className="font-medium text-sm">
-										{recipient.name || recipient.email || recipient.patient_user_id}
-									</div>
-									<div className="text-xs text-muted-foreground">
-										{recipient.read_at ? `Read ${format(new Date(recipient.read_at), 'MMM d, h:mm a')}` : 'Unread'}
-									</div>
+				<h3 className="font-semibold mt-4">Conversation ({openBroadcast?.recipients?.length || 0} recipients)</h3>
+				<div className="rounded-xl border bg-card p-4 space-y-3 max-h-[55vh] overflow-y-auto">
+					{unifiedThreadMessages.map((r) => {
+						const rec = recipientById.get(r.recipient_id);
+						const senderLabel =
+							r.sender_role === 'employer'
+								? 'You'
+								: rec?.name || rec?.email || rec?.patient_user_id || 'Employee';
+						return (
+							<div
+								key={r.id}
+								className={`max-w-[85%] rounded-xl border px-3 py-2 text-sm ${
+									r.sender_role === 'employer'
+										? 'ml-auto bg-primary/10 border-primary/20'
+										: 'mr-auto bg-muted/30 border-border'
+								}`}
+							>
+								<div className="text-xs text-muted-foreground mb-1">
+									{senderLabel}
+									{r.sender_role === 'employer' && r.recipient_id !== '__all__' && rec ? ` → ${rec.name || rec.email}` : ''}
+									{r.recipient_id === '__all__' ? ' → All recipients' : ''}
+									{' · '}
+									{r.created_at ? format(new Date(r.created_at), 'MMM d, h:mm a') : ''}
 								</div>
-								{replies.length > 0 && (
-									<div className="space-y-2">
-										{replies.map((r) => (
-											<div
-												key={r.id}
-												className={`text-sm p-3 rounded-md border ${r.sender_role === 'employer' ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-border'}`}
-											>
-												<div className="text-xs text-muted-foreground mb-1">
-													{r.sender_role === 'employer' ? 'You' : recipient.name || recipient.email} ·{' '}
-													{r.created_at ? format(new Date(r.created_at), 'MMM d, h:mm a') : ''}
-												</div>
-												<div className="whitespace-pre-wrap">{r.body}</div>
-											</div>
-										))}
-									</div>
-								)}
-								<div className="flex gap-2 items-end">
-									<Textarea
-										placeholder="Reply…"
-										className="min-h-[60px]"
-										value={replyDrafts[recipient.id] || ''}
-										onChange={(e) =>
-											setReplyDrafts((d) => ({ ...d, [recipient.id]: e.target.value }))
-										}
-									/>
-									<Button onClick={() => sendReply(recipient.id)} className="gap-2">
-										<Send className="h-4 w-4" /> Send
-									</Button>
-								</div>
-							</CardContent>
-						</Card>
-					))}
+								<div className="whitespace-pre-wrap">{r.body}</div>
+							</div>
+						);
+					})}
+				</div>
+				<div className="rounded-xl border bg-card p-4 space-y-3">
+					<div className="grid gap-2 md:grid-cols-[260px_1fr] md:items-end">
+						<div className="space-y-2">
+							<Label>Reply target</Label>
+							<Select value={replyTarget} onValueChange={setReplyTarget}>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="__all__">All recipients (group reply)</SelectItem>
+									{(openBroadcast?.recipients || []).map((rec) => (
+										<SelectItem key={rec.id} value={rec.id}>
+											{rec.name || rec.email || rec.patient_user_id}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex gap-2 items-end">
+							<Textarea
+								placeholder="Reply..."
+								className="min-h-[72px]"
+								value={threadReply}
+								onChange={(e) => setThreadReply(e.target.value)}
+							/>
+							<Button onClick={sendReply} className="gap-2">
+								<Send className="h-4 w-4" /> Send
+							</Button>
+						</div>
+					</div>
 				</div>
 			</div>
 		);
