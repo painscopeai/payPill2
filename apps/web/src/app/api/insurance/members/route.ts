@@ -10,6 +10,7 @@ export const maxDuration = 60;
 type RosterRow = {
 	id: string;
 	user_id: string | null;
+	employer_id: string;
 	email: string;
 	first_name: string | null;
 	last_name: string | null;
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
 
 	const { data: rosterRows, error: rosterErr } = await sb
 		.from('employer_employees')
-		.select('id,user_id,email,first_name,last_name,status,health_score,updated_at,created_at')
+		.select('id,user_id,employer_id,email,first_name,last_name,status,health_score,updated_at,created_at')
 		.eq('insurance_option_slug', ctx.insuranceId)
 		.order('created_at', { ascending: false })
 		.limit(5000);
@@ -50,17 +51,29 @@ export async function GET(request: NextRequest) {
 	const rows = (rosterRows ?? []) as RosterRow[];
 	const userIds = rows.map((r) => r.user_id).filter(Boolean) as string[];
 	const uniqueUserIds = [...new Set(userIds)];
+	const employerIds = [...new Set(rows.map((r) => r.employer_id).filter(Boolean))];
 
-	const [patientsRes, formsRes] = await Promise.all([
+	const [patientsRes, formsRes, employerRes] = await Promise.all([
 		uniqueUserIds.length
 			? sb.from('patients').select('user_id,conditions').in('user_id', uniqueUserIds)
 			: Promise.resolve({ data: [], error: null }),
 		uniqueUserIds.length
 			? sb.from('form_responses').select('user_id,completed').in('user_id', uniqueUserIds)
 			: Promise.resolve({ data: [], error: null }),
+		employerIds.length
+			? sb.from('profiles').select('id,company_name,name,email').in('id', employerIds)
+			: Promise.resolve({ data: [], error: null }),
 	]);
 	if (patientsRes.error) return NextResponse.json({ error: patientsRes.error.message }, { status: 500 });
 	if (formsRes.error) return NextResponse.json({ error: formsRes.error.message }, { status: 500 });
+	if (employerRes.error) return NextResponse.json({ error: employerRes.error.message }, { status: 500 });
+
+	const employerById = new Map<string, { id: string; company_name: string | null; name: string | null; email: string | null }>(
+		((employerRes.data || []) as { id: string; company_name: string | null; name: string | null; email: string | null }[]).map((e) => [
+			e.id,
+			e,
+		]),
+	);
 
 	const conditionsByUser = new Map<string, string[]>();
 	for (const p of patientsRes.data ?? []) {
@@ -86,10 +99,14 @@ export async function GET(request: NextRequest) {
 		const adherenceRate =
 			formStats && formStats.total > 0 ? formStats.completed / formStats.total : Number.NaN;
 		const conditions = uid ? conditionsByUser.get(uid) ?? [] : [];
+		const employer = employerById.get(r.employer_id);
 		return {
 			id: String(r.id),
 			name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.email,
 			email: r.email,
+			employerId: r.employer_id,
+			employer:
+				employer?.company_name || employer?.name || employer?.email || r.employer_id,
 			score: Number.isFinite(Number(r.health_score)) ? Number(r.health_score) : null,
 			chronic: conditions.length,
 			adherence: adherenceLabel(adherenceRate),
@@ -178,5 +195,6 @@ export async function GET(request: NextRequest) {
 		adherenceData,
 		healthScores,
 		members: memberRows,
+		employers: [...new Set(memberRows.map((m) => m.employer))].sort(),
 	});
 }

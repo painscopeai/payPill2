@@ -15,6 +15,7 @@ export default function InsuranceMembersOutcomesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedEmployer, setSelectedEmployer] = useState('all');
 
   useEffect(() => {
     (async () => {
@@ -42,25 +43,35 @@ export default function InsuranceMembersOutcomesPage() {
   );
   const healthScores = payload?.healthScores || [];
   const members = useMemo(() => payload?.members || [], [payload]);
+  const employers = payload?.employers || [];
   const kpis = payload?.kpis || {
     averageHealthScore: 0,
     chronicConditionRate: 0,
     adherenceRate: 0,
     preventiveCompletion: 0,
   };
-  const filteredMembers = useMemo(
-    () =>
-      members.filter(
-        (m) =>
-          String(m.name || '')
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          String(m.id || '')
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()),
-      ),
-    [members, searchTerm],
-  );
+  const filteredMembers = useMemo(() => {
+    return members.filter((m) => {
+      const matchesSearch =
+        String(m.name || '')
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        String(m.id || '')
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
+      const matchesEmployer = selectedEmployer === 'all' || m.employer === selectedEmployer;
+      return matchesSearch && matchesEmployer;
+    });
+  }, [members, searchTerm, selectedEmployer]);
+  const groupedMembers = useMemo(() => {
+    const grouped = new Map();
+    for (const member of filteredMembers) {
+      const key = member.employer || 'Unassigned Employer';
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(member);
+    }
+    return Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredMembers]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -74,12 +85,13 @@ export default function InsuranceMembersOutcomesPage() {
             <p className="text-muted-foreground">Track health metrics and preventive care across your members.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Select defaultValue="all">
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Contract" /></SelectTrigger>
+            <Select value={selectedEmployer} onValueChange={setSelectedEmployer}>
+              <SelectTrigger className="w-[220px]"><SelectValue placeholder="Employer" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Contracts</SelectItem>
-                <SelectItem value="c1">Acme Corp</SelectItem>
-                <SelectItem value="c2">TechFlow</SelectItem>
+                <SelectItem value="all">All Employers</SelectItem>
+                {employers.map((name) => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> Export Report</Button>
@@ -196,28 +208,37 @@ export default function InsuranceMembersOutcomesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredMembers.map((m) => (
-                  <tr key={m.id} className="hover:bg-muted/10 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-foreground">{m.name || m.email || '—'}</div>
-                      <div className="text-muted-foreground text-xs">{m.id}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`font-semibold ${Number(m.score) >= 80 ? 'text-emerald-600' : Number(m.score) >= 60 ? 'text-orange-500' : 'text-destructive'}`}>
-                        {Number.isFinite(Number(m.score)) ? `${m.score}/100` : '—'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-foreground">{m.chronic}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{m.adherence}</td>
-                    <td className="px-6 py-4">
-                      <Badge variant="outline" className={m.risk === 'High' ? 'text-destructive border-destructive/30 bg-destructive/10' : m.risk === 'Medium' ? 'text-orange-500 border-orange-500/30 bg-orange-500/10' : 'text-emerald-600 border-emerald-500/30 bg-emerald-500/10'}>
-                        {m.risk}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm">View Profile</Button>
-                    </td>
-                  </tr>
+                {groupedMembers.map(([employer, rows]) => (
+                  <React.Fragment key={employer}>
+                    <tr className="bg-muted/20">
+                      <td colSpan={6} className="px-6 py-3 text-sm font-semibold text-foreground">
+                        {employer}
+                      </td>
+                    </tr>
+                    {rows.map((m) => (
+                      <tr key={m.id} className="hover:bg-muted/10 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-foreground">{m.name || m.email || '—'}</div>
+                          <div className="text-muted-foreground text-xs">{m.id}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`font-semibold ${Number(m.score) >= 80 ? 'text-emerald-600' : Number(m.score) >= 60 ? 'text-orange-500' : 'text-destructive'}`}>
+                            {Number.isFinite(Number(m.score)) ? `${m.score}/100` : '—'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-foreground">{m.chronic}</td>
+                        <td className="px-6 py-4 text-muted-foreground">{m.adherence}</td>
+                        <td className="px-6 py-4">
+                          <Badge variant="outline" className={m.risk === 'High' ? 'text-destructive border-destructive/30 bg-destructive/10' : m.risk === 'Medium' ? 'text-orange-500 border-orange-500/30 bg-orange-500/10' : 'text-emerald-600 border-emerald-500/30 bg-emerald-500/10'}>
+                            {m.risk}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Button variant="ghost" size="sm">View Profile</Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
