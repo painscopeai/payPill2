@@ -18,6 +18,13 @@ function monthKey(ts: string | null | undefined): string {
 	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function isMissingProviderServiceIdColumn(err: { code?: string; message?: string } | null): boolean {
+	if (!err) return false;
+	const code = String(err.code || '');
+	const message = String(err.message || '').toLowerCase();
+	return (code === '42703' || code === 'PGRST204') && message.includes('provider_service_id');
+}
+
 export async function GET(request: NextRequest) {
 	const ctx = await requireInsurance(request);
 	if (ctx instanceof NextResponse) return ctx;
@@ -52,17 +59,7 @@ export async function GET(request: NextRequest) {
 	const userIds = Array.from(new Set(coverageRows.map((r) => r.user_id).filter(Boolean))) as string[];
 	const employerIds = Array.from(new Set(coverageRows.map((r) => r.employer_id).filter(Boolean))) as string[];
 
-	const [appointmentRes, contractRes, employerProfiles] = await Promise.all([
-		userIds.length
-			? sb
-					.from('appointments')
-					.select(
-						'id,user_id,provider_id,provider_name,provider_service_id,appointment_type,reason,status,created_at,appointment_date,appointment_time',
-					)
-					.in('user_id', userIds)
-					.gte('created_at', from)
-					.lte('created_at', to)
-			: Promise.resolve({ data: [], error: null }),
+	const [contractRes, employerProfiles] = await Promise.all([
 		sb
 			.from('employer_contracts')
 			.select(
@@ -75,8 +72,32 @@ export async function GET(request: NextRequest) {
 			? sb.from('profiles').select('id,company_name,name,email').in('id', employerIds)
 			: Promise.resolve({ data: [] }),
 	]);
-	if (appointmentRes.error) return NextResponse.json({ error: appointmentRes.error.message }, { status: 500 });
 	if (contractRes.error) return NextResponse.json({ error: contractRes.error.message }, { status: 500 });
+
+	const appointmentSelectWithService =
+		'id,user_id,provider_id,provider_name,provider_service_id,appointment_type,reason,status,created_at,appointment_date,appointment_time';
+	const appointmentSelectNoService =
+		'id,user_id,provider_id,provider_name,appointment_type,reason,status,created_at,appointment_date,appointment_time';
+	const appointmentRes = userIds.length
+		? await (async () => {
+				const attempt = await sb
+					.from('appointments')
+					.select(appointmentSelectWithService)
+					.in('user_id', userIds)
+					.gte('created_at', from)
+					.lte('created_at', to);
+				if (attempt.error && isMissingProviderServiceIdColumn(attempt.error)) {
+					return sb
+						.from('appointments')
+						.select(appointmentSelectNoService)
+						.in('user_id', userIds)
+						.gte('created_at', from)
+						.lte('created_at', to);
+				}
+				return attempt;
+		  })()
+		: { data: [], error: null };
+	if (appointmentRes.error) return NextResponse.json({ error: appointmentRes.error.message }, { status: 500 });
 
 	type AppointmentRow = {
 		id: string;
