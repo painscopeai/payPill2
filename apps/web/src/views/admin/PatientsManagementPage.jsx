@@ -28,6 +28,16 @@ function fullName(p) {
   return p.name || p.email || p.id;
 }
 
+function statusBadgeClasses(status) {
+  const v = String(status || 'active').toLowerCase();
+  if (v === 'active') return 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+  if (v === 'draft') return 'bg-amber-100 text-amber-800 border border-amber-200';
+  if (v === 'inactive') return 'bg-slate-100 text-slate-700 border border-slate-200';
+  if (v === 'suspended') return 'bg-rose-100 text-rose-800 border border-rose-200';
+  if (v === 'pending') return 'bg-blue-100 text-blue-800 border border-blue-200';
+  return 'bg-slate-100 text-slate-700 border border-slate-200';
+}
+
 export default function PatientsManagementPage() {
   const [patients, setPatients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -181,6 +191,7 @@ export default function PatientsManagementPage() {
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
                 <SelectItem value="suspended">Suspended</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
               </SelectContent>
             </Select>
@@ -222,7 +233,7 @@ export default function PatientsManagementPage() {
                         <div className="text-muted-foreground">{patient.phone}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <Badge variant={patient.status === 'active' ? 'default' : 'secondary'} className={patient.status === 'active' ? 'bg-success hover:bg-success/90' : ''}>
+                        <Badge className={statusBadgeClasses(patient.status)}>
                           {patient.status || 'active'}
                         </Badge>
                       </td>

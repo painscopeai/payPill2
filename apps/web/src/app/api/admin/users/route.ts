@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 		.range(from, to);
 
 	if (role) q = q.eq('role', role);
-	if (status && status !== 'all') q = q.eq('status', status);
+	if (status && status !== 'all' && !(role === 'individual' && status === 'draft')) q = q.eq('status', status);
 
 	if (search) {
 		const term = search.replace(/[%,]/g, '');
@@ -66,6 +66,47 @@ export async function GET(request: NextRequest) {
 	}
 
 	let items = (data ?? []) as Array<Record<string, unknown>>;
+
+	if (role === 'individual' && items.length > 0) {
+		const ids = items.map((it) => String(it.id));
+		const { data: employeeRows } = await sb
+			.from('employer_employees')
+			.select('user_id,status,updated_at,created_at')
+			.in('user_id', ids);
+
+		type EmployeeStatusRow = {
+			user_id: string | null;
+			status: string | null;
+			updated_at: string | null;
+			created_at: string | null;
+		};
+
+		const latestEmployeeStatusByUser = new Map<string, string>();
+		const latestAtByUser = new Map<string, number>();
+
+		for (const row of (employeeRows ?? []) as EmployeeStatusRow[]) {
+			if (!row.user_id || !row.status) continue;
+			const ts = new Date(row.updated_at ?? row.created_at ?? 0).getTime();
+			const prevTs = latestAtByUser.get(row.user_id) ?? -1;
+			if (ts >= prevTs) {
+				latestAtByUser.set(row.user_id, ts);
+				latestEmployeeStatusByUser.set(row.user_id, row.status);
+			}
+		}
+
+		items = items.map((it) => {
+			const employeeStatus = latestEmployeeStatusByUser.get(String(it.id));
+			if (!employeeStatus) return it;
+			return {
+				...it,
+				status: employeeStatus,
+			};
+		});
+
+		if (status === 'draft') {
+			items = items.filter((it) => String(it.status ?? '').toLowerCase() === 'draft');
+		}
+	}
 
 	if (role === 'employer' && items.length > 0) {
 		const ids = items.map((it) => String(it.id));
