@@ -28,7 +28,6 @@ export default function BookingPage() {
   const [confirmation, setConfirmation] = useState(null);
 
   const [visitTypes, setVisitTypes] = useState([]);
-  const [insuranceOptions, setInsuranceOptions] = useState([]);
   const [providers, setProviders] = useState([]);
 
   const [formData, setFormData] = useState({
@@ -38,7 +37,6 @@ export default function BookingPage() {
     appointmentDate: '',
     appointmentTime: '',
     reason: '',
-    insuranceOptionId: '',
   });
 
   useEffect(() => {
@@ -54,16 +52,13 @@ export default function BookingPage() {
         const data = await res.json();
         if (cancelled) return;
         setVisitTypes(data.visitTypes || []);
-        setInsuranceOptions(data.insuranceOptions || []);
         setProviders(data.providers || []);
 
         const firstVt = data.visitTypes?.[0];
-        const firstIns = data.insuranceOptions?.[0];
         const firstProv = data.providers?.[0];
         setFormData((prev) => ({
           ...prev,
           appointmentType: firstVt?.slug || '',
-          insuranceOptionId: firstIns?.id || '',
           providerId: firstProv?.id || '',
         }));
       } catch (e) {
@@ -76,11 +71,6 @@ export default function BookingPage() {
       cancelled = true;
     };
   }, []);
-
-  const selectedInsurance = useMemo(
-    () => insuranceOptions.find((x) => x.id === formData.insuranceOptionId),
-    [insuranceOptions, formData.insuranceOptionId],
-  );
 
   const selectedProvider = useMemo(
     () => providers.find((p) => p.id === formData.providerId),
@@ -106,10 +96,6 @@ export default function BookingPage() {
       toast.error('Select a visit type.');
       return;
     }
-    if (!formData.insuranceOptionId) {
-      toast.error('Select an insurance option.');
-      return;
-    }
     const timeNormalized = normalizeAppointmentTime(formData.appointmentTime);
     if (!timeNormalized) {
       toast.error('Enter a valid preferred time.');
@@ -117,7 +103,6 @@ export default function BookingPage() {
     }
     setLoading(true);
     try {
-      const insLabel = selectedInsurance?.label || '';
       const pname =
         selectedProvider?.provider_name ||
         selectedProvider?.name ||
@@ -136,8 +121,6 @@ export default function BookingPage() {
           appointmentTime: timeNormalized,
           location: location || undefined,
           reason: formData.reason,
-          insuranceInfo: insLabel,
-          insuranceOptionId: formData.insuranceOptionId,
           ...(formData.providerServiceId ? { providerServiceId: formData.providerServiceId } : {}),
         }),
       });
@@ -267,26 +250,6 @@ export default function BookingPage() {
                               {visitTypes.map((v) => (
                                 <SelectItem key={v.id} value={v.slug}>
                                   {v.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Insurance</Label>
-                          <Select
-                            value={formData.insuranceOptionId || undefined}
-                            onValueChange={(v) => setFormData({ ...formData, insuranceOptionId: v })}
-                            required
-                            disabled={insuranceOptions.length === 0}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select insurance" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {insuranceOptions.map((o) => (
-                                <SelectItem key={o.id} value={o.id}>
-                                  {o.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
