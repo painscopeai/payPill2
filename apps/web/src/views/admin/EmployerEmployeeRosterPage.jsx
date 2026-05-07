@@ -22,16 +22,8 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from '@/components/ui/dialog';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
-import { Copy, Loader2, UserCheck } from 'lucide-react';
+import { Loader2, UserCheck } from 'lucide-react';
 
 const STATUS_FILTER = [
 	{ value: 'all', label: 'All statuses' },
@@ -51,28 +43,6 @@ export default function EmployerEmployeeRosterPage() {
 	const [approving, setApproving] = useState(false);
 	const [selected, setSelected] = useState(() => new Set());
 	const [assignInsurance, setAssignInsurance] = useState('');
-	const [credentialsDialogOpen, setCredentialsDialogOpen] = useState(false);
-	const [approvalCredentials, setApprovalCredentials] = useState([]);
-
-	const sharingText = useMemo(() => {
-		if (!approvalCredentials.length) return '';
-		return approvalCredentials
-			.map(
-				(row) =>
-					`Email: ${row.email}\nTemporary password: ${row.temporaryPassword}`,
-			)
-			.join('\n\n');
-	}, [approvalCredentials]);
-
-	const copyText = async (text, successMessage) => {
-		try {
-			await navigator.clipboard.writeText(text);
-			toast.success(successMessage || 'Copied');
-		} catch (err) {
-			console.error(err);
-			toast.error('Could not copy (clipboard permission denied).');
-		}
-	};
 
 	const draftRows = useMemo(() => items.filter((r) => r.status === 'draft'), [items]);
 	const insuranceLabelBySlug = useMemo(
@@ -179,15 +149,9 @@ export default function EmployerEmployeeRosterPage() {
 			});
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(data.error || 'Approve failed');
-			const { approvedCount = 0, failures = [], credentials = [] } = data;
-			if (approvedCount && Array.isArray(credentials) && credentials.length) {
-				setApprovalCredentials(credentials);
-				setCredentialsDialogOpen(true);
-				toast.success(
-					`Approved ${approvedCount} employee(s). Copy their temporary passwords from the dialog to share.`,
-				);
-			} else if (approvedCount) {
-				toast.success(`Approved ${approvedCount} employee(s). They can sign in and set a new password.`);
+			const { approvedCount = 0, failures = [] } = data;
+			if (approvedCount) {
+				toast.success(`Approved ${approvedCount} employee(s). They can sign in with the password from the import file, then set a new password.`);
 			}
 			if (failures.length) {
 				const first = failures[0]?.message || 'Some rows failed';
@@ -205,68 +169,7 @@ export default function EmployerEmployeeRosterPage() {
 	};
 
 	return (
-		<>
-			<Dialog
-				open={credentialsDialogOpen}
-				onOpenChange={(open) => {
-					setCredentialsDialogOpen(open);
-					if (!open) setApprovalCredentials([]);
-				}}
-			>
-				<DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
-					<DialogHeader>
-						<DialogTitle>Temporary passwords</DialogTitle>
-						<DialogDescription>
-							Passwords are shown only once. Share them securely; employees sign in then change their password.
-						</DialogDescription>
-					</DialogHeader>
-					<ul className="space-y-3 text-sm border rounded-md divide-y bg-muted/20">
-						{approvalCredentials.map((row) => (
-							<li key={row.email} className="p-3 space-y-1">
-								<div className="font-medium break-all">{row.email}</div>
-								<div className="flex items-center gap-2 flex-wrap">
-									<code className="text-xs bg-muted px-2 py-1 rounded break-all flex-1 min-w-0">
-										{row.temporaryPassword}
-									</code>
-									<Button
-										type="button"
-										size="sm"
-										variant="outline"
-										className="shrink-0 gap-1"
-										onClick={() =>
-											void copyText(row.temporaryPassword, 'Password copied')
-										}
-									>
-										<Copy className="w-4 h-4" />
-										Copy password
-									</Button>
-								</div>
-							</li>
-						))}
-					</ul>
-					<DialogFooter>
-						<Button
-							type="button"
-							variant="default"
-							className="gap-2"
-							onClick={() =>
-								void copyText(
-									sharingText,
-									`${approvalCredentials.length} credential block(s) copied`,
-								)
-							}
-						>
-							<Copy className="w-4 h-4" />
-							Copy all for sharing
-						</Button>
-						<Button type="button" variant="outline" onClick={() => setCredentialsDialogOpen(false)}>
-							Done
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			<div className="space-y-6 max-w-6xl mx-auto">
+		<div className="space-y-6 max-w-6xl mx-auto">
 				<div>
 				<h1 className="text-3xl font-bold font-display">Employer employee roster</h1>
 				<p className="text-muted-foreground">
@@ -418,7 +321,6 @@ export default function EmployerEmployeeRosterPage() {
 					</Table>
 				</div>
 				)}
-			</div>
-		</>
+		</div>
 	);
 }

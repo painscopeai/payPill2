@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
 	}
 
 	const failures: RowFailure[] = [];
+	const sheetCredentials: { rowNumber: number; email: string; spreadsheetPassword: string }[] = [];
 	let successCount = 0;
 	let rowNumber = 1;
 
@@ -157,10 +158,11 @@ export async function POST(request: NextRequest) {
 			continue;
 		}
 
+		sheetCredentials.push({ rowNumber, email, spreadsheetPassword: password });
 		successCount++;
 	}
 
-	const result: BulkImportResult = { successCount, failures };
+	const result: BulkImportResult = { successCount, failures, sheetCredentials };
 
 	await auditLog({
 		adminId: ctx.adminId,

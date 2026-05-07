@@ -1,7 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { UploadCloud, Download, Loader2 } from 'lucide-react';
+import { UploadCloud, Download, Loader2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import apiServerClient from '@/lib/apiServerClient';
 import { supabase } from '@/lib/supabaseClient';
@@ -36,6 +36,27 @@ export default function BulkImportPanel({
 	const [busy, setBusy] = useState(false);
 	const [result, setResult] = useState(null);
 	const [dragOver, setDragOver] = useState(false);
+
+	const sheetSharingText = useMemo(() => {
+		const rows = result?.sheetCredentials;
+		if (!Array.isArray(rows) || rows.length === 0) return '';
+		return rows
+			.map(
+				(r) =>
+					`Row ${r.rowNumber}\nEmail: ${r.email}\nPassword (from file): ${r.spreadsheetPassword}`,
+			)
+			.join('\n\n');
+	}, [result]);
+
+	const copyToClipboard = async (text, successMessage) => {
+		try {
+			await navigator.clipboard.writeText(text);
+			toast.success(successMessage || 'Copied');
+		} catch (e) {
+			console.error(e);
+			toast.error('Could not copy (clipboard blocked or denied).');
+		}
+	};
 
 	const authHeaders = async () => {
 		const {
@@ -94,7 +115,12 @@ export default function BulkImportPanel({
 				throw new Error(data.error || res.statusText);
 			}
 			setResult(data);
-			toast.success(`Imported ${data.successCount ?? 0} row(s)`);
+			const n = data.successCount ?? 0;
+			toast.success(
+				n && Array.isArray(data.sheetCredentials) && data.sheetCredentials.length
+					? `Imported ${n} row(s). Copy initial passwords below — they are not stored here.`
+					: `Imported ${n} row(s)`,
+			);
 		} catch (err) {
 			console.error(err);
 			toast.error(err.message || 'Import failed');
@@ -180,6 +206,75 @@ export default function BulkImportPanel({
 					<p className="text-sm font-medium">
 						Success: {result.successCount ?? 0} · Failed: {(result.failures || []).length}
 					</p>
+					{Array.isArray(result.sheetCredentials) && result.sheetCredentials.length > 0 && (
+						<div className="rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-3">
+							<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+								<div>
+									<p className="text-sm font-medium text-foreground">Initial passwords from your file</p>
+									<p className="text-xs text-muted-foreground mt-1">
+										Same values used to create accounts. Copy now — they are not kept on this screen after refresh.
+									</p>
+								</div>
+								<Button
+									type="button"
+									size="sm"
+									variant="default"
+									className="gap-2 shrink-0"
+									onClick={() =>
+										void copyToClipboard(
+											sheetSharingText,
+											`${result.sheetCredentials.length} row(s) copied`,
+										)
+									}
+								>
+									<Copy className="w-4 h-4" />
+									Copy all
+								</Button>
+							</div>
+							<div className="rounded-md border bg-background overflow-x-auto">
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead className="w-20">Row</TableHead>
+											<TableHead>Email</TableHead>
+											<TableHead>Password (from file)</TableHead>
+											<TableHead className="w-[140px]" />
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{result.sheetCredentials.map((r) => (
+											<TableRow key={`${r.rowNumber}-${r.email}`}>
+												<TableCell>{r.rowNumber}</TableCell>
+												<TableCell className="font-mono text-xs max-w-[200px] break-all">
+													{r.email}
+												</TableCell>
+												<TableCell className="font-mono text-xs max-w-[200px] break-all">
+													{r.spreadsheetPassword}
+												</TableCell>
+												<TableCell>
+													<Button
+														type="button"
+														size="sm"
+														variant="outline"
+														className="gap-1 h-8"
+														onClick={() =>
+															void copyToClipboard(
+																`${r.email}\t${r.spreadsheetPassword}`,
+																'Copied email and password',
+															)
+														}
+													>
+														<Copy className="w-3 h-3" />
+														Copy
+													</Button>
+												</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							</div>
+						</div>
+					)}
 					{(result.failures || []).length > 0 && (
 						<div className="rounded-md border">
 							<Table>
