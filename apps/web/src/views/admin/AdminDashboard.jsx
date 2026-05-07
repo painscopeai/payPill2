@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { adminCountExact, adminListRecent } from '@/lib/adminSupabaseList.js';
+import apiServerClient from '@/lib/apiServerClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,7 +15,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { format } from 'date-fns';
-import { withTimeout } from '@/lib/withTimeout';
+import { toast } from 'sonner';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(var(--success))', 'hsl(var(--warning))'];
 
@@ -26,42 +27,137 @@ export default function AdminDashboard() {
     transactions: 0, subscriptions: 0, mrr: 0, arr: 0
   });
   const [activities, setActivities] = useState([]);
+  const [trends, setTrends] = useState({
+    patients: 0,
+    employers: 0,
+    insurance: 0,
+    providers: 0,
+    transactions: 0,
+    subscriptions: 0,
+    mrr: 0,
+    arr: 0,
+  });
+  const [revenueData, setRevenueData] = useState([]);
+  const [userGrowthData, setUserGrowthData] = useState([]);
+  const [subscriptionData, setSubscriptionData] = useState([]);
+
+  const asPct = (value) => Number.isFinite(Number(value)) ? Number(value.toFixed(1)) : 0;
+  const pctChange = (current, previous) => {
+    const c = Number(current || 0);
+    const p = Number(previous || 0);
+    if (p <= 0) return c > 0 ? 100 : 0;
+    return ((c - p) / p) * 100;
+  };
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
+      const days = Number(dateRange || 30);
+      const now = new Date();
+      const start = new Date(now);
+      start.setDate(now.getDate() - days);
+      const prevEnd = new Date(start);
+      const prevStart = new Date(start);
+      prevStart.setDate(prevStart.getDate() - days);
+      const currentQs = `startDate=${start.toISOString()}&endDate=${now.toISOString()}`;
+      const prevQs = `startDate=${prevStart.toISOString()}&endDate=${prevEnd.toISOString()}`;
+
+      const fetchJson = async (path) => {
+        const res = await apiServerClient.fetch(path);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || `Failed ${path}`);
+        return body;
+      };
+
       const [
-        patientsC, employersC, insuranceC, providersC,
-        transactionsC, subscriptionsC,
-        activitiesRows
-      ] = await withTimeout(
-        Promise.all([
-          adminCountExact('patients'),
-          adminCountExact('employers'),
-          adminCountExact('insurance_companies'),
-          adminCountExact('providers'),
-          adminCountExact('transactions'),
-          adminCountExact('subscriptions', { column: 'status', value: 'active' }),
-          adminListRecent('audit_logs', 10),
-        ]),
-        25_000,
-        'Dashboard stats',
-      );
+        patientsCount,
+        employersCount,
+        patientsNow,
+        employersNow,
+        insuranceNow,
+        providersNow,
+        financialNow,
+        subscriptionsNow,
+        patientsPrev,
+        employersPrev,
+        insurancePrev,
+        providersPrev,
+        financialPrev,
+        subscriptionsPrev,
+        activitiesRows,
+      ] = await Promise.all([
+        adminCountExact('patients'),
+        adminCountExact('employers'),
+        fetchJson(`/analytics/patients?${currentQs}`),
+        fetchJson(`/analytics/employers?${currentQs}`),
+        fetchJson(`/analytics/insurance?${currentQs}`),
+        fetchJson(`/analytics/providers?${currentQs}`),
+        fetchJson(`/analytics/financial?${currentQs}`),
+        fetchJson(`/analytics/subscriptions?${currentQs}`),
+        fetchJson(`/analytics/patients?${prevQs}`),
+        fetchJson(`/analytics/employers?${prevQs}`),
+        fetchJson(`/analytics/insurance?${prevQs}`),
+        fetchJson(`/analytics/providers?${prevQs}`),
+        fetchJson(`/analytics/financial?${prevQs}`),
+        fetchJson(`/analytics/subscriptions?${prevQs}`),
+        adminListRecent('audit_logs', 10),
+      ]);
 
       setStats({
-        patients: patientsC,
-        employers: employersC,
-        insurance: insuranceC,
-        providers: providersC,
-        transactions: transactionsC,
-        subscriptions: subscriptionsC,
-        mrr: subscriptionsC * 49.99,
-        arr: subscriptionsC * 49.99 * 12
+        patients: Number(patientsCount || 0),
+        employers: Number(employersCount || 0),
+        insurance: Number(insuranceNow?.kpis?.total_partners || 0),
+        providers: Number(providersNow?.kpis?.total_providers || 0),
+        transactions: Number(financialNow?.kpis?.transaction_count || 0),
+        subscriptions: Number(subscriptionsNow?.kpis?.active_subscriptions || 0),
+        mrr: Number(financialNow?.kpis?.mrr || 0),
+        arr: Number(subscriptionsNow?.kpis?.arr || 0),
       });
-
+      setTrends({
+        patients: asPct(pctChange(patientsNow?.kpis?.total_patients, patientsPrev?.kpis?.total_patients)),
+        employers: asPct(pctChange(employersNow?.kpis?.total_employers, employersPrev?.kpis?.total_employers)),
+        insurance: asPct(pctChange(insuranceNow?.kpis?.total_partners, insurancePrev?.kpis?.total_partners)),
+        providers: asPct(pctChange(providersNow?.kpis?.total_providers, providersPrev?.kpis?.total_providers)),
+        transactions: asPct(pctChange(financialNow?.kpis?.transaction_count, financialPrev?.kpis?.transaction_count)),
+        subscriptions: asPct(pctChange(subscriptionsNow?.kpis?.active_subscriptions, subscriptionsPrev?.kpis?.active_subscriptions)),
+        mrr: asPct(pctChange(financialNow?.kpis?.mrr, financialPrev?.kpis?.mrr)),
+        arr: asPct(pctChange(subscriptionsNow?.kpis?.arr, subscriptionsPrev?.kpis?.arr)),
+      });
+      setRevenueData(
+        (financialNow?.trends || []).slice(-6).map((row) => ({
+          name: new Date(`${String(row.month || '2000-01')}-01`).toLocaleDateString(undefined, { month: 'short' }),
+          revenue: Number(row.value || 0),
+        })),
+      );
+      const toMap = (rows) =>
+        Object.fromEntries(
+          (rows || []).map((r) => [String(r.month || '').slice(0, 7), Number(r.count || 0)]),
+        );
+      const pMap = toMap(patientsNow?.trends);
+      const eMap = toMap(employersNow?.trends);
+      const iMap = toMap(insuranceNow?.trends);
+      const months = Array.from(new Set([...Object.keys(pMap), ...Object.keys(eMap), ...Object.keys(iMap)])).sort().slice(-6);
+      setUserGrowthData(
+        months.map((m) => ({
+          name: new Date(`${m}-01`).toLocaleDateString(undefined, { month: 'short' }),
+          patients: pMap[m] || 0,
+          employers: eMap[m] || 0,
+          insurance: iMap[m] || 0,
+        })),
+      );
+      const statusBreakdown = subscriptionsNow?.breakdown?.by_status || {};
+      setSubscriptionData([
+        { name: 'Active', value: Number(statusBreakdown.active || 0) },
+        { name: 'Paused', value: Number(statusBreakdown.paused || 0) },
+        {
+          name: 'Expired',
+          value: Number(statusBreakdown.expired || 0) + Number(statusBreakdown.cancelled || 0),
+        },
+      ]);
       setActivities(activitiesRows);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
+      toast.error(error?.message || 'Failed to fetch dashboard data');
     } finally {
       setIsLoading(false);
     }
@@ -70,25 +166,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchDashboardData();
   }, [dateRange]);
-
-  const revenueData = [
-    { name: 'Jan', revenue: 4000 }, { name: 'Feb', revenue: 3000 },
-    { name: 'Mar', revenue: 5000 }, { name: 'Apr', revenue: 4500 },
-    { name: 'May', revenue: 6000 }, { name: 'Jun', revenue: 5500 },
-  ];
-
-  const userGrowthData = [
-    { name: 'Week 1', patients: 120, employers: 10, insurance: 2 },
-    { name: 'Week 2', patients: 150, employers: 12, insurance: 2 },
-    { name: 'Week 3', patients: 200, employers: 15, insurance: 3 },
-    { name: 'Week 4', patients: 280, employers: 18, insurance: 4 },
-  ];
-
-  const subscriptionData = [
-    { name: 'Active', value: stats.subscriptions || 0 },
-    { name: 'Paused', value: 50 },
-    { name: 'Expired', value: 100 },
-  ];
 
   const KpiCard = ({ title, value, icon: Icon, trend, isCurrency }) => (
     <Card className="admin-card-shadow border-none">
@@ -138,14 +215,14 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KpiCard title="Total Patients" value={stats.patients} icon={Users} trend={12.5} />
-        <KpiCard title="Employers" value={stats.employers} icon={Building2} trend={5.2} />
-        <KpiCard title="Insurance Users" value={stats.insurance} icon={ShieldCheck} trend={-2.4} />
-        <KpiCard title="Providers" value={stats.providers} icon={Activity} trend={8.1} />
-        <KpiCard title="Transactions" value={stats.transactions} icon={CreditCard} trend={15.3} />
-        <KpiCard title="Active Subscriptions" value={stats.subscriptions} icon={CheckCircle2} trend={4.7} />
-        <KpiCard title="Monthly Recurring (MRR)" value={stats.mrr} icon={DollarSign} trend={10.2} isCurrency />
-        <KpiCard title="Annual Run Rate (ARR)" value={stats.arr} icon={TrendingUp} trend={10.2} isCurrency />
+        <KpiCard title="Total Patients" value={stats.patients} icon={Users} trend={trends.patients} />
+        <KpiCard title="Employers" value={stats.employers} icon={Building2} trend={trends.employers} />
+        <KpiCard title="Insurance Users" value={stats.insurance} icon={ShieldCheck} trend={trends.insurance} />
+        <KpiCard title="Providers" value={stats.providers} icon={Activity} trend={trends.providers} />
+        <KpiCard title="Transactions" value={stats.transactions} icon={CreditCard} trend={trends.transactions} />
+        <KpiCard title="Active Subscriptions" value={stats.subscriptions} icon={CheckCircle2} trend={trends.subscriptions} />
+        <KpiCard title="Monthly Recurring (MRR)" value={stats.mrr} icon={DollarSign} trend={trends.mrr} isCurrency />
+        <KpiCard title="Annual Run Rate (ARR)" value={stats.arr} icon={TrendingUp} trend={trends.arr} isCurrency />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
