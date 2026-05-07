@@ -22,11 +22,19 @@ export function PayPillLogo({
 		);
 	}
 	return (
-		<img
-			src="/paypill-logo.png"
-			alt={alt}
-			className={cn('h-8 w-auto max-h-10 object-contain object-left', className)}
-			decoding="async"
-		/>
+		<>
+			<img
+				src="/paypill-logo.png"
+				alt={alt}
+				className={cn('h-8 w-auto max-h-10 object-contain object-left dark:hidden', className)}
+				decoding="async"
+			/>
+			<img
+				src="/paypill-logo-dark.png"
+				alt={alt}
+				className={cn('hidden h-8 w-auto max-h-10 object-contain object-left dark:block', className)}
+				decoding="async"
+			/>
+		</>
 	);
 }
