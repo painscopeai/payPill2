@@ -4,6 +4,7 @@ import { requireManageUsersAdmin } from '@/server/auth/requireManageUsersAdmin';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { assertEmployerImportTarget } from '@/server/admin/employerAccountsAdmin';
 import { auditLog } from '@/server/express-api/middleware/rbac.js';
+import { isPendingPasswordTableUnavailableError } from '@/server/admin/pendingPasswordTable';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,16 +78,22 @@ export async function PATCH(request: NextRequest) {
 		return NextResponse.json({ error: `Unknown insurance_option_slug: ${insurancePatch}` }, { status: 400 });
 	}
 
-	const { data: pendingPwRows } = await sb
+	const { data: pendingPwRows, error: pendingFetchErr } = await sb
 		.from('employer_employee_pending_passwords')
 		.select('employer_employee_id, plaintext_password')
 		.in('employer_employee_id', ids);
 
+	if (pendingFetchErr && !isPendingPasswordTableUnavailableError(pendingFetchErr)) {
+		return NextResponse.json({ error: pendingFetchErr.message }, { status: 500 });
+	}
+
 	const pendingByEmployeeId = new Map<string, string>(
-		(pendingPwRows ?? []).map((r: { employer_employee_id: string; plaintext_password: string }) => [
-			r.employer_employee_id,
-			r.plaintext_password,
-		]),
+		pendingFetchErr && isPendingPasswordTableUnavailableError(pendingFetchErr)
+			? []
+			: (pendingPwRows ?? []).map((r: { employer_employee_id: string; plaintext_password: string }) => [
+					r.employer_employee_id,
+					r.plaintext_password,
+				]),
 	);
 
 	const { data: rows, error: fetchErr } = await sb

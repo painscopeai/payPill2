@@ -6,6 +6,7 @@ import { auditLog } from '@/server/express-api/middleware/rbac.js';
 import { parseSpreadsheetBuffer, validateHeadersForKind, type BulkImportResult } from '@/server/bulk/parseSpreadsheet';
 import type { RowFailure } from '@/server/bulk/parseSpreadsheet';
 import { assertEmployerImportTarget } from '@/server/admin/employerAccountsAdmin';
+import { isPendingPasswordTableUnavailableError } from '@/server/admin/pendingPasswordTable';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
 	const failures: RowFailure[] = [];
 	let successCount = 0;
 	let rowNumber = 1;
+	let loggedMissingPendingPasswordTable = false;
 
 	/** Ban until admin approval (cleared with `ban_duration: 'none'` on approve). */
 	const DRAFT_BAN_DURATION = '876000h';
@@ -162,6 +164,16 @@ export async function POST(request: NextRequest) {
 		});
 
 		if (pendErr) {
+			if (isPendingPasswordTableUnavailableError(pendErr)) {
+				if (!loggedMissingPendingPasswordTable) {
+					loggedMissingPendingPasswordTable = true;
+					console.warn(
+						'[admin/bulk/employees] employer_employee_pending_passwords is missing (run Supabase migrations). Import continues; roster approve will not offer password copy until migrated.',
+					);
+				}
+				successCount++;
+				continue;
+			}
 			failures.push({
 				rowNumber,
 				message: pendErr.message || 'Failed to save credentials for roster approval',
