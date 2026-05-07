@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { adminCountExact, adminListRecent } from '@/lib/adminSupabaseList.js';
+import { adminListRecent } from '@/lib/adminSupabaseList.js';
 import apiServerClient from '@/lib/apiServerClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,8 +70,7 @@ export default function AdminDashboard() {
       };
 
       const [
-        patientsCount,
-        employersCount,
+        summary,
         patientsNow,
         employersNow,
         insuranceNow,
@@ -86,8 +85,7 @@ export default function AdminDashboard() {
         subscriptionsPrev,
         activitiesRows,
       ] = await Promise.all([
-        adminCountExact('patients'),
-        adminCountExact('employers'),
+        fetchJson('/admin/dashboard/summary'),
         fetchJson(`/analytics/patients?${currentQs}`),
         fetchJson(`/analytics/employers?${currentQs}`),
         fetchJson(`/analytics/insurance?${currentQs}`),
@@ -104,12 +102,12 @@ export default function AdminDashboard() {
       ]);
 
       setStats({
-        patients: Number(patientsCount || 0),
-        employers: Number(employersCount || 0),
-        insurance: Number(insuranceNow?.kpis?.total_partners || 0),
-        providers: Number(providersNow?.kpis?.total_providers || 0),
-        transactions: Number(financialNow?.kpis?.transaction_count || 0),
-        subscriptions: Number(subscriptionsNow?.kpis?.active_subscriptions || 0),
+        patients: Number(summary?.patients || 0),
+        employers: Number(summary?.employers || 0),
+        insurance: Number(summary?.insurance || 0),
+        providers: Number(summary?.providers || 0),
+        transactions: Number(summary?.transactions || 0),
+        subscriptions: Number(summary?.subscriptions || 0),
         mrr: Number(financialNow?.kpis?.mrr || 0),
         arr: Number(subscriptionsNow?.kpis?.arr || 0),
       });
