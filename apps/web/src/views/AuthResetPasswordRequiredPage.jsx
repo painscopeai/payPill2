@@ -43,6 +43,8 @@ export default function AuthResetPasswordRequiredPage() {
 				navigate('/patient/dashboard', { replace: true });
 			} else if (role === 'employer') {
 				navigate('/employer/dashboard', { replace: true });
+			} else if (role === 'insurance') {
+				navigate('/insurance/dashboard', { replace: true });
 			} else if (role === 'provider') {
 				navigate('/provider/dashboard', { replace: true });
 			} else if (role === 'admin') {
