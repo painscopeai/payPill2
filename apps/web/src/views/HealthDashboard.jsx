@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import { useAuth } from '@/contexts/AuthContext';
 import pb from '@/lib/supabaseMappedCollections';
@@ -18,6 +18,7 @@ const HealthDashboard = () => {
   const [healthProfile, setHealthProfile] = useState(null);
   const [conditions, setConditions] = useState([]);
   const [medications, setMedications] = useState([]);
+  const [overview, setOverview] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -53,6 +54,12 @@ const HealthDashboard = () => {
         $autoCancel: false
       });
       setMedications(medicationsRecords);
+
+      const overviewRes = await apiServerClient.fetch('/patient-health-overview');
+      if (overviewRes.ok) {
+        const overviewBody = await overviewRes.json().catch(() => ({}));
+        setOverview(overviewBody);
+      }
     } catch (error) {
       toast.error('Failed to load dashboard data');
       console.error(error);
@@ -97,15 +104,17 @@ const HealthDashboard = () => {
     return { level: 'low', className: 'risk-indicator-low' };
   };
 
-  const mockVitalsData = [
-    { date: 'Mon', bp: 120, hr: 72 },
-    { date: 'Tue', bp: 118, hr: 70 },
-    { date: 'Wed', bp: 122, hr: 74 },
-    { date: 'Thu', bp: 119, hr: 71 },
-    { date: 'Fri', bp: 121, hr: 73 },
-    { date: 'Sat', bp: 117, hr: 69 },
-    { date: 'Sun', bp: 120, hr: 72 },
-  ];
+  const vitalsData = useMemo(() => {
+    const rows = Array.isArray(overview?.healthRecords) ? overview.healthRecords.slice(0, 7).reverse() : [];
+    if (rows.length > 0) {
+      return rows.map((row) => ({
+        date: new Date(row.recordedAt || row.createdAt || Date.now()).toLocaleDateString(undefined, { weekday: 'short' }),
+        bp: Number(row.systolic || row.bpSystolic || healthProfile?.blood_pressure_systolic || 120) || 120,
+        hr: Number(row.heartRate || row.restingHeartRate || healthProfile?.resting_heart_rate || 72) || 72,
+      }));
+    }
+    return [];
+  }, [overview, healthProfile]);
 
   if (loading) {
     return (
@@ -224,7 +233,7 @@ const HealthDashboard = () => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={mockVitalsData}>
+                  <LineChart data={vitalsData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="date" className="text-xs" />
                     <YAxis className="text-xs" />
