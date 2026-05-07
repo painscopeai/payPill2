@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'file is required' }, { status: 400 });
 	}
 	const blob = file as Blob;
-	if (blob.size > MAX_BYTES) {
+	if (blob.size > BULK_UPLOAD_MAX_BYTES) {
 		return NextResponse.json({ error: 'File too large (max 10MB).' }, { status: 400 });
 	}
 	const filename = 'name' in file && typeof (file as File).name === 'string' ? (file as File).name : 'upload.csv';
