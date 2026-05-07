@@ -112,7 +112,9 @@ export async function GET(request: NextRequest) {
 		appointment_date: string | null;
 		appointment_time: string | null;
 	};
-	const appointments = (appointmentRes.data || []) as AppointmentRow[];
+	const appointments = ((appointmentRes.data || []) as AppointmentRow[]).filter(
+		(a) => String(a.status || '').toLowerCase() !== 'cancelled',
+	);
 	const userToCoverage = new Map(coverageRows.filter((r) => r.user_id).map((r) => [r.user_id as string, r]));
 	const serviceIds = Array.from(new Set(appointments.map((a) => a.provider_service_id).filter(Boolean))) as string[];
 	type ServiceRow = { id: string; name: string; price: number | null; category: string | null };

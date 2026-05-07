@@ -94,7 +94,10 @@ export async function GET(request: NextRequest) {
 		employerEmployees.filter((e) => e.user_id).map((e) => [e.user_id as string, e]),
 	);
 	const employerAppointments = ((appointmentRes.data ?? []) as AppointmentRow[]).filter(
-		(a) => a.user_id && employeeByUserId.has(a.user_id),
+		(a) =>
+			a.user_id &&
+			employeeByUserId.has(a.user_id) &&
+			String(a.status || '').toLowerCase() !== 'cancelled',
 	);
 
 	const serviceIds = Array.from(

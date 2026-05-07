@@ -162,6 +162,48 @@ export default function PatientAppointmentsPage() {
 
   const pageLoading = isInitializing || loading;
 
+  const cancelAppointment = async (apt) => {
+    const ok = window.confirm('Cancel this appointment? This cannot be undone.');
+    if (!ok) return;
+    try {
+      const res = await apiServerClient.fetch(`/appointments/${apt.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Could not cancel appointment');
+      toast.success('Appointment cancelled successfully.');
+      await load();
+    } catch (e) {
+      toast.error(e.message || 'Could not cancel appointment');
+    }
+  };
+
+  const rescheduleAppointment = async (apt) => {
+    const dateInput = window.prompt('Enter new date (YYYY-MM-DD):', apt.appointment_date || '');
+    if (!dateInput) return;
+    const timeInput = window.prompt('Enter new time (HH:MM, 24-hour):', apt.appointment_time || '');
+    if (!timeInput) return;
+    try {
+      const res = await apiServerClient.fetch(`/appointments/${apt.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reschedule',
+          appointmentDate: dateInput,
+          appointmentTime: timeInput,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Could not reschedule appointment');
+      toast.success('Appointment rescheduled successfully.');
+      await load();
+    } catch (e) {
+      toast.error(e.message || 'Could not reschedule appointment');
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Helmet>
@@ -257,8 +299,11 @@ export default function PatientAppointmentsPage() {
                       </div>
 
                       <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-                        <Button variant="outline" type="button" disabled>
+                        <Button variant="outline" type="button" onClick={() => void rescheduleAppointment(apt)}>
                           Reschedule
+                        </Button>
+                        <Button variant="outline" type="button" onClick={() => void cancelAppointment(apt)}>
+                          Cancel
                         </Button>
                         {tele ? (
                           <Button type="button" disabled>
