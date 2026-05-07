@@ -76,7 +76,9 @@ export default function InsuranceDashboardPage() {
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
               Insurance Operations
             </h1>
-            <p className="text-muted-foreground">Welcome back, {currentUser?.name || 'Administrator'}</p>
+            <p className="text-muted-foreground">
+              Welcome back, {currentUser?.company_name || currentUser?.name || 'Insurance Partner'}
+            </p>
           </div>
           <div className="flex gap-3">
             <Button variant="outline">Generate Report</Button>

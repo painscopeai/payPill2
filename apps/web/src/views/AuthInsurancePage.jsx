@@ -40,7 +40,7 @@ export default function AuthInsurancePage() {
     e.preventDefault();
     setLocalError('');
     try {
-      const user = await login(signInData.email, signInData.password);
+      const user = await login(signInData.email.trim().toLowerCase(), signInData.password);
       await assertPortalSignIn(user, 'insurance', logout);
       navigate('/insurance/dashboard');
     } catch (err) {

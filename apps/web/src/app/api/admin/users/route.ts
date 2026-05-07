@@ -169,7 +169,8 @@ export async function POST(request: NextRequest) {
 
 	const first_name = String(body.first_name ?? '').trim() || null;
 	const last_name = String(body.last_name ?? '').trim() || null;
-	const name = String(body.name ?? '').trim() || null;
+	const nameRaw = String(body.name ?? '').trim();
+	const name = nameRaw || null;
 	const phone = String(body.phone ?? '').trim() || null;
 	const company_name = String(body.company_name ?? '').trim() || null;
 	if (role === 'insurance' && !company_name) {
@@ -191,7 +192,7 @@ export async function POST(request: NextRequest) {
 			role,
 			first_name,
 			last_name,
-			name,
+			name: role === 'insurance' ? company_name : name,
 			company_name,
 			must_change_password: role === 'insurance',
 		},
@@ -207,7 +208,7 @@ export async function POST(request: NextRequest) {
 			role,
 			first_name,
 			last_name,
-			name,
+			name: role === 'insurance' ? company_name : name,
 			phone,
 			company_name,
 			status,

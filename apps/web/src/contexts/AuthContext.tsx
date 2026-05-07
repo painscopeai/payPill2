@@ -28,6 +28,7 @@ function mapProfileToCurrentUser(
 		first_name: profile.first_name,
 		last_name: profile.last_name,
 		name: profile.name,
+		company_name: profile.company_name,
 		phone: profile.phone,
 		date_of_birth: profile.date_of_birth,
 		terms_accepted: profile.terms_accepted,
@@ -148,7 +149,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 			setIsAuthPending(true);
 			setError(null);
 			try {
-				const { data, error: signErr } = await supabase.auth.signInWithPassword({ email, password });
+				const normalizedEmail = String(email || '').trim().toLowerCase();
+				const first = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+				let data = first.data;
+				let signErr = first.error;
+
+				// Newly created admin-provisioned users can occasionally fail on first auth attempt while propagating.
+				if (signErr?.message?.toLowerCase().includes('invalid login credentials')) {
+					await new Promise((r) => setTimeout(r, 650));
+					const second = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+					data = second.data;
+					signErr = second.error;
+				}
+
 				if (signErr) throw signErr;
 				const user = await applySession(data.session);
 				return user;

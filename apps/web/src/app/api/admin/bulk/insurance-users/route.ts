@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
 			.from('profiles')
 			.update({
 				role: 'insurance',
+				name: company_name,
 				company_name,
 				phone,
 				status,

@@ -96,9 +96,9 @@ export default function InsuranceUsersManagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role: 'insurance',
-          company_name: createForm.company_name,
-          email: createForm.email,
-          phone: createForm.phone || null,
+          company_name: createForm.company_name.trim(),
+          email: createForm.email.trim().toLowerCase(),
+          phone: createForm.phone.trim() || null,
           password: createForm.password,
           status: 'active',
         }),
