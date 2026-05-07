@@ -41,22 +41,25 @@ export default function InsuranceDashboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [insRes, finRes] = await Promise.all([
-          apiServerClient.fetch('/analytics/insurance'),
+        const [claimsRes, membersRes, finRes] = await Promise.all([
+          apiServerClient.fetch('/insurance/contracts'),
+          apiServerClient.fetch('/insurance/members'),
           apiServerClient.fetch('/analytics/financial'),
         ]);
-        const insBody = await insRes.json().catch(() => ({}));
+        const claimsBody = await claimsRes.json().catch(() => ({}));
+        const membersBody = await membersRes.json().catch(() => ({}));
         const finBody = await finRes.json().catch(() => ({}));
-        if (!insRes.ok) throw new Error(insBody.error || 'Failed to load insurance dashboard');
+        if (!claimsRes.ok) throw new Error(claimsBody.error || 'Failed to load insurance claims dashboard');
+        if (!membersRes.ok) throw new Error(membersBody.error || 'Failed to load insurance members dashboard');
         if (!finRes.ok) throw new Error(finBody.error || 'Failed to load financial dashboard');
-        const totalClaims = Number(insBody?.kpis?.total_claims || 0);
-        const activePartners = Number(insBody?.kpis?.active_partners || 0);
-        const totalPartners = Number(insBody?.kpis?.total_partners || 0);
+        const totalClaims = Number(claimsBody?.kpis?.totalClaims || 0);
+        const totalMembers = Array.isArray(membersBody?.members) ? membersBody.members.length : 0;
+        const preventiveCompletion = Number(membersBody?.kpis?.preventiveCompletion || 0);
         const exposure = Number(finBody?.kpis?.total_revenue || 0);
         setStats({
-          members: Number(insBody?.breakdown?.top_partners?.reduce((sum, p) => sum + Number(p.claims_processed || 0), 0) || 0),
+          members: totalMembers,
           claims: totalClaims,
-          healthScore: Math.max(0, Math.min(100, Math.round((activePartners / Math.max(totalPartners, 1)) * 100))),
+          healthScore: Math.max(0, Math.min(100, Math.round(preventiveCompletion))),
           exposure,
         });
       } catch (e) {

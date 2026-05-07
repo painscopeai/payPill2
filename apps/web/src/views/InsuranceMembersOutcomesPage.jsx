@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Download, Search, Filter, TrendingUp, Activity, ShieldCheck, Heart } from 'lucide-react';
+import { Download, Search, Filter, TrendingUp, Activity, ShieldCheck, Heart, ChevronRight, ChevronDown } from 'lucide-react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 
@@ -16,6 +16,7 @@ export default function InsuranceMembersOutcomesPage() {
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedEmployer, setSelectedEmployer] = useState('all');
+  const [collapsedEmployers, setCollapsedEmployers] = useState({});
 
   useEffect(() => {
     (async () => {
@@ -72,6 +73,23 @@ export default function InsuranceMembersOutcomesPage() {
     }
     return Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredMembers]);
+
+  useEffect(() => {
+    setCollapsedEmployers((prev) => {
+      const next = {};
+      for (const [employer] of groupedMembers) {
+        next[employer] = prev[employer] ?? true;
+      }
+      return next;
+    });
+  }, [groupedMembers]);
+
+  const toggleEmployerCollapse = (employer) => {
+    setCollapsedEmployers((prev) => ({
+      ...prev,
+      [employer]: !(prev[employer] ?? true),
+    }));
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -210,12 +228,23 @@ export default function InsuranceMembersOutcomesPage() {
               <tbody className="divide-y">
                 {groupedMembers.map(([employer, rows]) => (
                   <React.Fragment key={employer}>
-                    <tr className="bg-muted/20">
+                    <tr
+                      className="bg-muted/20 cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => toggleEmployerCollapse(employer)}
+                    >
                       <td colSpan={6} className="px-6 py-3 text-sm font-semibold text-foreground">
-                        {employer}
+                        <div className="flex items-center gap-2">
+                          {collapsedEmployers[employer] ? (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span>{employer}</span>
+                          <span className="text-xs text-muted-foreground font-normal">({rows.length})</span>
+                        </div>
                       </td>
                     </tr>
-                    {rows.map((m) => (
+                    {!collapsedEmployers[employer] && rows.map((m) => (
                       <tr key={m.id} className="hover:bg-muted/10 transition-colors">
                         <td className="px-6 py-4">
                           <div className="font-medium text-foreground">{m.name || m.email || '—'}</div>
