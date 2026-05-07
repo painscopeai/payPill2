@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 function emptyCompose() {
-	return { subject: '', body: '', audience: 'all', department: '' };
+	return { subject: '', body: '', audience: 'all', department: '', specificEmployeeIds: [] };
 }
 
 export default function EmployerMessagingPage() {
@@ -37,6 +37,7 @@ export default function EmployerMessagingPage() {
 	const [openLoading, setOpenLoading] = useState(false);
 	const [replyDrafts, setReplyDrafts] = useState({});
 	const [departments, setDepartments] = useState([]);
+	const [employees, setEmployees] = useState([]);
 
 	const loadBroadcasts = useCallback(async () => {
 		setLoading(true);
@@ -67,6 +68,16 @@ export default function EmployerMessagingPage() {
 					if (e.department) setVals.add(e.department);
 				});
 				setDepartments(Array.from(setVals));
+				setEmployees(
+					(body.items || [])
+						.filter((e) => e.user_id && e.status === 'active')
+						.map((e) => ({
+							user_id: e.user_id,
+							label: [e.first_name, e.last_name].filter(Boolean).join(' ').trim() || e.email,
+							email: e.email,
+							department: e.department || '',
+						})),
+				);
 			} catch {
 				/* noop */
 			}
@@ -86,6 +97,14 @@ export default function EmployerMessagingPage() {
 			toast.error('Subject and message are required.');
 			return;
 		}
+		if (compose.audience === 'department' && !compose.department.trim()) {
+			toast.error('Select a department for department broadcast.');
+			return;
+		}
+		if (compose.audience === 'specific' && compose.specificEmployeeIds.length === 0) {
+			toast.error('Select at least one employee.');
+			return;
+		}
 		setSending(true);
 		try {
 			const payload = {
@@ -93,6 +112,8 @@ export default function EmployerMessagingPage() {
 				body: compose.body.trim(),
 				audience: compose.audience,
 				department: compose.audience === 'department' ? compose.department.trim() : null,
+				specific_employee_ids:
+					compose.audience === 'specific' ? compose.specificEmployeeIds : undefined,
 			};
 			const res = await apiServerClient.fetch('/employer/broadcasts', {
 				method: 'POST',
@@ -110,6 +131,26 @@ export default function EmployerMessagingPage() {
 		} finally {
 			setSending(false);
 		}
+	};
+
+	const visibleSpecificEmployees = useMemo(() => {
+		if (compose.audience !== 'specific') return [];
+		if (compose.department?.trim()) {
+			return employees.filter((e) => e.department === compose.department.trim());
+		}
+		return employees;
+	}, [compose.audience, compose.department, employees]);
+
+	const toggleSpecificEmployee = (userId) => {
+		setCompose((prev) => {
+			const exists = prev.specificEmployeeIds.includes(userId);
+			return {
+				...prev,
+				specificEmployeeIds: exists
+					? prev.specificEmployeeIds.filter((id) => id !== userId)
+					: [...prev.specificEmployeeIds, userId],
+			};
+		});
 	};
 
 	const openThread = async (broadcastId) => {
@@ -351,24 +392,41 @@ export default function EmployerMessagingPage() {
 													<SelectValue />
 												</SelectTrigger>
 												<SelectContent>
-													<SelectItem value="all">All active employees</SelectItem>
-													<SelectItem value="department">Department</SelectItem>
+													<SelectItem value="all">All Employees</SelectItem>
+													<SelectItem value="department">By Department</SelectItem>
+													<SelectItem value="specific">Specific Employee(s)</SelectItem>
 												</SelectContent>
 											</Select>
 										</div>
-										{compose.audience === 'department' && (
+										{(compose.audience === 'department' || compose.audience === 'specific') && (
 											<div className="grid gap-2">
-												<Label>Department</Label>
+												<Label>
+													{compose.audience === 'department'
+														? 'Department'
+														: 'Department (optional filter)'}
+												</Label>
 												<Select
-													value={compose.department || undefined}
-													onValueChange={(v) => setCompose({ ...compose, department: v })}
+													value={
+														compose.audience === 'specific'
+															? compose.department || '__all__'
+															: compose.department || undefined
+													}
+													onValueChange={(v) =>
+														setCompose({
+															...compose,
+															department: v === '__all__' ? '' : v,
+														})
+													}
 												>
 													<SelectTrigger>
 														<SelectValue placeholder="Pick a department" />
 													</SelectTrigger>
 													<SelectContent>
+														{compose.audience === 'specific' && (
+															<SelectItem value="__all__">All Departments</SelectItem>
+														)}
 														{departments.length === 0 ? (
-															<SelectItem value="" disabled>No departments on roster yet</SelectItem>
+															<SelectItem value="__none__" disabled>No departments on roster yet</SelectItem>
 														) : (
 															departments.map((d) => (
 																<SelectItem key={d} value={d}>{d}</SelectItem>
@@ -376,6 +434,43 @@ export default function EmployerMessagingPage() {
 														)}
 													</SelectContent>
 												</Select>
+											</div>
+										)}
+										{compose.audience === 'specific' && (
+											<div className="grid gap-2">
+												<div className="flex items-center justify-between">
+													<Label>Specific Employees (multi-select)</Label>
+													<span className="text-xs text-muted-foreground">
+														{compose.specificEmployeeIds.length} selected
+													</span>
+												</div>
+												<div className="max-h-52 overflow-y-auto rounded-md border bg-card p-2 space-y-1">
+													{visibleSpecificEmployees.length === 0 ? (
+														<p className="text-sm text-muted-foreground px-2 py-1">
+															No active employees found for this filter.
+														</p>
+													) : (
+														visibleSpecificEmployees.map((e) => {
+															const checked = compose.specificEmployeeIds.includes(e.user_id);
+															return (
+																<label
+																	key={e.user_id}
+																	className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted/40 cursor-pointer"
+																>
+																	<input
+																		type="checkbox"
+																		checked={checked}
+																		onChange={() => toggleSpecificEmployee(e.user_id)}
+																	/>
+																	<div className="min-w-0">
+																		<p className="text-sm font-medium truncate">{e.label}</p>
+																		<p className="text-xs text-muted-foreground truncate">{e.email}</p>
+																	</div>
+																</label>
+															);
+														})
+													)}
+												</div>
 											</div>
 										)}
 										<div className="grid gap-2">

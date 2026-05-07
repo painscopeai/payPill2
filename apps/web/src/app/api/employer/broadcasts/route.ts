@@ -10,9 +10,10 @@ export const maxDuration = 60;
 type ComposeBody = {
 	subject?: string;
 	body?: string;
-	audience?: 'all' | 'department' | 'custom';
+	audience?: 'all' | 'department' | 'specific' | 'custom';
 	department?: string | null;
 	patient_user_ids?: string[];
+	specific_employee_ids?: string[];
 };
 
 /**
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
 
 	if (!subject) return NextResponse.json({ error: 'Subject is required' }, { status: 400 });
 	if (!text) return NextResponse.json({ error: 'Message body is required' }, { status: 400 });
-	if (!['all', 'department', 'custom'].includes(audience)) {
+	if (!['all', 'department', 'custom', 'specific'].includes(audience)) {
 		return NextResponse.json({ error: 'Invalid audience' }, { status: 400 });
 	}
 
@@ -127,10 +128,13 @@ export async function POST(request: NextRequest) {
 		.map((r: { user_id: string | null }) => r.user_id)
 		.filter((u: string | null): u is string => !!u);
 
-	if (audience === 'custom') {
-		const requested = Array.isArray(body.patient_user_ids)
-			? body.patient_user_ids.map((s) => String(s).trim()).filter(Boolean)
-			: [];
+	if (audience === 'custom' || audience === 'specific') {
+		const requested = [
+			...(Array.isArray(body.patient_user_ids) ? body.patient_user_ids : []),
+			...(Array.isArray(body.specific_employee_ids) ? body.specific_employee_ids : []),
+		]
+			.map((s) => String(s).trim())
+			.filter(Boolean);
 		const allowed = new Set(recipientIds);
 		recipientIds = requested.filter((id) => allowed.has(id));
 		if (recipientIds.length === 0) {
@@ -151,7 +155,7 @@ export async function POST(request: NextRequest) {
 			employer_id: ctx.employerId,
 			subject,
 			body: text,
-			audience,
+			audience: audience === 'specific' ? 'custom' : audience,
 		})
 		.select('id, subject, body, audience, created_at')
 		.maybeSingle();

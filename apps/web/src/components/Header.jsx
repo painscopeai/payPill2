@@ -23,6 +23,7 @@ export default function Header() {
   const PatientNav = () => (
     <>
       <Link to="/patient/dashboard" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/dashboard') ? 'text-primary' : 'text-muted-foreground'}`}>Dashboard</Link>
+      <Link to="/patient/messages" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/messages') ? 'text-primary' : 'text-muted-foreground'}`}>Messages</Link>
       <Link to="/patient/records" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/records') ? 'text-primary' : 'text-muted-foreground'}`}>Records</Link>
       <Link to="/patient/appointments" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/appointments') ? 'text-primary' : 'text-muted-foreground'}`}>Appointments</Link>
       <Link to="/patient/prescriptions" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/prescriptions') ? 'text-primary' : 'text-muted-foreground'}`}>Prescriptions</Link>
