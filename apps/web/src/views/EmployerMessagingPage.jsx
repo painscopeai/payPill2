@@ -274,6 +274,7 @@ export default function EmployerMessagingPage() {
 		if (!openBroadcast) return [];
 		const base = [];
 		const b = openBroadcast.broadcast;
+		const recipientCount = Number(openBroadcast?.recipients?.length || 0);
 		const firstReply = (openBroadcast.replies || [])[0];
 		const looksPatientInitiated =
 			(firstReply?.sender_role === 'patient' && String(firstReply?.body || '').trim() === String(b?.body || '').trim()) ||
@@ -288,12 +289,28 @@ export default function EmployerMessagingPage() {
 				scope: 'all',
 			});
 		}
-		(openBroadcast.replies || []).forEach((r) => {
-			base.push({
-				...r,
-				scope: r.sender_role === 'employer' ? 'single' : 'single',
-			});
-		});
+		const replies = (openBroadcast.replies || []).map((r) => ({
+			...r,
+			scope: r.sender_role === 'employer' ? 'single' : 'single',
+		}));
+		const grouped = [];
+		for (const r of replies) {
+			const prev = grouped[grouped.length - 1];
+			const isPotentialGroupEcho =
+				recipientCount > 1 &&
+				r.sender_role === 'employer' &&
+				prev &&
+				prev.sender_role === 'employer' &&
+				String(prev.body || '').trim() === String(r.body || '').trim() &&
+				Math.abs(new Date(prev.created_at || 0).getTime() - new Date(r.created_at || 0).getTime()) <= 3000;
+			if (isPotentialGroupEcho) {
+				prev.scope = 'all';
+				prev.recipient_id = '__all__';
+				continue;
+			}
+			grouped.push(r);
+		}
+		base.push(...grouped);
 		return base.sort(
 			(a, b2) => new Date(a.created_at || 0).getTime() - new Date(b2.created_at || 0).getTime(),
 		);
@@ -302,6 +319,7 @@ export default function EmployerMessagingPage() {
 	const renderThread = () => {
 		if (!openBroadcast) return null;
 		const { broadcast } = openBroadcast;
+		const selectedRecipient = replyTarget === '__all__' ? null : recipientById.get(replyTarget);
 		return (
 			<div className="space-y-4">
 				<div className="flex items-center gap-2">
@@ -326,13 +344,29 @@ export default function EmployerMessagingPage() {
 							r.sender_role === 'employer'
 								? 'You'
 								: rec?.name || rec?.email || rec?.patient_user_id || 'Employee';
+						const canReplyToSender = r.sender_role !== 'employer' && r.recipient_id && r.recipient_id !== '__all__';
+						const isActiveTarget = canReplyToSender && replyTarget === r.recipient_id;
 						return (
 							<div
 								key={r.id}
+								role={canReplyToSender ? 'button' : undefined}
+								tabIndex={canReplyToSender ? 0 : undefined}
+								onClick={() => {
+									if (canReplyToSender) setReplyTarget(r.recipient_id);
+								}}
+								onKeyDown={(e) => {
+									if (!canReplyToSender) return;
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										setReplyTarget(r.recipient_id);
+									}
+								}}
 								className={`max-w-[85%] rounded-xl border px-3 py-2 text-sm ${
 									r.sender_role === 'employer'
 										? 'ml-auto bg-primary/10 border-primary/20'
 										: 'mr-auto bg-muted/30 border-border'
+								} ${canReplyToSender ? 'cursor-pointer hover:border-primary/40' : ''} ${
+									isActiveTarget ? 'ring-2 ring-primary/40' : ''
 								}`}
 							>
 								<div className="text-xs text-muted-foreground mb-1">
@@ -343,49 +377,42 @@ export default function EmployerMessagingPage() {
 									{r.created_at ? format(new Date(r.created_at), 'MMM d, h:mm a') : ''}
 								</div>
 								<div className="whitespace-pre-wrap">{r.body}</div>
+								{canReplyToSender && (
+									<div className="mt-2 text-[11px] text-muted-foreground">
+										{isActiveTarget ? 'Replying to this sender' : 'Click to reply to this sender'}
+									</div>
+								)}
 							</div>
 						);
 					})}
 				</div>
 				<div className="rounded-xl border bg-card p-4 space-y-3">
-					<div className="grid gap-2 md:grid-cols-[260px_1fr] md:items-end">
-						<div className="space-y-2">
-							<Label>Reply target</Label>
-							<Select value={replyTarget} onValueChange={setReplyTarget}>
-								<SelectTrigger>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-										{(openBroadcast?.recipients || []).length > 1 ? (
-											<>
-												<SelectItem value="__all__">All recipients (group reply)</SelectItem>
-												{(openBroadcast?.recipients || []).map((rec) => (
-													<SelectItem key={rec.id} value={rec.id}>
-														{rec.name || rec.email || rec.patient_user_id}
-													</SelectItem>
-												))}
-											</>
-										) : (
-											(openBroadcast?.recipients || []).map((rec) => (
-												<SelectItem key={rec.id} value={rec.id}>
-													Direct reply to {rec.name || rec.email || rec.patient_user_id}
-												</SelectItem>
-											))
-										)}
-								</SelectContent>
-							</Select>
-						</div>
-						<div className="flex gap-2 items-end">
-							<Textarea
-								placeholder="Reply..."
-								className="min-h-[72px]"
-								value={threadReply}
-								onChange={(e) => setThreadReply(e.target.value)}
-							/>
-							<Button onClick={sendReply} className="gap-2">
-								<Send className="h-4 w-4" /> Send
+					<div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+						<span>
+							{selectedRecipient
+								? `Replying to ${selectedRecipient.name || selectedRecipient.email || selectedRecipient.patient_user_id}`
+								: 'Replying to all recipients'}
+						</span>
+						{(openBroadcast?.recipients || []).length > 1 && selectedRecipient && (
+							<Button variant="ghost" size="sm" onClick={() => setReplyTarget('__all__')}>
+								Clear direct reply
 							</Button>
-						</div>
+						)}
+					</div>
+					<div className="flex gap-2 items-end">
+						<Textarea
+							placeholder={
+								selectedRecipient
+									? `Reply to ${selectedRecipient.name || selectedRecipient.email || 'employee'}...`
+									: 'Reply to all recipients...'
+							}
+							className="min-h-[72px]"
+							value={threadReply}
+							onChange={(e) => setThreadReply(e.target.value)}
+						/>
+						<Button onClick={sendReply} className="gap-2">
+							<Send className="h-4 w-4" /> Send
+						</Button>
 					</div>
 				</div>
 			</div>
