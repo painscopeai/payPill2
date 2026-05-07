@@ -139,8 +139,7 @@ export default function EmployerEmployeeRosterPage() {
 		try {
 			const payload = { employerId, ids };
 			if (assignInsurance !== OMIT_INSURANCE) {
-				payload.insurance_option_slug =
-					assignInsurance === '__clear__' ? null : assignInsurance;
+				payload.insurance_option_slug = assignInsurance;
 			}
 			const res = await apiServerClient.fetch('/admin/employer-employees/bulk-approve', {
 				method: 'PATCH',
@@ -225,7 +224,6 @@ export default function EmployerEmployeeRosterPage() {
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value={OMIT_INSURANCE}>Do not change insurance field</SelectItem>
-							<SelectItem value="__clear__">Clear insurance (set empty)</SelectItem>
 							{insuranceOptions.map((o) => (
 								<SelectItem key={o.slug} value={o.slug}>
 									{o.label}

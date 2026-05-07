@@ -19,9 +19,9 @@ type InsuranceProfileRow = {
 
 function insuranceLabel(row: InsuranceProfileRow): string {
 	const org = (row.company_name || '').trim();
-	const name = [row.first_name, row.last_name].filter(Boolean).join(' ');
-	const bits = [org, name, row.email].filter(Boolean);
-	return bits.join(' · ') || row.email || row.id;
+	if (org) return org;
+	const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim();
+	return name || row.email || row.id;
 }
 
 export async function GET(request: NextRequest) {
