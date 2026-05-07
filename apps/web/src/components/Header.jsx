@@ -77,7 +77,6 @@ export default function Header() {
       </Link>
       <Link to="/employer/settings" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/settings') ? 'text-primary' : 'text-muted-foreground'}`}>Settings</Link>
       <Link to="/employer/contracts" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/contracts') ? 'text-primary' : 'text-muted-foreground'}`}>Contracts</Link>
-      <Link to="/employer/bulk-onboarding" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/employer/bulk-onboarding') ? 'text-primary' : 'text-muted-foreground'}`}>Bulk Onboarding</Link>
     </>
   );
 

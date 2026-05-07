@@ -42,7 +42,6 @@ const EmployerAnalyticsPage = React.lazy(() => import('./views/EmployerAnalytics
 const EmployerCostsPage = React.lazy(() => import('./views/EmployerCostsPage.jsx'));
 const EmployerMessagingPage = React.lazy(() => import('./views/EmployerMessagingPage.jsx'));
 const EmployerSettingsPage = React.lazy(() => import('./views/EmployerSettingsPage.jsx'));
-const BulkOnboardingPage = React.lazy(() => import('./views/BulkOnboardingPage.jsx'));
 const EmployerContractsPage = React.lazy(() => import('./views/EmployerContractsPage.jsx'));
 
 const InsuranceDashboardPage = React.lazy(() => import('./views/InsuranceDashboardPage.jsx'));
@@ -258,14 +257,6 @@ export default function AppRoutes() {
 						element={
 							<ProtectedRoleRoute requiredRole="employer">
 								<EmployerSettingsPage />
-							</ProtectedRoleRoute>
-						}
-					/>
-					<Route
-						path="/employer/bulk-onboarding"
-						element={
-							<ProtectedRoleRoute requiredRole="employer">
-								<BulkOnboardingPage />
 							</ProtectedRoleRoute>
 						}
 					/>
