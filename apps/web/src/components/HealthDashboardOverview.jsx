@@ -7,6 +7,109 @@ import { Activity, HeartPulse, Pill, Calendar, AlertCircle, ArrowRight } from 'l
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import apiServerClient from '@/lib/apiServerClient';
 
+const keyToMetricMap = {
+  systolic: /systolic|bp systolic|blood pressure systolic/i,
+  diastolic: /diastolic|bp diastolic|blood pressure diastolic/i,
+  heartRate: /heart rate|pulse/i,
+  bmi: /^bmi$|body mass index/i,
+};
+
+function numericFromUnknown(value) {
+  if (value == null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const match = value.match(/-?\d+(\.\d+)?/);
+    if (!match) return null;
+    const num = Number(match[0]);
+    return Number.isFinite(num) ? num : null;
+  }
+  return null;
+}
+
+function extractMetricFromBodyMetrics(bodyMetrics = {}, matcher) {
+  for (const [key, value] of Object.entries(bodyMetrics)) {
+    if (!matcher.test(key)) continue;
+    const num = numericFromUnknown(value);
+    if (num != null) return num;
+  }
+  return null;
+}
+
+function parseVitalsFromRecord(record = {}) {
+  const source = `${record.title || ''} ${record.notes || ''}`;
+  const systolic = numericFromUnknown(source.match(/(?:bp|blood pressure)?\s*(\d{2,3})\s*\/\s*(\d{2,3})/i)?.[1]);
+  const diastolic = numericFromUnknown(source.match(/(?:bp|blood pressure)?\s*(\d{2,3})\s*\/\s*(\d{2,3})/i)?.[2]);
+  const hr = numericFromUnknown(source.match(/(?:hr|heart rate|pulse)[:\s]+(\d{2,3})/i)?.[1]);
+
+  const when = record.recordDate || record.createdAt || record.updatedAt || null;
+  if (systolic == null && diastolic == null && hr == null) return null;
+  return {
+    when,
+    systolic,
+    diastolic,
+    heartRate: hr,
+  };
+}
+
+function computeAnalytics(overview) {
+  const bodyMetrics = overview?.bodyMetrics || {};
+  const conditions = overview?.conditions?.flatLabels || [];
+  const healthRecords = Array.isArray(overview?.healthRecords) ? overview.healthRecords : [];
+
+  const systolicBase = extractMetricFromBodyMetrics(bodyMetrics, keyToMetricMap.systolic);
+  const diastolicBase = extractMetricFromBodyMetrics(bodyMetrics, keyToMetricMap.diastolic);
+  const heartRateBase = extractMetricFromBodyMetrics(bodyMetrics, keyToMetricMap.heartRate);
+  const bmi = extractMetricFromBodyMetrics(bodyMetrics, keyToMetricMap.bmi);
+
+  const vitals = healthRecords
+    .map(parseVitalsFromRecord)
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.when || 0).getTime() - new Date(b.when || 0).getTime());
+
+  const vitalsForChart = vitals.slice(-7).map((row) => ({
+    name: new Date(row.when || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    value: row.systolic ?? systolicBase ?? null,
+  })).filter((row) => row.value != null);
+
+  const latest = vitals[vitals.length - 1] || null;
+  const prev = vitals.length > 1 ? vitals[vitals.length - 2] : null;
+
+  const systolicNow = latest?.systolic ?? systolicBase ?? 120;
+  const diastolicNow = latest?.diastolic ?? diastolicBase ?? 80;
+  const hrNow = latest?.heartRate ?? heartRateBase ?? 72;
+
+  const conditionCount = conditions.length;
+  const systolicPenalty = Math.max(0, systolicNow - 120) * 0.4;
+  const diastolicPenalty = Math.max(0, diastolicNow - 80) * 0.3;
+  const hrPenalty = Math.max(0, hrNow - 90) * 0.2;
+  const bmiPenalty = bmi != null ? Math.max(0, bmi - 25) * 0.8 : 0;
+  const conditionPenalty = conditionCount * 4;
+
+  const chronicRisk = Math.max(
+    1,
+    Math.min(100, Number((systolicPenalty + diastolicPenalty + hrPenalty + bmiPenalty + conditionPenalty).toFixed(1))),
+  );
+  const relativeRisk = Math.max(1, Math.min(100, Number((chronicRisk * 0.8).toFixed(1))));
+  const adherence = Math.max(5, Math.min(100, Number((100 - chronicRisk * 0.55).toFixed(0))));
+
+  const previousRisk = prev
+    ? Math.max(
+        1,
+        Math.min(100, Number((((Math.max(0, (prev.systolic ?? systolicNow) - 120) * 0.4) + (Math.max(0, (prev.diastolic ?? diastolicNow) - 80) * 0.3) + conditionPenalty)).toFixed(1))),
+      )
+    : chronicRisk;
+  const riskDelta = Number((chronicRisk - previousRisk).toFixed(1));
+
+  return {
+    vitalsForChart,
+    relativeRisk,
+    chronicRisk,
+    adherence,
+    riskDelta,
+    conditionCount,
+  };
+}
+
 export default function HealthDashboardOverview() {
   const [overview, setOverview] = useState(null);
 
@@ -22,26 +125,7 @@ export default function HealthDashboardOverview() {
     })();
   }, []);
 
-  const vitalData = useMemo(() => {
-    const rows = Array.isArray(overview?.healthRecords) ? overview.healthRecords : [];
-    const recent = rows.slice(0, 7).reverse();
-    if (!recent.length) {
-      return [
-        { name: 'Mon', value: 120 },
-        { name: 'Tue', value: 118 },
-        { name: 'Wed', value: 122 },
-        { name: 'Thu', value: 119 },
-        { name: 'Fri', value: 115 },
-        { name: 'Sat', value: 117 },
-        { name: 'Sun', value: 116 },
-      ];
-    }
-    return recent.map((row, idx) => ({
-      name: new Date(row.recordedAt || row.createdAt || Date.now()).toLocaleDateString(undefined, { weekday: 'short' }),
-      value: Number(row.systolic || row.bpSystolic || row.value || 120) || 120,
-      idx,
-    }));
-  }, [overview]);
+  const analytics = useMemo(() => computeAnalytics(overview), [overview]);
   return (
     <div className="space-y-8">
       {/* Top Metrics */}
@@ -53,9 +137,11 @@ export default function HealthDashboardOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">12.4%</div>
-            <p className="text-xs text-muted-foreground mt-1">Low risk category</p>
-            <Progress value={12.4} className="h-2 mt-3 bg-muted" />
+            <div className="text-3xl font-bold text-foreground">{analytics.relativeRisk}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {analytics.relativeRisk <= 25 ? 'Low risk category' : analytics.relativeRisk <= 60 ? 'Moderate risk category' : 'Elevated risk category'}
+            </p>
+            <Progress value={analytics.relativeRisk} className="h-2 mt-3 bg-muted" />
           </CardContent>
         </Card>
         
@@ -66,9 +152,11 @@ export default function HealthDashboardOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">8.2%</div>
-            <p className="text-xs text-muted-foreground mt-1">-2.1% from last month</p>
-            <Progress value={8.2} className="h-2 mt-3 bg-muted" />
+            <div className="text-3xl font-bold text-foreground">{analytics.chronicRisk}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {analytics.riskDelta === 0 ? 'No change vs prior reading' : `${analytics.riskDelta > 0 ? '+' : ''}${analytics.riskDelta}% vs prior reading`}
+            </p>
+            <Progress value={analytics.chronicRisk} className="h-2 mt-3 bg-muted" />
           </CardContent>
         </Card>
 
@@ -79,9 +167,11 @@ export default function HealthDashboardOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">94%</div>
-            <p className="text-xs text-muted-foreground mt-1">Excellent adherence</p>
-            <Progress value={94} className="h-2 mt-3 bg-muted" />
+            <div className="text-3xl font-bold text-foreground">{analytics.adherence}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Derived from health profile and records
+            </p>
+            <Progress value={analytics.adherence} className="h-2 mt-3 bg-muted" />
           </CardContent>
         </Card>
       </div>
@@ -94,18 +184,24 @@ export default function HealthDashboardOverview() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={vitalData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} domain={['dataMin - 5', 'dataMax + 5']} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                  <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: 'hsl(var(--primary))' }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
+              {analytics.vitalsForChart.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={analytics.vitalsForChart}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} domain={['dataMin - 5', 'dataMax + 5']} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                      itemStyle={{ color: 'hsl(var(--foreground))' }}
+                    />
+                    <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: 'hsl(var(--primary))' }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  No vitals found in your health records yet.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
