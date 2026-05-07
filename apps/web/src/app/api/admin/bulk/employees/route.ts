@@ -7,14 +7,13 @@ import { parseSpreadsheetBuffer, validateHeadersForKind, type BulkImportResult }
 import type { RowFailure } from '@/server/bulk/parseSpreadsheet';
 import { assertEmployerImportTarget } from '@/server/admin/employerAccountsAdmin';
 import { isPendingPasswordTableUnavailableError } from '@/server/admin/pendingPasswordTable';
+import { BULK_UPLOAD_MAX_BYTES } from '@/server/bulk/uploadLimits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MAX_BYTES = 10 * 1024 * 1024;
-
 export async function POST(request: NextRequest) {
 	const ctx = await requireManageUsersAdmin(request);
 	if (ctx instanceof NextResponse) return ctx;
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'file is required' }, { status: 400 });
 	}
 	const blob = file as Blob;
-	if (blob.size > MAX_BYTES) {
+	if (blob.size > BULK_UPLOAD_MAX_BYTES) {
 		return NextResponse.json({ error: 'File too large (max 10MB).' }, { status: 400 });
 	}
 	const filename = 'name' in file && typeof (file as File).name === 'string' ? (file as File).name : 'upload.csv';

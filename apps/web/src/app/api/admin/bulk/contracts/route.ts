@@ -10,12 +10,11 @@ import {
 	type RowFailure,
 } from '@/server/bulk/parseSpreadsheet';
 import { assertEmployerImportTarget } from '@/server/admin/employerAccountsAdmin';
+import { BULK_UPLOAD_MAX_BYTES } from '@/server/bulk/uploadLimits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
-
-const MAX_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
 	const ctx = await requireManageUsersAdmin(request);
@@ -71,11 +70,10 @@ export async function POST(request: NextRequest) {
 		let effective_date: string | null = null;
 		if (effective_raw) {
 			const d = new Date(effective_raw);
-			if (!Number.isFinite(d.getTime())) {
-				failures.push({ rowNumber, message: 'Invalid effective_date' });
-				continue;
+			if (Number.isFinite(d.getTime())) {
+				effective_date = effective_raw.slice(0, 10);
 			}
-			effective_date = effective_raw.slice(0, 10);
+			// Unparsable effective_date is skipped (optional field).
 		}
 		const status = String(row.status ?? '').trim() || 'draft';
 		const notes = String(row.notes ?? '').trim() || null;

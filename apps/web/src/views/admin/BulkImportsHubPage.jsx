@@ -67,16 +67,19 @@ export default function BulkImportsHubPage() {
 		let cancelled = false;
 		(async () => {
 			try {
-				const { data, error } = await supabase
-					.from('providers')
-					.select('id,name')
-					.order('name', { ascending: true })
-					.limit(500);
-				if (error) throw error;
-				if (!cancelled) setProviders(data || []);
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+				const token = session?.access_token;
+				const res = await apiServerClient.fetch('/admin/bulk/provider-options', {
+					headers: token ? { Authorization: `Bearer ${token}` } : {},
+				});
+				const body = await res.json().catch(() => ({}));
+				if (!res.ok) throw new Error(body.error || 'Failed to load providers');
+				if (!cancelled) setProviders(body.items || []);
 			} catch (e) {
 				console.error(e);
-				toast.error('Could not load providers');
+				toast.error(e.message || 'Could not load providers');
 			}
 		})();
 		return () => {

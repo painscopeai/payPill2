@@ -9,12 +9,11 @@ import {
 	type BulkImportResult,
 	type RowFailure,
 } from '@/server/bulk/parseSpreadsheet';
+import { BULK_UPLOAD_MAX_BYTES } from '@/server/bulk/uploadLimits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
-
-const MAX_BYTES = 10 * 1024 * 1024;
 const UUID_RE =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CATEGORIES = new Set(['service', 'drug', 'other']);
@@ -46,7 +45,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'file is required' }, { status: 400 });
 	}
 	const blob = file as Blob;
-	if (blob.size > MAX_BYTES) {
+	if (blob.size > BULK_UPLOAD_MAX_BYTES) {
 		return NextResponse.json({ error: 'File too large (max 10MB).' }, { status: 400 });
 	}
 	const filename = 'name' in file && typeof (file as File).name === 'string' ? (file as File).name : 'upload.csv';
