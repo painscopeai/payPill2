@@ -8,23 +8,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Users, Building2, ShieldCheck, Activity,
   CreditCard, DollarSign, TrendingUp, ArrowUpRight, ArrowDownRight,
-  RefreshCw, Download, CheckCircle2, Clock
+  RefreshCw, Download, Clock
 } from 'lucide-react';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-
-const COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(var(--success))', 'hsl(var(--warning))'];
 
 export default function AdminDashboard() {
   const [dateRange, setDateRange] = useState('30');
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     patients: 0, employers: 0, insurance: 0, providers: 0,
-    transactions: 0, subscriptions: 0, mrr: 0, arr: 0
+    transactions: 0, mrr: 0, arr: 0
   });
   const [activities, setActivities] = useState([]);
   const [trends, setTrends] = useState({
@@ -33,13 +31,11 @@ export default function AdminDashboard() {
     insurance: 0,
     providers: 0,
     transactions: 0,
-    subscriptions: 0,
     mrr: 0,
     arr: 0,
   });
   const [revenueData, setRevenueData] = useState([]);
   const [userGrowthData, setUserGrowthData] = useState([]);
-  const [subscriptionData, setSubscriptionData] = useState([]);
 
   const asPct = (value) => Number.isFinite(Number(value)) ? Number(value.toFixed(1)) : 0;
   const pctChange = (current, previous) => {
@@ -76,13 +72,11 @@ export default function AdminDashboard() {
         insuranceNow,
         providersNow,
         financialNow,
-        subscriptionsNow,
         patientsPrev,
         employersPrev,
         insurancePrev,
         providersPrev,
         financialPrev,
-        subscriptionsPrev,
         activitiesRows,
       ] = await Promise.all([
         fetchJson('/admin/dashboard/summary'),
@@ -91,13 +85,11 @@ export default function AdminDashboard() {
         fetchJson(`/analytics/insurance?${currentQs}`),
         fetchJson(`/analytics/providers?${currentQs}`),
         fetchJson(`/analytics/financial?${currentQs}`),
-        fetchJson(`/analytics/subscriptions?${currentQs}`),
         fetchJson(`/analytics/patients?${prevQs}`),
         fetchJson(`/analytics/employers?${prevQs}`),
         fetchJson(`/analytics/insurance?${prevQs}`),
         fetchJson(`/analytics/providers?${prevQs}`),
         fetchJson(`/analytics/financial?${prevQs}`),
-        fetchJson(`/analytics/subscriptions?${prevQs}`),
         adminListRecent('audit_logs', 10),
       ]);
 
@@ -107,9 +99,8 @@ export default function AdminDashboard() {
         insurance: Number(summary?.insurance || 0),
         providers: Number(summary?.providers || 0),
         transactions: Number(summary?.transactions || 0),
-        subscriptions: Number(summary?.subscriptions || 0),
         mrr: Number(financialNow?.kpis?.mrr || 0),
-        arr: Number(subscriptionsNow?.kpis?.arr || 0),
+        arr: Number(financialNow?.kpis?.mrr || 0) * 12,
       });
       setTrends({
         patients: asPct(pctChange(patientsNow?.kpis?.total_patients, patientsPrev?.kpis?.total_patients)),
@@ -117,9 +108,13 @@ export default function AdminDashboard() {
         insurance: asPct(pctChange(insuranceNow?.kpis?.total_partners, insurancePrev?.kpis?.total_partners)),
         providers: asPct(pctChange(providersNow?.kpis?.total_providers, providersPrev?.kpis?.total_providers)),
         transactions: asPct(pctChange(financialNow?.kpis?.transaction_count, financialPrev?.kpis?.transaction_count)),
-        subscriptions: asPct(pctChange(subscriptionsNow?.kpis?.active_subscriptions, subscriptionsPrev?.kpis?.active_subscriptions)),
         mrr: asPct(pctChange(financialNow?.kpis?.mrr, financialPrev?.kpis?.mrr)),
-        arr: asPct(pctChange(subscriptionsNow?.kpis?.arr, subscriptionsPrev?.kpis?.arr)),
+        arr: asPct(
+          pctChange(
+            Number(financialNow?.kpis?.mrr || 0) * 12,
+            Number(financialPrev?.kpis?.mrr || 0) * 12,
+          ),
+        ),
       });
       setRevenueData(
         (financialNow?.trends || []).slice(-6).map((row) => ({
@@ -143,15 +138,6 @@ export default function AdminDashboard() {
           insurance: iMap[m] || 0,
         })),
       );
-      const statusBreakdown = subscriptionsNow?.breakdown?.by_status || {};
-      setSubscriptionData([
-        { name: 'Active', value: Number(statusBreakdown.active || 0) },
-        { name: 'Paused', value: Number(statusBreakdown.paused || 0) },
-        {
-          name: 'Expired',
-          value: Number(statusBreakdown.expired || 0) + Number(statusBreakdown.cancelled || 0),
-        },
-      ]);
       setActivities(activitiesRows);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -218,7 +204,6 @@ export default function AdminDashboard() {
         <KpiCard title="Insurance Users" value={stats.insurance} icon={ShieldCheck} trend={trends.insurance} />
         <KpiCard title="Providers" value={stats.providers} icon={Activity} trend={trends.providers} />
         <KpiCard title="Transactions" value={stats.transactions} icon={CreditCard} trend={trends.transactions} />
-        <KpiCard title="Active Subscriptions" value={stats.subscriptions} icon={CheckCircle2} trend={trends.subscriptions} />
         <KpiCard title="Monthly Recurring (MRR)" value={stats.mrr} icon={DollarSign} trend={trends.mrr} isCurrency />
         <KpiCard title="Annual Run Rate (ARR)" value={stats.arr} icon={TrendingUp} trend={trends.arr} isCurrency />
       </div>
@@ -256,33 +241,6 @@ export default function AdminDashboard() {
                 <Bar dataKey="patients" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="employers" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="admin-card-shadow border-none">
-          <CardHeader>
-            <CardTitle className="text-lg">Subscription Status</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[300px] flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={subscriptionData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={80}
-                  outerRadius={110}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {subscriptionData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                <Legend verticalAlign="bottom" height={36} iconType="circle" />
-              </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

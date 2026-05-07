@@ -27,7 +27,7 @@ export default function InsuranceAnalyticsPage() {
         <KPICard title="Total Partners" value={kpis.total_partners || 0} icon={ShieldCheck} trend={2.0} />
         <KPICard title="Total Claims" value={kpis.total_claims || 0} icon={FileText} trend={18.5} />
         <KPICard title="Approval Rate" value={`${kpis.approval_rate || 0}%`} icon={CheckCircle} trend={1.2} />
-        <KPICard title="Avg Processing Time" value={`${kpis.avg_processing_time || 0}h`} icon={Clock} trend={-5.4} />
+        <KPICard title="Avg Processing Time" value={`${kpis.avg_processing_time_days || 0}d`} icon={Clock} trend={-5.4} />
       </div>
 
       <div className="grid grid-cols-1 gap-6">

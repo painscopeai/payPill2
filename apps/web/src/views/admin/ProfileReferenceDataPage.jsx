@@ -406,8 +406,8 @@ export default function ProfileReferenceDataPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
-        <Card className="border-none shadow-sm lg:sticky lg:top-4">
+      <div className="grid grid-cols-1 xl:grid-cols-[240px_minmax(0,1fr)] gap-6 items-start">
+        <Card className="border-none shadow-sm xl:sticky xl:top-4">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Groups</CardTitle>
             <CardDescription>Filter by section</CardDescription>
@@ -447,7 +447,7 @@ export default function ProfileReferenceDataPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm">
+        <Card className="border-none shadow-sm min-w-0">
           <CardHeader className="pb-2 space-y-4">
             <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
               <CardTitle>Option sets</CardTitle>

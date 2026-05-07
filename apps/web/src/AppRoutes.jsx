@@ -56,7 +56,6 @@ const PatientsAnalyticsPage = React.lazy(() => import('./views/admin/analytics/P
 const EmployersAnalyticsPage = React.lazy(() => import('./views/admin/analytics/EmployersAnalyticsPage.jsx'));
 const AdminInsuranceAnalyticsPage = React.lazy(() => import('./views/admin/analytics/InsuranceAnalyticsPage.jsx'));
 const ProvidersAnalyticsPage = React.lazy(() => import('./views/admin/analytics/ProvidersAnalyticsPage.jsx'));
-const SubscriptionsAnalyticsPage = React.lazy(() => import('./views/admin/analytics/SubscriptionsAnalyticsPage.jsx'));
 const FinancialAnalyticsPage = React.lazy(() => import('./views/admin/analytics/FinancialAnalyticsPage.jsx'));
 const AIAnalyticsPage = React.lazy(() => import('./views/admin/analytics/AIAnalyticsPage.jsx'));
 const FormsAnalyticsPage = React.lazy(() => import('./views/admin/analytics/FormsAnalyticsPage.jsx'));
@@ -133,7 +132,6 @@ export default function AppRoutes() {
 											<Route path="analytics/employers" element={<EmployersAnalyticsPage />} />
 											<Route path="analytics/insurance" element={<AdminInsuranceAnalyticsPage />} />
 											<Route path="analytics/providers" element={<ProvidersAnalyticsPage />} />
-											<Route path="analytics/subscriptions" element={<SubscriptionsAnalyticsPage />} />
 											<Route path="analytics/financial" element={<FinancialAnalyticsPage />} />
 											<Route path="analytics/ai" element={<AIAnalyticsPage />} />
 											<Route path="analytics/forms" element={<FormsAnalyticsPage />} />

@@ -135,6 +135,28 @@ async function fetchRowsForUserIds(table, columns, userIds) {
 	return out.map(withCreated);
 }
 
+async function fetchRowsForUserIdsInDateRange(table, columns, userIds, start, end) {
+	const out = [];
+	const ids = [...new Set((userIds || []).filter(Boolean))];
+	try {
+		for (const slice of chunkArray(ids, IN_CHUNK)) {
+			if (slice.length === 0) continue;
+			const { data, error } = await sb()
+				.from(table)
+				.select(columns)
+				.in('user_id', slice)
+				.gte('created_at', start.toISOString())
+				.lte('created_at', end.toISOString())
+				.limit(ANALYTICS_LIMIT);
+			if (error) throw error;
+			out.push(...(data || []));
+		}
+	} catch (e) {
+		console.warn(`[analytics] ${table} by user ids/range: ${e.message}`);
+	}
+	return out.map(withCreated);
+}
+
 function parseDateRange(startDate, endDate) {
 	const end = endDate ? new Date(endDate) : new Date();
 	const start = startDate ? new Date(startDate) : new Date(end.getTime() - 365 * 24 * 60 * 60 * 1000);
@@ -319,22 +341,52 @@ export async function payloadEmployers(query) {
 	const employerIds = employers.map((e) => e.id);
 	const employerSet = new Set(employerIds);
 
-	const [subscriptions, appointments, formResponses] = await Promise.all([
+	const [subscriptions, employerEmployees, formResponses] = await Promise.all([
 		fetchRowsForUserIds('subscriptions', 'user_id,monthly_amount,status,created_at', employerIds),
-		fetchRowsForUserIds('appointments', 'user_id,created_at', employerIds),
+		(async () => {
+			try {
+				const { data, error } = await sb()
+					.from('employer_employees')
+					.select('id,employer_id,user_id,status,created_at')
+					.in('employer_id', employerIds)
+					.limit(ANALYTICS_LIMIT);
+				if (error) throw error;
+				return (data || []).map(withCreated);
+			} catch (e) {
+				console.warn(`[analytics] employer employees: ${e.message}`);
+				return [];
+			}
+		})(),
 		fetchRowsForUserIds('form_responses', 'user_id,created_at', employerIds),
 	]);
 
+	const employeeUserIds = [...new Set((employerEmployees || []).map((r) => r.user_id).filter(Boolean))];
+	const appointments = await fetchRowsForUserIdsInDateRange(
+		'appointments',
+		'user_id,created_at,status',
+		employeeUserIds,
+		start,
+		end,
+	);
+
 	const totalEmployers = employers.length;
 	const activeEmployers = employers.filter((e) => e.status === 'active').length;
-	const totalEmployees = employers.reduce((sum, e) => sum + (e.employee_count || 0), 0);
+	const activeStatuses = new Set(['active', 'pending', 'draft']);
+	const activeEmployeeRows = (employerEmployees || []).filter((r) =>
+		activeStatuses.has(String(r.status || 'active').toLowerCase()),
+	);
+	const totalEmployees = activeEmployeeRows.length;
 
 	const employerSubscriptions = subscriptions.filter((s) => s.user_id && employerSet.has(s.user_id));
 	const mrrFromEmployers = employerSubscriptions.reduce((sum, s) => sum + Number(s.monthly_amount || 0), 0);
 
-	const employerAppointments = appointments.filter((a) => a.user_id && employerSet.has(a.user_id));
-	const avgEngagement =
-		totalEmployees > 0 ? (employerAppointments.length / totalEmployees).toFixed(2) : 0;
+	const activeEmployeeUserIds = new Set(activeEmployeeRows.map((r) => r.user_id).filter(Boolean));
+	const engagedEmployees = new Set(
+		appointments
+			.filter((a) => a.user_id && activeEmployeeUserIds.has(a.user_id))
+			.map((a) => a.user_id),
+	).size;
+	const avgEngagement = totalEmployees > 0 ? ((engagedEmployees / totalEmployees) * 100).toFixed(2) : 0;
 
 	const subscriptionStatus = {};
 	employerSubscriptions.forEach((s) => {
@@ -386,32 +438,72 @@ export async function payloadInsurance(query) {
 	);
 
 	const partnerById = new Map(insuranceCompanies.map((p) => [p.id, p]));
+	const insuranceIds = insuranceCompanies.map((p) => p.id);
 
-	const claimsInRange = await fetchTableInDateRange(
-		'claims',
-		'id,insurance_company_id,claim_type,status,created_at',
+	const coverageRows = insuranceIds.length
+		? await (async () => {
+				try {
+					const { data, error } = await sb()
+						.from('employer_employees')
+						.select('id,user_id,insurance_option_slug,status,created_at')
+						.in('insurance_option_slug', insuranceIds)
+						.limit(ANALYTICS_LIMIT);
+					if (error) throw error;
+					return data || [];
+				} catch (e) {
+					console.warn(`[analytics] insurance coverage: ${e.message}`);
+					return [];
+				}
+		  })()
+		: [];
+	const userToInsurance = new Map(
+		coverageRows
+			.filter((r) => r.user_id && r.insurance_option_slug)
+			.map((r) => [r.user_id, r.insurance_option_slug]),
+	);
+	const coveredUserIds = [...new Set((coverageRows || []).map((r) => r.user_id).filter(Boolean))];
+	const claimsInRange = await fetchRowsForUserIdsInDateRange(
+		'appointments',
+		'id,user_id,appointment_type,status,created_at,appointment_date',
+		coveredUserIds,
 		start,
 		end,
+	);
+	const nonCancelledClaims = claimsInRange.filter(
+		(c) => String(c.status || '').toLowerCase() !== 'cancelled',
 	);
 
 	const totalPartners = insuranceCompanies.length;
 	const activePartners = insuranceCompanies.filter((i) => i.status === 'active').length;
-	const totalClaims = claimsInRange.length;
+	const totalClaims = nonCancelledClaims.length;
 
-	const approvedClaims = claimsInRange.filter((c) => c.status === 'approved').length;
+	const approvedClaims = nonCancelledClaims.filter((c) =>
+		['confirmed', 'completed'].includes(String(c.status || '').toLowerCase()),
+	).length;
 	const approvalRate = calculatePercentage(approvedClaims, totalClaims);
 
 	const claimsByCategory = {};
-	claimsInRange.forEach((c) => {
-		const category = c.claim_type || 'unknown';
+	nonCancelledClaims.forEach((c) => {
+		const category = c.appointment_type || 'unknown';
 		claimsByCategory[category] = (claimsByCategory[category] || 0) + 1;
 	});
-
-	const avgProcessingTime = 3.5;
+	const avgProcessingTimeDays = (() => {
+		const diffs = nonCancelledClaims
+			.filter((c) => c.created_at && c.appointment_date)
+			.map((c) => {
+				const created = new Date(c.created_at);
+				const apt = new Date(c.appointment_date);
+				const diffMs = apt.getTime() - created.getTime();
+				return Number.isFinite(diffMs) ? Math.max(0, diffMs / (1000 * 60 * 60 * 24)) : null;
+			})
+			.filter((v) => v != null);
+		if (diffs.length === 0) return 0;
+		return Number((diffs.reduce((sum, n) => sum + n, 0) / diffs.length).toFixed(2));
+	})();
 
 	const claimsByPartner = {};
-	claimsInRange.forEach((c) => {
-		const partnerId = c.insurance_company_id || 'unknown';
+	nonCancelledClaims.forEach((c) => {
+		const partnerId = (c.user_id && userToInsurance.get(c.user_id)) || 'unknown';
 		claimsByPartner[partnerId] = (claimsByPartner[partnerId] || 0) + 1;
 	});
 	const topPartners = Object.entries(claimsByPartner)
@@ -433,9 +525,9 @@ export async function payloadInsurance(query) {
 			active_partners: activePartners,
 			total_claims: totalClaims,
 			approval_rate: approvalRate,
-			avg_processing_time_days: avgProcessingTime,
+			avg_processing_time_days: avgProcessingTimeDays,
 		},
-		trends: generate12MonthTrend(claimsInRange),
+		trends: generate12MonthTrend(nonCancelledClaims),
 		breakdown: {
 			by_claim_category: claimsByCategory,
 			top_partners: topPartners,
@@ -604,24 +696,52 @@ export async function payloadFinancial(query) {
 
 	console.info('[analytics] Fetching financial analytics');
 
-	const [transactionsInRange, activeSubs] = await Promise.all([
+	const [transactionsInRange, activeSubs, appointmentsInRange] = await Promise.all([
 		fetchTransactionsInDateRange(start, end),
 		fetchActiveSubscriptionRowsForMrr(),
+		fetchTableInDateRange(
+			'appointments',
+			'id,provider_service_id,status,created_at',
+			start,
+			end,
+		),
 	]);
 
 	const roleByUserId = await fetchRolesByUserIds(transactionsInRange.map((t) => t.user_id));
 
-	const totalRevenue = transactionsInRange
+	const completedTransactionsRevenue = transactionsInRange
 		.filter((t) => t.status === 'completed')
 		.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+	const validAppointments = appointmentsInRange.filter(
+		(a) => String(a.status || '').toLowerCase() !== 'cancelled',
+	);
+	const serviceIds = [...new Set(validAppointments.map((a) => a.provider_service_id).filter(Boolean))];
+	let servicePriceById = new Map();
+	if (serviceIds.length) {
+		try {
+			const { data: svcRows, error: svcErr } = await sb()
+				.from('provider_services')
+				.select('id,price')
+				.in('id', serviceIds);
+			if (svcErr) throw svcErr;
+			servicePriceById = new Map((svcRows || []).map((s) => [s.id, Number(s.price || 0)]));
+		} catch (e) {
+			console.warn(`[analytics] provider service prices: ${e.message}`);
+		}
+	}
+	const appointmentRevenue = validAppointments.reduce(
+		(sum, a) => sum + Number(servicePriceById.get(a.provider_service_id) || 0),
+		0,
+	);
+	const totalRevenue = completedTransactionsRevenue + appointmentRevenue;
 
 	const mrr = activeSubs.reduce((sum, s) => sum + Number(s.monthly_amount || 0), 0);
 
-	const transactionCount = transactionsInRange.length;
+	const transactionCount = transactionsInRange.length + validAppointments.length;
 	const refundedTransactions = transactionsInRange.filter((t) => t.status === 'refunded').length;
 	const refundRate = calculatePercentage(refundedTransactions, transactionCount);
 
-	const revenueBySource = {};
+	const revenueBySource = { appointments: appointmentRevenue };
 	transactionsInRange.forEach((t) => {
 		const source = t.type || 'unknown';
 		revenueBySource[source] = (revenueBySource[source] || 0) + Number(t.amount || 0);
@@ -641,6 +761,31 @@ export async function payloadFinancial(query) {
 		revenueByUserType[userType] = (revenueByUserType[userType] || 0) + Number(t.amount || 0);
 	});
 
+	const monthKeys = [];
+	const now = new Date();
+	for (let i = 11; i >= 0; i--) {
+		const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+		monthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+	}
+	const monthlyRevenue = new Map(monthKeys.map((k) => [k, 0]));
+	for (const t of transactionsInRange) {
+		if (String(t.status || '').toLowerCase() !== 'completed') continue;
+		const key = String(t.created || t.created_at || '').slice(0, 7);
+		if (!monthlyRevenue.has(key)) continue;
+		monthlyRevenue.set(key, Number(monthlyRevenue.get(key) || 0) + Number(t.amount || 0));
+	}
+	for (const a of validAppointments) {
+		const key = String(a.created || a.created_at || '').slice(0, 7);
+		if (!monthlyRevenue.has(key)) continue;
+		const amount = Number(servicePriceById.get(a.provider_service_id) || 0);
+		monthlyRevenue.set(key, Number(monthlyRevenue.get(key) || 0) + amount);
+	}
+	const trends = monthKeys.map((k) => ({
+		month: k,
+		value: Number(Number(monthlyRevenue.get(k) || 0).toFixed(2)),
+		count: Number(monthlyRevenue.get(k) || 0) > 0 ? 1 : 0,
+	}));
+
 	console.info('[analytics] Financial analytics calculated');
 
 	return {
@@ -651,7 +796,7 @@ export async function payloadFinancial(query) {
 			refund_rate: refundRate,
 			avg_transaction_value: parseFloat(avgTransactionValue),
 		},
-		trends: generate12MonthTrend(transactionsInRange),
+		trends,
 		breakdown: {
 			by_source: Object.fromEntries(
 				Object.entries(revenueBySource).map(([k, v]) => [k, parseFloat(Number(v).toFixed(2))]),

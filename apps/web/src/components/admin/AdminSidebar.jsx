@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Building2, ShieldCheck, 
   FileText, Brain,
   LogOut, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, BookOpen, FileSpreadsheet,
-  PieChart, TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library, ListChecks
+  TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library, ListChecks
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import apiServerClient from '@/lib/apiServerClient';
@@ -60,7 +60,6 @@ const sections = [
       { title: 'Employers', path: '/admin/analytics/employers', icon: Building2 },
       { title: 'Insurance', path: '/admin/analytics/insurance', icon: ShieldCheck },
       { title: 'Providers', path: '/admin/analytics/providers', icon: BarChart3 },
-      { title: 'Subscriptions', path: '/admin/analytics/subscriptions', icon: PieChart },
       { title: 'Forms Analytics', path: '/admin/analytics/forms', icon: LineChart },
       { title: 'AI Usage Analytics', path: '/admin/analytics/ai', icon: Brain },
     ]
