@@ -172,6 +172,9 @@ export async function POST(request: NextRequest) {
 	const name = String(body.name ?? '').trim() || null;
 	const phone = String(body.phone ?? '').trim() || null;
 	const company_name = String(body.company_name ?? '').trim() || null;
+	if (role === 'insurance' && !company_name) {
+		return NextResponse.json({ error: 'company_name is required for insurance users' }, { status: 400 });
+	}
 	const status = String(body.status ?? 'active').toLowerCase();
 
 	const sb = getSupabaseAdmin();
@@ -184,7 +187,14 @@ export async function POST(request: NextRequest) {
 		email,
 		password,
 		email_confirm: true,
-		user_metadata: { role, first_name, last_name, name },
+		user_metadata: {
+			role,
+			first_name,
+			last_name,
+			name,
+			company_name,
+			must_change_password: role === 'insurance',
+		},
 	});
 	if (createErr || !created?.user?.id) {
 		return NextResponse.json({ error: createErr?.message || 'Failed to create user' }, { status: 500 });

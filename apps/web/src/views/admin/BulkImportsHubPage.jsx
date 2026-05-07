@@ -16,6 +16,7 @@ import BulkImportPanel from '@/components/admin/BulkImportPanel.jsx';
 
 const TAB_KEYS = [
 	'employees',
+	'insurance_users',
 	'provider_types',
 	'visit_types',
 	'contracts',
@@ -70,6 +71,7 @@ export default function BulkImportsHubPage() {
 			<Tabs value={activeTab} onValueChange={setTab} className="w-full">
 				<TabsList className="flex flex-wrap h-auto gap-1 justify-start">
 					<TabsTrigger value="employees">Employees</TabsTrigger>
+					<TabsTrigger value="insurance_users">Insurance users</TabsTrigger>
 					<TabsTrigger value="provider_types">Provider types</TabsTrigger>
 					<TabsTrigger value="visit_types">Visit types</TabsTrigger>
 					<TabsTrigger value="contracts">Employer contracts</TabsTrigger>
@@ -120,6 +122,15 @@ export default function BulkImportsHubPage() {
 						description="Slug must be unique (lowercase letters, digits, hyphen, underscore)."
 						templateKind="provider_types"
 						uploadPath="/admin/bulk/provider-types"
+					/>
+				</TabsContent>
+
+				<TabsContent value="insurance_users" className="mt-6">
+					<BulkImportPanel
+						title="Bulk insurance user upload"
+						description="Creates insurance accounts in Insurance Management. Users can sign in with the temporary password from the sheet and are forced to set a new password on first login."
+						templateKind="insurance_users"
+						uploadPath="/admin/bulk/insurance-users"
 					/>
 				</TabsContent>
 

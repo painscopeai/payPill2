@@ -12,7 +12,7 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const USER_KINDS = new Set<BulkTemplateKind>(['employees', 'employer_contracts']);
+const USER_KINDS = new Set<BulkTemplateKind>(['employees', 'insurance_users', 'employer_contracts']);
 
 export async function GET(request: NextRequest) {
 	const url = new URL(request.url);

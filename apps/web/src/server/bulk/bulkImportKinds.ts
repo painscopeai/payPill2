@@ -1,5 +1,6 @@
 export const BULK_TEMPLATE_KINDS = [
 	'employees',
+	'insurance_users',
 	'providers',
 	'provider_types',
 	'visit_types',
@@ -17,6 +18,7 @@ export function isBulkTemplateKind(s: string): s is BulkTemplateKind {
 /** Ordered header row for each template (source of truth for validation + downloads). */
 export const BULK_HEADERS: Record<BulkTemplateKind, readonly string[]> = {
 	employees: ['email', 'password', 'first_name', 'last_name', 'department'],
+	insurance_users: ['email', 'password', 'company_name', 'phone', 'status'],
 	providers: [
 		'name',
 		'email',
@@ -41,6 +43,7 @@ export const BULK_OPTIONAL_HEADERS: Partial<Record<BulkTemplateKind, readonly st
 
 export const BULK_TEMPLATE_FILENAMES: Record<BulkTemplateKind, string> = {
 	employees: 'paypill-bulk-employees-template.csv',
+	insurance_users: 'paypill-bulk-insurance-users-template.csv',
 	providers: 'paypill-bulk-providers-template.csv',
 	provider_types: 'paypill-bulk-provider-types-template.csv',
 	visit_types: 'paypill-bulk-visit-types-template.csv',
@@ -55,6 +58,9 @@ export function buildTemplateCsv(kind: BulkTemplateKind): string {
 		employees: [
 			['alex.smith@company.com', 'TemporaryPass1!', 'Alex', 'Smith', 'Engineering'],
 			['jamie.lee@company.com', 'TemporaryPass2!', 'Jamie', 'Lee', 'HR'],
+		],
+		insurance_users: [
+			['ops@lifeguardinsurance.com', 'TemporaryPass1!', 'LifeGuard Insurance', '+1-555-0101', 'active'],
 		],
 		providers: [
 			[
