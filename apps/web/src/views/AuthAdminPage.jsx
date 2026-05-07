@@ -120,7 +120,7 @@ export default function AuthAdminPage() {
         </Button>
 
         <div className="flex flex-col items-center text-center space-y-2">
-          <PayPillLogo className="h-8 max-h-9 w-auto mb-1" />
+          <PayPillLogo tone="dark" className="h-12 max-h-14 w-auto mb-1" />
           <div className="bg-violet-500/10 p-3 rounded-2xl mb-2">
             <LayoutDashboard className="h-8 w-8 text-violet-600" />
           </div>

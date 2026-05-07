@@ -8,6 +8,7 @@ export function PayPillLogo({
 	className,
 	variant = 'full',
 	alt = 'PayPill',
+	tone = 'auto',
 }) {
 	if (variant === 'mark') {
 		return (
@@ -17,6 +18,26 @@ export function PayPillLogo({
 				className={cn('h-8 w-8 object-contain', className)}
 				width={32}
 				height={32}
+				decoding="async"
+			/>
+		);
+	}
+	if (tone === 'light') {
+		return (
+			<img
+				src="/paypill-logo.png"
+				alt={alt}
+				className={cn('h-8 w-auto max-h-10 object-contain object-left', className)}
+				decoding="async"
+			/>
+		);
+	}
+	if (tone === 'dark') {
+		return (
+			<img
+				src="/paypill-logo-dark.png"
+				alt={alt}
+				className={cn('h-8 w-auto max-h-10 object-contain object-left', className)}
 				decoding="async"
 			/>
 		);
