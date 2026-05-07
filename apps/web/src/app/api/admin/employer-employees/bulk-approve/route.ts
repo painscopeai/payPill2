@@ -26,8 +26,11 @@ type EmployerEmployeeApproveRow = {
 };
 
 async function validateInsuranceSlug(sb: ReturnType<typeof getSupabaseAdmin>, slug: string): Promise<boolean> {
-	const { data } = await sb.from('insurance_options').select('slug').eq('slug', slug).maybeSingle();
-	return Boolean(data);
+	const [profileRes, legacyOptionRes] = await Promise.all([
+		sb.from('profiles').select('id').eq('id', slug).eq('role', 'insurance').maybeSingle(),
+		sb.from('insurance_options').select('slug').eq('slug', slug).maybeSingle(),
+	]);
+	return Boolean(profileRes.data || legacyOptionRes.data);
 }
 
 export async function PATCH(request: NextRequest) {

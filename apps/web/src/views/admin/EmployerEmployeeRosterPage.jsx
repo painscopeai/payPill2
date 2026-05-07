@@ -47,6 +47,10 @@ export default function EmployerEmployeeRosterPage() {
 	const [assignInsurance, setAssignInsurance] = useState(OMIT_INSURANCE);
 
 	const draftRows = useMemo(() => items.filter((r) => r.status === 'draft'), [items]);
+	const insuranceLabelBySlug = useMemo(
+		() => new Map(insuranceOptions.map((o) => [o.slug, o.label])),
+		[insuranceOptions],
+	);
 
 	const loadEmployers = useCallback(async () => {
 		try {
@@ -224,7 +228,7 @@ export default function EmployerEmployeeRosterPage() {
 							<SelectItem value="__clear__">Clear insurance (set empty)</SelectItem>
 							{insuranceOptions.map((o) => (
 								<SelectItem key={o.slug} value={o.slug}>
-									{o.label} ({o.slug})
+									{o.label}
 								</SelectItem>
 							))}
 						</SelectContent>
@@ -300,7 +304,7 @@ export default function EmployerEmployeeRosterPage() {
 											<Badge variant={isDraft ? 'secondary' : 'default'}>{row.status}</Badge>
 										</TableCell>
 										<TableCell className="text-muted-foreground text-sm">
-											{row.insurance_option_slug || '—'}
+											{insuranceLabelBySlug.get(row.insurance_option_slug) || row.insurance_option_slug || '—'}
 										</TableCell>
 										<TableCell className="text-muted-foreground text-sm">
 											{row.department || '—'}

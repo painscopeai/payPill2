@@ -3,11 +3,26 @@ import { NextResponse } from 'next/server';
 import { requireManageUsersAdmin } from '@/server/auth/requireManageUsersAdmin';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { assertEmployerImportTarget } from '@/server/admin/employerAccountsAdmin';
-import { listInsuranceOptions } from '@/server/admin/appointmentReferenceService';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+type InsuranceProfileRow = {
+	id: string;
+	email: string | null;
+	company_name: string | null;
+	first_name: string | null;
+	last_name: string | null;
+	status: string | null;
+};
+
+function insuranceLabel(row: InsuranceProfileRow): string {
+	const org = (row.company_name || '').trim();
+	const name = [row.first_name, row.last_name].filter(Boolean).join(' ');
+	const bits = [org, name, row.email].filter(Boolean);
+	return bits.join(' · ') || row.email || row.id;
+}
 
 export async function GET(request: NextRequest) {
 	const ctx = await requireManageUsersAdmin(request);
@@ -39,20 +54,27 @@ export async function GET(request: NextRequest) {
 		q = q.eq('status', status);
 	}
 
-	const [{ data: items, error }, insuranceOptions] = await Promise.all([
+	const [{ data: items, error }, insuranceProfilesRes] = await Promise.all([
 		q,
-		listInsuranceOptions(false),
+		sb.from('profiles').select('id,email,company_name,first_name,last_name,status').eq('role', 'insurance').order('email', { ascending: true }),
 	]);
 
 	if (error) {
 		return NextResponse.json({ error: error.message }, { status: 500 });
 	}
+	if (insuranceProfilesRes.error) {
+		return NextResponse.json({ error: insuranceProfilesRes.error.message }, { status: 500 });
+	}
+
+	const insuranceOptions = ((insuranceProfilesRes.data || []) as InsuranceProfileRow[])
+		.filter((row) => row.status !== 'inactive')
+		.map((row) => ({
+			slug: row.id,
+			label: insuranceLabel(row),
+		}));
 
 	return NextResponse.json({
 		items: items ?? [],
-		insuranceOptions: insuranceOptions.map((o) => ({
-			slug: o.slug,
-			label: o.label,
-		})),
+		insuranceOptions,
 	});
 }
