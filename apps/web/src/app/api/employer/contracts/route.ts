@@ -54,6 +54,21 @@ export async function GET(request: NextRequest) {
 				.filter(Boolean),
 		),
 	) as string[];
+	const { data: insuranceRows } = await sb
+		.from('profiles')
+		.select('id, company_name, name, email, status')
+		.eq('role', 'insurance')
+		.order('email', { ascending: true });
+	const insuranceOptions = (insuranceRows || [])
+		.filter((row: { status?: string | null }) => row.status !== 'inactive')
+		.map((row: { id: string; company_name: string | null; name: string | null; email: string | null }) => ({
+			id: row.id,
+			label: row.company_name || row.name || row.email || row.id,
+		}));
+
+	insuranceOptions.forEach((opt: { id: string }) => {
+		if (!insuranceIds.includes(opt.id)) insuranceIds.push(opt.id);
+	});
 
 	const profilesById = new Map<string, { id: string; company_name: string | null; name: string | null; email: string | null }>();
 	if (insuranceIds.length > 0) {
@@ -118,6 +133,7 @@ export async function GET(request: NextRequest) {
 					email: m.email,
 					department: m.department,
 					status: m.status,
+					insurance_option_slug: m.insurance_option_slug,
 				})),
 				created_at: row.created_at,
 				updated_at: row.updated_at,
@@ -125,5 +141,5 @@ export async function GET(request: NextRequest) {
 		},
 	);
 
-	return NextResponse.json({ items });
+	return NextResponse.json({ items, insuranceOptions });
 }

@@ -5,16 +5,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { FileText, Loader2, Search, ShieldCheck } from 'lucide-react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 
 export default function EmployerContractsPage() {
   const [contracts, setContracts] = useState([]);
+  const [insuranceOptions, setInsuranceOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [selectedContractId, setSelectedContractId] = useState(null);
   const [savingMemberId, setSavingMemberId] = useState('');
+  const [insuranceByMember, setInsuranceByMember] = useState({});
 
   const selectedContract = useMemo(
     () => contracts.find((item) => item.id === selectedContractId) || null,
@@ -46,6 +55,7 @@ export default function EmployerContractsPage() {
       if (!res.ok) throw new Error(body.error || 'Failed to load contracts');
       const items = body.items || [];
       setContracts(items);
+      setInsuranceOptions(body.insuranceOptions || []);
       setSelectedContractId((prev) => {
         if (!prev && items.length > 0) return items[0].id;
         if (prev && !items.some((row) => row.id === prev)) return items[0]?.id || null;
@@ -77,6 +87,27 @@ export default function EmployerContractsPage() {
       await loadContracts();
     } catch (e) {
       toast.error(e.message || 'Could not update member status');
+    } finally {
+      setSavingMemberId('');
+    }
+  };
+
+  const updateMemberInsurance = async (member) => {
+    const nextInsurance = insuranceByMember[member.id] ?? member.insurance_option_slug ?? '';
+    if (!nextInsurance || nextInsurance === member.insurance_option_slug) return;
+    setSavingMemberId(member.id);
+    try {
+      const res = await apiServerClient.fetch(`/employer/employees/${member.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ insurance_option_slug: nextInsurance }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Could not move employee to selected insurance');
+      toast.success(`${member.name} moved to new insurance.`);
+      await loadContracts();
+    } catch (e) {
+      toast.error(e.message || 'Could not move employee');
     } finally {
       setSavingMemberId('');
     }
@@ -182,6 +213,7 @@ export default function EmployerContractsPage() {
                           <tr>
                             <th className="px-4 py-3 font-medium">Employee</th>
                             <th className="px-4 py-3 font-medium">Department</th>
+                            <th className="px-4 py-3 font-medium">Insurance</th>
                             <th className="px-4 py-3 font-medium">Status</th>
                             <th className="px-4 py-3 font-medium text-right">Action</th>
                           </tr>
@@ -189,7 +221,7 @@ export default function EmployerContractsPage() {
                         <tbody className="divide-y">
                           {(selectedContract.members || []).length === 0 ? (
                             <tr>
-                              <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                              <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                                 No covered employees found in this contract.
                               </td>
                             </tr>
@@ -202,25 +234,58 @@ export default function EmployerContractsPage() {
                                 </td>
                                 <td className="px-4 py-3 text-muted-foreground">{member.department || '—'}</td>
                                 <td className="px-4 py-3">
+                                  <Select
+                                    value={insuranceByMember[member.id] ?? member.insurance_option_slug ?? undefined}
+                                    onValueChange={(value) =>
+                                      setInsuranceByMember((prev) => ({ ...prev, [member.id]: value }))
+                                    }
+                                  >
+                                    <SelectTrigger className="w-[220px]">
+                                      <SelectValue placeholder="Select insurance" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {insuranceOptions.map((opt) => (
+                                        <SelectItem key={opt.id} value={opt.id}>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                <td className="px-4 py-3">
                                   <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
                                     {member.status}
                                   </Badge>
                                 </td>
                                 <td className="px-4 py-3 text-right">
-                                  <Button
-                                    size="sm"
-                                    variant={member.status === 'active' ? 'outline' : 'default'}
-                                    disabled={savingMemberId === member.id}
-                                    onClick={() => toggleMemberStatus(member)}
-                                  >
-                                    {savingMemberId === member.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : member.status === 'active' ? (
-                                      'Set inactive'
-                                    ) : (
-                                      'Set active'
-                                    )}
-                                  </Button>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        savingMemberId === member.id ||
+                                        !insuranceByMember[member.id] ||
+                                        insuranceByMember[member.id] === member.insurance_option_slug
+                                      }
+                                      onClick={() => updateMemberInsurance(member)}
+                                    >
+                                      Move insurance
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant={member.status === 'active' ? 'outline' : 'default'}
+                                      disabled={savingMemberId === member.id}
+                                      onClick={() => toggleMemberStatus(member)}
+                                    >
+                                      {savingMemberId === member.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : member.status === 'active' ? (
+                                        'Set inactive'
+                                      ) : (
+                                        'Set active'
+                                      )}
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             ))
