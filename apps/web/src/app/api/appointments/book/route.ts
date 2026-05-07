@@ -156,6 +156,7 @@ export async function POST(request: NextRequest) {
 		.from('employer_employees')
 		.select('insurance_option_slug, status, updated_at')
 		.eq('user_id', uid)
+		.in('status', ['active', 'pending', 'draft'])
 		.not('insurance_option_slug', 'is', null)
 		.order('updated_at', { ascending: false })
 		.limit(1)
@@ -212,8 +213,41 @@ export async function POST(request: NextRequest) {
 	}
 
 	const insuranceRow = await getInsuranceOption(effectiveInsuranceOptionId);
-	if (!insuranceRow?.active) {
-		return NextResponse.json({ error: 'Invalid or inactive insurance option' }, { status: 400 });
+	let insuranceLabel = insuranceInfo?.trim() || '';
+	let insuranceOptionFkId: string | null = null;
+
+	if (insuranceRow?.active) {
+		insuranceLabel = insuranceLabel || insuranceRow.label;
+		insuranceOptionFkId = insuranceRow.id;
+	} else {
+		// Contract flow stores insurance as profile id on employer_employees; allow booking with that active insurance profile.
+		const { data: insuranceProfile } = await sb
+			.from('profiles')
+			.select('id, company_name, name, email, status')
+			.eq('id', effectiveInsuranceOptionId)
+			.eq('role', 'insurance')
+			.maybeSingle();
+		const profileStatus = String((insuranceProfile as { status?: string | null } | null)?.status || '')
+			.trim()
+			.toLowerCase();
+		if (!insuranceProfile || profileStatus === 'inactive') {
+			return NextResponse.json(
+				{
+					error:
+						'No active insurance is assigned to your account. Contact your employer/admin to set active coverage.',
+				},
+				{ status: 400 },
+			);
+		}
+		const p = insuranceProfile as {
+			id: string;
+			company_name: string | null;
+			name: string | null;
+			email: string | null;
+		};
+		insuranceLabel = insuranceLabel || p.company_name || p.name || p.email || p.id;
+		// Keep FK null here because this id belongs to profiles (not insurance_options).
+		insuranceOptionFkId = null;
 	}
 
 	// Contract foundation: all insurance options cover provider services fully (no co-pay).
@@ -232,7 +266,7 @@ export async function POST(request: NextRequest) {
 		appointment_type: appointmentType,
 		location: location || prov.address || null,
 		reason: reason || '',
-		insurance_info: insuranceInfo || insuranceRow.label || '',
+		insurance_info: insuranceLabel,
 		copay_amount: copay_estimate,
 		confirmation_number: confirmationNumber,
 		status: 'confirmed',
@@ -242,7 +276,7 @@ export async function POST(request: NextRequest) {
 	const rowFull = {
 		...rowBase,
 		visit_type_id: visitType.id,
-		insurance_option_id: insuranceRow.id,
+		insurance_option_id: insuranceOptionFkId,
 		meeting_url: null as string | null,
 	};
 
@@ -318,8 +352,6 @@ export async function POST(request: NextRequest) {
 		'Patient';
 
 	const visitLabel = visitType.label;
-	const insuranceLabel = insuranceRow.label;
-
 	// Bidirectional: patient (profile email) + provider (providers.email) each get their own Resend message.
 	void sendBookingConfirmationEmails({
 		patientEmail: prof?.email ?? null,
