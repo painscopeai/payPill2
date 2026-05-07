@@ -3,9 +3,11 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Home, User, Sparkles, FileText, Calendar, MessageSquare, LogOut, Menu, Bell } from 'lucide-react';
+import { Home, User, Sparkles, FileText, Calendar, MessageSquare, LogOut, Menu } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import apiServerClient from '@/lib/apiServerClient';
+import NotificationBell from '@/components/NotificationBell.jsx';
+import ThemeToggleButton from '@/components/ThemeToggleButton.jsx';
 
 export default function PatientLayout({ children }) {
   const { currentUser, logout } = useAuth();
@@ -66,7 +68,8 @@ export default function PatientLayout({ children }) {
           <PayPillLogo className="h-7 max-h-8 w-auto" />
         </Link>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
+          <ThemeToggleButton />
+          <NotificationBell />
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon"><Menu className="h-5 w-5" /></Button>
@@ -136,7 +139,8 @@ export default function PatientLayout({ children }) {
             {location.pathname.split('/').filter(Boolean).join(' / ')}
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
+            <ThemeToggleButton />
+            <NotificationBell />
           </div>
         </header>
         <div className="flex-1 p-4 sm:p-6 lg:p-8">

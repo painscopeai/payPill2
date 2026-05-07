@@ -159,7 +159,9 @@ function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
       <div className="p-4 flex items-center justify-between border-b border-[hsl(var(--admin-sidebar-fg))]/10 h-16 shrink-0">
         {!isCollapsed && (
           <div className="flex min-w-0 items-center gap-2 text-[hsl(var(--admin-sidebar-fg))]">
-            <PayPillLogo tone="dark" className="h-10 max-h-12 shrink-0" />
+            <Link to="/admin/dashboard" onClick={() => setIsMobileOpen(false)} className="shrink-0">
+              <PayPillLogo tone="dark" className="h-10 max-h-12 shrink-0" />
+            </Link>
             <span className="font-display text-xs font-semibold uppercase tracking-wide text-[hsl(var(--admin-sidebar-fg))]/70">
               Admin
             </span>
@@ -167,7 +169,9 @@ function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
         )}
         {isCollapsed && (
           <div className="flex justify-center">
-            <PayPillLogo variant="mark" />
+            <Link to="/admin/dashboard" onClick={() => setIsMobileOpen(false)}>
+              <PayPillLogo variant="mark" />
+            </Link>
           </div>
         )}
       </div>

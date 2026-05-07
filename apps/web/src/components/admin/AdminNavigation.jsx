@@ -1,10 +1,9 @@
 
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { Menu, Bell, Moon, Sun, LogOut } from 'lucide-react';
+import { Menu, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { useTheme } from 'next-themes';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,11 +13,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import NotificationBell from '@/components/NotificationBell.jsx';
+import ThemeToggleButton from '@/components/ThemeToggleButton.jsx';
 
 export default function AdminNavigation({ setIsMobileOpen }) {
   const location = useLocation();
   const { currentUser: currentAdmin, logout: adminLogout } = useAuth();
-  const { theme, setTheme } = useTheme();
 
   // Generate breadcrumbs from path
   const pathSegments = location.pathname.split('/').filter(Boolean);
@@ -52,20 +52,8 @@ export default function AdminNavigation({ setIsMobileOpen }) {
       </div>
 
       <div className="flex items-center gap-3 lg:gap-5">
-        <Button 
-          variant="ghost" 
-          size="icon"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="rounded-full"
-        >
-          {theme === 'dark' ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-slate-700" />}
-          <span className="sr-only">Toggle theme</span>
-        </Button>
-
-        <Button variant="ghost" size="icon" className="relative rounded-full">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full border-2 border-[hsl(var(--admin-card))]"></span>
-        </Button>
+        <ThemeToggleButton className="rounded-full" />
+        <NotificationBell className="rounded-full" />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
