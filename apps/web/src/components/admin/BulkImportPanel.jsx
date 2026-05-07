@@ -212,7 +212,9 @@ export default function BulkImportPanel({
 								<div>
 									<p className="text-sm font-medium text-foreground">Initial passwords from your file</p>
 									<p className="text-xs text-muted-foreground mt-1">
-										Same values used to create accounts. Copy now — they are not kept on this screen after refresh.
+										Same values used to create accounts (first-time sign-in). After an admin approves them on the roster,
+										each user signs in with this password and must choose a new password before using the app. Copy now —
+										these rows are not kept after refresh.
 									</p>
 								</div>
 								<Button

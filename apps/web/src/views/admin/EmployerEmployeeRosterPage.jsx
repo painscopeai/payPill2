@@ -151,7 +151,9 @@ export default function EmployerEmployeeRosterPage() {
 			if (!res.ok) throw new Error(data.error || 'Approve failed');
 			const { approvedCount = 0, failures = [] } = data;
 			if (approvedCount) {
-				toast.success(`Approved ${approvedCount} employee(s). They can sign in with the password from the import file, then set a new password.`);
+				toast.success(
+					`Approved ${approvedCount} employee(s). They sign in with the import-file password, then must choose a new password.`,
+				);
 			}
 			if (failures.length) {
 				const first = failures[0]?.message || 'Some rows failed';
@@ -174,7 +176,8 @@ export default function EmployerEmployeeRosterPage() {
 				<h1 className="text-3xl font-bold font-display">Employer employee roster</h1>
 				<p className="text-muted-foreground">
 					Imported employees stay in draft status until you approve them here. Until then their accounts
-					cannot sign in. After approval they sign in and choose a new password.
+					cannot sign in. After approval they sign in with the password from the bulk-import file, then they are
+					required to set a new password on first login.
 				</p>
 				<p className="text-sm text-muted-foreground mt-2">
 					<Link to="/admin/bulk-imports?tab=employees" className="text-primary underline-offset-4 hover:underline">
