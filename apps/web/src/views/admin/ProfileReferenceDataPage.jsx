@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, Ban, ListTree, Search, Database } from 'lucide-react';
+import { Plus, Loader2, Pencil, Ban, ListTree, Search, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { PROFILE_OPTION_GROUP_LABELS as GROUP_LABELS } from '@/lib/profileOptionGroupLabels';
 import { cn } from '@/lib/utils';
 
@@ -58,6 +58,7 @@ export default function ProfileReferenceDataPage() {
   const [sets, setSets] = useState([]);
   const [search, setSearch] = useState('');
   const [groupFilter, setGroupFilter] = useState('all');
+  const [groupsCollapsed, setGroupsCollapsed] = useState(false);
 
   const [valuesOpen, setValuesOpen] = useState(false);
   const [activeSet, setActiveSet] = useState(null);
@@ -406,15 +407,41 @@ export default function ProfileReferenceDataPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[240px_minmax(0,1fr)] gap-6 items-start">
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-6 items-start',
+          groupsCollapsed
+            ? 'xl:grid-cols-[56px_minmax(0,1fr)]'
+            : 'xl:grid-cols-[210px_minmax(0,1fr)]',
+        )}
+      >
         <Card className="border-none shadow-sm xl:sticky xl:top-4">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Groups</CardTitle>
-            <CardDescription>Filter by section</CardDescription>
+            <div className="flex items-center justify-between gap-2">
+              {!groupsCollapsed ? <CardTitle className="text-base">Groups</CardTitle> : <div />}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setGroupsCollapsed((prev) => !prev)}
+                title={groupsCollapsed ? 'Expand groups panel' : 'Collapse groups panel'}
+              >
+                {groupsCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              </Button>
+            </div>
+            {!groupsCollapsed ? <CardDescription>Filter by section</CardDescription> : null}
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[min(70vh,520px)]">
-              <nav className="flex flex-col gap-0.5 p-3 pr-4">
+          <CardContent className={cn('p-0', groupsCollapsed ? 'px-2 pb-3' : '')}>
+            {groupsCollapsed ? (
+              <div className="flex justify-center pb-1">
+                <Badge variant="secondary" className="text-xs">
+                  {sets.length}
+                </Badge>
+              </div>
+            ) : (
+              <ScrollArea className="h-[min(70vh,520px)]">
+                <nav className="flex flex-col gap-0.5 p-3 pr-4">
                 <button
                   type="button"
                   onClick={() => setGroupFilter('all')}
@@ -442,8 +469,9 @@ export default function ProfileReferenceDataPage() {
                     <span className="text-muted-foreground ml-1">({groupCounts[g]})</span>
                   </button>
                 ))}
-              </nav>
-            </ScrollArea>
+                </nav>
+              </ScrollArea>
+            )}
           </CardContent>
         </Card>
 
