@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import Header from '@/components/Header.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -7,10 +7,12 @@ import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Cart
 import { Download, RefreshCw, BarChart3, AlertTriangle, Lightbulb } from 'lucide-react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
+import { exportChartElementAsPng } from '@/lib/chartExport';
 
 export default function InsuranceAnalyticsPage() {
   const [insurancePayload, setInsurancePayload] = useState(null);
   const [financialPayload, setFinancialPayload] = useState(null);
+  const chartsRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -52,6 +54,14 @@ export default function InsuranceAnalyticsPage() {
 
   const kpis = insurancePayload?.kpis || {};
   const finKpis = financialPayload?.kpis || {};
+  const handleExportCharts = async () => {
+    try {
+      await exportChartElementAsPng(chartsRef.current, 'insurance-advanced-analytics');
+      toast.success('Chart image exported');
+    } catch (e) {
+      toast.error(e.message || 'Could not export chart image');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -66,7 +76,7 @@ export default function InsuranceAnalyticsPage() {
           </div>
           <div className="flex gap-3">
             <Button variant="outline" className="gap-2"><RefreshCw className="h-4 w-4" /> Refresh</Button>
-            <Button className="gap-2"><Download className="h-4 w-4" /> Executive Report</Button>
+            <Button className="gap-2" onClick={handleExportCharts}><Download className="h-4 w-4" /> Executive Report</Button>
           </div>
         </div>
 
@@ -100,7 +110,7 @@ export default function InsuranceAnalyticsPage() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div ref={chartsRef} className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <Card className="shadow-sm border-border/50">
             <CardHeader>
               <CardTitle>Medical Loss Ratio (MLR) Trend</CardTitle>

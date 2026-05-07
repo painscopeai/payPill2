@@ -8,6 +8,7 @@ import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Cart
 import { Download, TrendingDown } from 'lucide-react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
+import { exportToCSV } from '@/lib/csvExport';
 
 export default function EmployerCostsPage() {
   const [payload, setPayload] = useState(null);
@@ -55,6 +56,20 @@ export default function EmployerCostsPage() {
     careUtilizationRate: 0,
   };
   const filteredActivities = activityLog.slice(0, 200);
+  const handleExportStatement = () => {
+    const rows = filteredActivities.map((row) => ({
+      date_time: row.activityAt ? new Date(row.activityAt).toLocaleString() : '',
+      employee_name: row.employeeName || '',
+      employee_email: row.employeeEmail || '',
+      department: row.department || '',
+      service: row.serviceName || '',
+      provider: row.providerName || '',
+      status: row.status || '',
+      cost: Number(row.cost || 0),
+    }));
+    exportToCSV(rows, `employer-cost-statement-${fromDate || 'all'}-${toDate || 'all'}`);
+    toast.success('Statement CSV exported');
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -70,7 +85,7 @@ export default function EmployerCostsPage() {
           <div className="flex flex-wrap gap-2">
             <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[170px]" />
             <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[170px]" />
-            <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> Download Statement</Button>
+            <Button variant="outline" className="gap-2" onClick={handleExportStatement}><Download className="h-4 w-4" /> Download Statement</Button>
           </div>
         </div>
 

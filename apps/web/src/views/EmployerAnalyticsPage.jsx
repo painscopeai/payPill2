@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import Header from '@/components/Header.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -8,9 +8,11 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { Download, TrendingUp } from 'lucide-react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
+import { exportChartElementAsPng } from '@/lib/chartExport';
 
 export default function EmployerAnalyticsPage() {
   const [payload, setPayload] = useState(null);
+  const chartsRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -62,6 +64,15 @@ export default function EmployerAnalyticsPage() {
     }));
   }, [payload]);
 
+  const handleExportCharts = async () => {
+    try {
+      await exportChartElementAsPng(chartsRef.current, 'employer-analytics');
+      toast.success('Chart image exported');
+    } catch (e) {
+      toast.error(e.message || 'Could not export chart image');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Helmet><title>Health Analytics - PayPill</title></Helmet>
@@ -82,7 +93,7 @@ export default function EmployerAnalyticsPage() {
                 <SelectItem value="1y">Last Year</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> Export</Button>
+            <Button variant="outline" className="gap-2" onClick={handleExportCharts}><Download className="h-4 w-4" /> Export</Button>
           </div>
         </div>
 
@@ -120,7 +131,7 @@ export default function EmployerAnalyticsPage() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div ref={chartsRef} className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <Card className="shadow-sm border-border/50">
             <CardHeader>
               <CardTitle>Health Score Distribution</CardTitle>

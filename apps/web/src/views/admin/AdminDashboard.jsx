@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { adminListRecent } from '@/lib/adminSupabaseList.js';
 import apiServerClient from '@/lib/apiServerClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { exportChartElementAsPng } from '@/lib/chartExport';
 
 export default function AdminDashboard() {
   const [dateRange, setDateRange] = useState('30');
@@ -36,6 +37,7 @@ export default function AdminDashboard() {
   });
   const [revenueData, setRevenueData] = useState([]);
   const [userGrowthData, setUserGrowthData] = useState([]);
+  const chartsRef = useRef(null);
 
   const asPct = (value) => Number.isFinite(Number(value)) ? Number(value.toFixed(1)) : 0;
   const pctChange = (current, previous) => {
@@ -170,6 +172,14 @@ export default function AdminDashboard() {
       </CardContent>
     </Card>
   );
+  const handleExportCharts = async () => {
+    try {
+      await exportChartElementAsPng(chartsRef.current, `admin-dashboard-${dateRange}d`);
+      toast.success('Dashboard chart image exported');
+    } catch (e) {
+      toast.error(e.message || 'Could not export chart image');
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -192,7 +202,7 @@ export default function AdminDashboard() {
           <Button variant="outline" size="icon" onClick={fetchDashboardData} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button className="bg-primary-gradient">
+          <Button className="bg-primary-gradient" onClick={handleExportCharts}>
             <Download className="w-4 h-4 mr-2" /> Export
           </Button>
         </div>
@@ -208,7 +218,7 @@ export default function AdminDashboard() {
         <KpiCard title="Annual Run Rate (ARR)" value={stats.arr} icon={TrendingUp} trend={trends.arr} isCurrency />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div ref={chartsRef} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="admin-card-shadow border-none">
           <CardHeader>
             <CardTitle className="text-lg">Revenue Trend</CardTitle>

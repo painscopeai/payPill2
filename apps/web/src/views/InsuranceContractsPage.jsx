@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import Header from '@/components/Header.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { Search, Filter, Download } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
+import { exportToCSV } from '@/lib/csvExport';
 
 export default function InsuranceContractsPage() {
   const [contracts, setContracts] = useState([]);
@@ -33,6 +34,30 @@ export default function InsuranceContractsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const filteredClaims = useMemo(
+    () =>
+      claims.filter((c) =>
+        `${c.employer || ''} ${c.employee_name || ''} ${c.service_name || ''}`
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()),
+      ),
+    [claims, searchTerm],
+  );
+
+  const handleExportCsv = () => {
+    const rows = filteredClaims.map((c) => ({
+      date_time: c.activity_at ? new Date(c.activity_at).toLocaleString() : '',
+      employer: c.employer || '',
+      employee_name: c.employee_name || '',
+      employee_email: c.employee_email || '',
+      service: c.service_name || '',
+      provider: c.provider_name || '',
+      status: c.status || '',
+      receivable: Number(c.receivable_amount || 0),
+    }));
+    exportToCSV(rows, `insurance-claims-${fromDate || 'all'}-${toDate || 'all'}`);
+    toast.success('Claims CSV exported');
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -85,7 +110,7 @@ export default function InsuranceContractsPage() {
           <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[170px]" />
             <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[170px]" />
-            <Button variant="outline" className="gap-2 hidden sm:flex"><Download className="h-4 w-4" /> Export</Button>
+            <Button variant="outline" className="gap-2 hidden sm:flex" onClick={handleExportCsv}><Download className="h-4 w-4" /> Export</Button>
           </div>
         </div>
 
@@ -165,19 +190,11 @@ export default function InsuranceContractsPage() {
                   <tr>
                     <td colSpan="6" className="px-6 py-10 text-center text-muted-foreground">Loading claims…</td>
                   </tr>
-                ) : claims.filter(c =>
-                  `${c.employer || ''} ${c.employee_name || ''} ${c.service_name || ''}`
-                    .toLowerCase()
-                    .includes(searchTerm.toLowerCase()),
-                ).length === 0 ? (
+                ) : filteredClaims.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="px-6 py-10 text-center text-muted-foreground">No claims found.</td>
                   </tr>
-                ) : claims.filter(c =>
-                  `${c.employer || ''} ${c.employee_name || ''} ${c.service_name || ''}`
-                    .toLowerCase()
-                    .includes(searchTerm.toLowerCase()),
-                ).map((c) => (
+                ) : filteredClaims.map((c) => (
                   <tr key={c.id} className="hover:bg-muted/10 transition-colors">
                     <td className="px-6 py-4">
                       {c.activity_at ? new Date(c.activity_at).toLocaleString() : '—'}

@@ -10,6 +10,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { Download, Search, Filter, TrendingUp, Activity, ShieldCheck, Heart, ChevronRight, ChevronDown } from 'lucide-react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
+import { exportToCSV } from '@/lib/csvExport';
 
 export default function InsuranceMembersOutcomesPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -90,6 +91,21 @@ export default function InsuranceMembersOutcomesPage() {
       [employer]: !(prev[employer] ?? true),
     }));
   };
+  const handleExportReport = () => {
+    const rows = filteredMembers.map((m) => ({
+      member_name: m.name || '',
+      member_id: m.id || '',
+      employer: m.employer || '',
+      health_score: Number(m.score || 0),
+      chronic_conditions: Number(m.chronic || 0),
+      adherence: m.adherence || '',
+      risk: m.risk || '',
+      status: m.status || '',
+      last_active: m.lastActive ? new Date(m.lastActive).toLocaleString() : '',
+    }));
+    exportToCSV(rows, `insurance-members-outcomes-${selectedEmployer}`);
+    toast.success('Members report exported');
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -112,7 +128,7 @@ export default function InsuranceMembersOutcomesPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> Export Report</Button>
+            <Button variant="outline" className="gap-2" onClick={handleExportReport}><Download className="h-4 w-4" /> Export Report</Button>
           </div>
         </div>
 
