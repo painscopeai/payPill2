@@ -86,11 +86,10 @@ export async function POST(request: NextRequest) {
 		let hire_date: string | null = null;
 		if (hire_raw) {
 			const d = new Date(hire_raw);
-			if (!Number.isFinite(d.getTime())) {
-				failures.push({ rowNumber, message: 'Invalid hire_date' });
-				continue;
+			if (Number.isFinite(d.getTime())) {
+				hire_date = hire_raw.slice(0, 10);
 			}
-			hire_date = hire_raw.slice(0, 10);
+			// Invalid or unparsable hire_date is skipped (column is optional).
 		}
 
 		const { data: existingProf } = await sb.from('profiles').select('id').eq('email', email).maybeSingle();

@@ -1,7 +1,7 @@
 import { parse } from 'csv-parse/sync';
 import * as XLSX from 'xlsx';
 import type { BulkTemplateKind } from '@/server/bulk/bulkImportKinds';
-import { BULK_HEADERS } from '@/server/bulk/bulkImportKinds';
+import { BULK_HEADERS, BULK_OPTIONAL_HEADERS } from '@/server/bulk/bulkImportKinds';
 
 export type ParsedSheet = {
 	headers: string[];
@@ -68,28 +68,28 @@ export function validateHeadersForKind(
 	kind: BulkTemplateKind,
 	parsedHeaders: string[],
 ): { ok: true } | { ok: false; error: string } {
-	const expected = BULK_HEADERS[kind];
+	const required = BULK_HEADERS[kind];
+	const optional = BULK_OPTIONAL_HEADERS[kind] ?? [];
 	const got = new Set(parsedHeaders.map(normHeader).filter(Boolean));
-	const exp = new Set(expected.map((h) => normHeader(h)));
-	if (got.size !== exp.size) {
-		return {
-			ok: false,
-			error: `Header mismatch for ${kind}: expected ${expected.join(', ')}. Download the template and try again.`,
-		};
-	}
-	for (const e of exp) {
+	const reqNorm = new Set(required.map((h) => normHeader(h)));
+	const allowedNorm = new Set([
+		...required.map((h) => normHeader(h)),
+		...optional.map((h) => normHeader(h)),
+	]);
+	for (const e of reqNorm) {
 		if (!got.has(e)) {
+			const optHint = optional.length ? ` Optional: ${optional.join(', ')}.` : '';
 			return {
 				ok: false,
-				error: `Missing column "${e}". Expected headers: ${expected.join(', ')}.`,
+				error: `Missing column "${e}". Required: ${required.join(', ')}.${optHint}`,
 			};
 		}
 	}
 	for (const g of got) {
-		if (!exp.has(g)) {
+		if (!allowedNorm.has(g)) {
 			return {
 				ok: false,
-				error: `Unexpected column "${g}". Use only columns from the ${kind} template.`,
+				error: `Unexpected column "${g}". Required: ${required.join(', ')}.${optional.length ? ` Allowed optional: ${optional.join(', ')}.` : ''}`,
 			};
 		}
 	}

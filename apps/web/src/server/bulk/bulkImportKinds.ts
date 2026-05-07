@@ -16,14 +16,7 @@ export function isBulkTemplateKind(s: string): s is BulkTemplateKind {
 
 /** Ordered header row for each template (source of truth for validation + downloads). */
 export const BULK_HEADERS: Record<BulkTemplateKind, readonly string[]> = {
-	employees: [
-		'email',
-		'password',
-		'first_name',
-		'last_name',
-		'department',
-		'hire_date',
-	],
+	employees: ['email', 'password', 'first_name', 'last_name', 'department'],
 	providers: [
 		'name',
 		'email',
@@ -41,6 +34,11 @@ export const BULK_HEADERS: Record<BulkTemplateKind, readonly string[]> = {
 	employer_contracts: ['name', 'effective_date', 'status', 'notes'],
 };
 
+/** Extra columns accepted on upload (ignored if absent); keeps older sheets working. */
+export const BULK_OPTIONAL_HEADERS: Partial<Record<BulkTemplateKind, readonly string[]>> = {
+	employees: ['hire_date'],
+};
+
 export const BULK_TEMPLATE_FILENAMES: Record<BulkTemplateKind, string> = {
 	employees: 'paypill-bulk-employees-template.csv',
 	providers: 'paypill-bulk-providers-template.csv',
@@ -55,22 +53,8 @@ export function buildTemplateCsv(kind: BulkTemplateKind): string {
 	const headers = [...BULK_HEADERS[kind]];
 	const sampleRows: Record<BulkTemplateKind, string[][]> = {
 		employees: [
-			[
-				'alex.smith@company.com',
-				'TemporaryPass1!',
-				'Alex',
-				'Smith',
-				'Engineering',
-				'2024-01-15',
-			],
-			[
-				'jamie.lee@company.com',
-				'TemporaryPass2!',
-				'Jamie',
-				'Lee',
-				'HR',
-				'',
-			],
+			['alex.smith@company.com', 'TemporaryPass1!', 'Alex', 'Smith', 'Engineering'],
+			['jamie.lee@company.com', 'TemporaryPass2!', 'Jamie', 'Lee', 'HR'],
 		],
 		providers: [
 			[
