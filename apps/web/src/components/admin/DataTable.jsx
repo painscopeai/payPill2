@@ -76,7 +76,7 @@ export function DataTable({
                     onClick={() => onRowClick?.(row)}
                   >
                     {columns.map((col, cIdx) => (
-                      <TableCell key={cIdx} className="whitespace-nowrap">
+                      <TableCell key={cIdx} className="align-top">
                         {col.render ? col.render(row) : row[col.key]}
                       </TableCell>
                     ))}
