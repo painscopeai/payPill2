@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireManageUsersAdmin } from '@/server/auth/requireManageUsersAdmin';
@@ -17,13 +19,22 @@ type ApproveBody = {
 
 type RowFail = { id: string; message: string };
 
+/** One-time return for admins to share with employees after approval (not stored elsewhere). */
+type ApprovalCredential = { email: string; temporaryPassword: string };
+
 type EmployerEmployeeApproveRow = {
 	id: string;
 	employer_id: string;
 	user_id: string | null;
+	email: string;
 	status: string;
 	insurance_option_slug: string | null;
 };
+
+function generateTemporaryPassword(): string {
+	// Strong one-time credential; aligns with CSV import requirement of min 8 characters.
+	return randomBytes(18).toString('base64url');
+}
 
 async function validateInsuranceSlug(sb: ReturnType<typeof getSupabaseAdmin>, slug: string): Promise<boolean> {
 	const [profileRes, legacyOptionRes] = await Promise.all([
@@ -76,7 +87,7 @@ export async function PATCH(request: NextRequest) {
 
 	const { data: rows, error: fetchErr } = await sb
 		.from('employer_employees')
-		.select('id, employer_id, user_id, status, insurance_option_slug')
+		.select('id, employer_id, user_id, email, status, insurance_option_slug')
 		.eq('employer_id', employerId)
 		.in('id', ids);
 
@@ -87,6 +98,7 @@ export async function PATCH(request: NextRequest) {
 	const typedRows = (rows ?? []) as EmployerEmployeeApproveRow[];
 	const byId = new Map(typedRows.map((r) => [r.id, r]));
 	const failures: RowFail[] = [];
+	const credentials: ApprovalCredential[] = [];
 	let approvedCount = 0;
 
 	for (const id of ids) {
@@ -114,6 +126,8 @@ export async function PATCH(request: NextRequest) {
 		};
 		updatePayload.insurance_option_slug = insurancePatch;
 
+		const temporaryPassword = generateTemporaryPassword();
+
 		const { error: upErr } = await sb.from('employer_employees').update(updatePayload).eq('id', id);
 
 		if (upErr) {
@@ -123,6 +137,7 @@ export async function PATCH(request: NextRequest) {
 
 		const { error: unbanErr } = await sb.auth.admin.updateUserById(row.user_id, {
 			ban_duration: 'none',
+			password: temporaryPassword,
 		});
 
 		if (unbanErr) {
@@ -139,6 +154,7 @@ export async function PATCH(request: NextRequest) {
 			continue;
 		}
 
+		credentials.push({ email: row.email, temporaryPassword });
 		approvedCount++;
 	}
 
@@ -157,5 +173,5 @@ export async function PATCH(request: NextRequest) {
 		userAgent: request.headers.get('user-agent'),
 	});
 
-	return NextResponse.json({ approvedCount, failures });
+	return NextResponse.json({ approvedCount, failures, credentials });
 }
