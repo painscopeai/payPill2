@@ -84,7 +84,7 @@ export default function Header() {
     <>
       <Link to="/insurance/dashboard" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/dashboard') ? 'text-primary' : 'text-muted-foreground'}`}>Dashboard</Link>
       <Link to="/insurance/members" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/members') ? 'text-primary' : 'text-muted-foreground'}`}>Members</Link>
-      <Link to="/insurance/contracts" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/contracts') ? 'text-primary' : 'text-muted-foreground'}`}>Contracts</Link>
+      <Link to="/insurance/contracts" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/contracts') ? 'text-primary' : 'text-muted-foreground'}`}>Claims</Link>
       <Link to="/insurance/analytics" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/analytics') ? 'text-primary' : 'text-muted-foreground'}`}>Analytics</Link>
     </>
   );
