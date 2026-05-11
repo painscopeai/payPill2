@@ -7,34 +7,7 @@ import PatientBasicProfileSection from '@/components/PatientBasicProfileSection.
 
 export default function PatientDashboardPage() {
   const { currentUser } = useAuth();
-  const [profileSource, setProfileSource] = useState(null);
   const [activeInsurance, setActiveInsurance] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      if (!currentUser?.id) {
-        setProfileSource(null);
-        return;
-      }
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role, first_name')
-        .eq('id', currentUser.id)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error) {
-        console.warn('[PatientDashboardPage] profiles read:', error.message);
-        setProfileSource(null);
-        return;
-      }
-      if (data) {
-        setProfileSource(`Role: ${data.role} (loaded via RLS from Supabase)`);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [currentUser?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,9 +59,6 @@ export default function PatientDashboardPage() {
             Active insurance: <span className="font-medium text-foreground">{activeInsurance}</span>
           </p>
         ) : null}
-        {profileSource && (
-          <p className="text-xs text-muted-foreground mt-2 font-mono">{profileSource}</p>
-        )}
       </div>
 
       <PatientBasicProfileSection />

@@ -20,7 +20,7 @@ const WEBHOOK_POST_TIMEOUT_MS = Math.min(
 );
 
 /**
- * Sends clinical payload to n8n, waits for the workflow response, and shows a formatted health report.
+ * Sends a clinical payload to the server AI endpoint, waits for the response, and shows a formatted health report.
  */
 export default function ClinicalAiWorkflowButton({ onReportSaved }) {
   const [pending, setPending] = useState(false);
@@ -93,13 +93,12 @@ export default function ClinicalAiWorkflowButton({ onReportSaved }) {
             </>
           ) : (
             <>
-              <Zap className="h-5 w-5" /> Send health data to AI workflow
+              <Zap className="h-5 w-5" /> Generate AI health report
             </>
           )}
         </Button>
         <p className="text-xs text-muted-foreground text-center max-w-md">
-          Sends your profile data to your n8n workflow, then shows a formatted health report here (this can take up to a
-          few minutes while the AI runs).
+          Uses your saved health profile to build a personalized report. This may take a few minutes.
         </p>
       </div>
 
@@ -111,7 +110,7 @@ export default function ClinicalAiWorkflowButton({ onReportSaved }) {
               Your health report
             </DialogTitle>
             <DialogDescription className="text-left">
-              Summary from your AI workflow. This is for education and planning—not a substitute for professional care.
+              Summary generated from your health information. For education and planning only—not a substitute for professional care.
             </DialogDescription>
           </DialogHeader>
           {/* flex-1 + min-h-0 lets this region scroll; native overflow is more reliable than ScrollArea without a fixed height */}
