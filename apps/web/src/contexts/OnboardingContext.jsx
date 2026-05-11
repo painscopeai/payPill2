@@ -9,7 +9,7 @@ const OnboardingContext = createContext(null);
 const STORAGE_KEY = 'paypill_onboarding_progress';
 
 export const OnboardingProvider = ({ children }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, refreshProfile } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState([]);
   const [formData, setFormData] = useState({});
@@ -212,6 +212,11 @@ export const OnboardingProvider = ({ children }) => {
       }
       
       localStorage.removeItem(`${STORAGE_KEY}_${activePatientId}`);
+      try {
+        await refreshProfile();
+      } catch (e) {
+        console.warn('[OnboardingContext] refreshProfile after complete:', e);
+      }
       return true;
     } catch (err) {
       console.error('[OnboardingContext] Complete onboarding error:', err);

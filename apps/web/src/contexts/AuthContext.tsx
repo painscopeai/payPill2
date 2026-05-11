@@ -33,6 +33,7 @@ function mapProfileToCurrentUser(
 		date_of_birth: profile.date_of_birth,
 		terms_accepted: profile.terms_accepted,
 		privacy_preferences: profile.privacy_preferences,
+		onboarding_completed: profile.onboarding_completed === true,
 	};
 }
 
@@ -279,6 +280,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 		router.push('/');
 	}, [router]);
 
+	/** Reload `profiles` into session (e.g. after onboarding complete). */
+	const refreshProfile = useCallback(async () => {
+		const {
+			data: { session },
+		} = await supabase.auth.getSession();
+		if (session?.user) {
+			await applySession(session);
+		}
+	}, [applySession]);
+
 	const setUserRole = useCallback(async (role: string) => {
 		setIsAuthPending(true);
 		try {
@@ -320,6 +331,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 			signup,
 			verifySignupEmail,
 			setUserRole,
+			refreshProfile,
 			isAuthenticated: Boolean(session?.user),
 		}),
 		[
@@ -335,6 +347,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 			signup,
 			verifySignupEmail,
 			setUserRole,
+			refreshProfile,
 		],
 	);
 
@@ -363,6 +376,7 @@ export const useAuth = () => {
 		) => Promise<unknown>;
 		verifySignupEmail: (email: string, token: string) => Promise<unknown>;
 		setUserRole: (role: string) => Promise<unknown>;
+		refreshProfile: () => Promise<void>;
 		isAuthenticated: boolean;
 	};
 };

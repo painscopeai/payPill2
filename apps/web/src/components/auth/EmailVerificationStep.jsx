@@ -11,7 +11,7 @@ export default function EmailVerificationStep({
 	onVerify,
 	onBack,
 	isLoading,
-	submitLabel = 'Verify email',
+	submitLabel = 'Verify and continue',
 	accentClassName = 'bg-primary hover:bg-primary/90',
 }) {
 	const [token, setToken] = useState('');
@@ -24,8 +24,8 @@ export default function EmailVerificationStep({
 	return (
 		<form onSubmit={handleSubmit} className="space-y-4">
 			<p className="text-sm text-muted-foreground">
-				We sent a verification code to <span className="font-medium text-foreground">{email}</span>. Paste the code
-				below (no length limit).
+				We sent a verification code to <span className="font-medium text-foreground">{email}</span>. Enter the code to
+				verify your account; you&apos;ll then continue to your profile setup.
 			</p>
 			<div className="space-y-2">
 				<Label htmlFor="email-verify-token">Verification code</Label>

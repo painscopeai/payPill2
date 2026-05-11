@@ -39,7 +39,7 @@ export default function AuthIndividualPage() {
     try {
       const user = await login(signInData.email, signInData.password);
       await assertPortalSignIn(user, 'individual', logout);
-      navigate('/patient/dashboard');
+      navigate(user?.onboarding_completed ? '/patient/dashboard' : '/patient/onboarding');
     } catch (err) {
       setLocalError(err?.message || '');
     }

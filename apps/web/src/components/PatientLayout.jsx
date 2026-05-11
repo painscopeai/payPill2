@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -59,6 +59,16 @@ export default function PatientLayout({ children }) {
     if (unreadMessageCount > 99) return '99+';
     return String(unreadMessageCount);
   }, [unreadMessageCount]);
+
+  /** Health profile (onboarding) must be completed before other patient areas — sign-up → verify → profile → rest of app. */
+  const mustFinishProfile =
+    currentUser?.role === 'individual' &&
+    currentUser?.onboarding_completed !== true &&
+    !location.pathname.startsWith('/patient/onboarding');
+
+  if (mustFinishProfile) {
+    return <Navigate to="/patient/onboarding" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
