@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { LayoutDashboard, Loader2, ArrowLeft } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
+import { postSignupProfilePath } from '@/lib/postSignupProfilePath.js';
 
 export default function AuthAdminPage() {
   const navigate = useNavigate();
@@ -88,7 +89,7 @@ export default function AuthAdminPage() {
         return;
       }
       await assertAdminUser(result.user);
-      navigate('/admin/dashboard');
+      navigate(postSignupProfilePath('admin'));
     } catch (err) {
       setLocalError(err.message);
     }
@@ -99,7 +100,7 @@ export default function AuthAdminPage() {
     try {
       const user = await verifySignupEmail(pendingVerifyEmail, token);
       await assertAdminUser(user);
-      navigate('/admin/dashboard');
+      navigate(postSignupProfilePath('admin'));
     } catch (err) {
       setLocalError(err?.message || 'Verification failed.');
     }
@@ -120,7 +121,7 @@ export default function AuthAdminPage() {
         </Button>
 
         <div className="flex flex-col items-center text-center space-y-2">
-          <PayPillLogo tone="dark" className="h-12 max-h-14 w-auto mb-1" />
+          <PayPillLogo className="h-12 max-h-14 w-auto mb-1" />
           <div className="bg-violet-500/10 p-3 rounded-2xl mb-2">
             <LayoutDashboard className="h-8 w-8 text-violet-600" />
           </div>

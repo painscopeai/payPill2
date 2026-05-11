@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Building2, Loader2, ArrowLeft } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
+import { postSignupProfilePath } from '@/lib/postSignupProfilePath.js';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 export default function AuthEmployerPage() {
@@ -84,7 +85,7 @@ export default function AuthEmployerPage() {
         setSignupStep('verify');
         return;
       }
-      navigate('/employer/dashboard');
+      navigate(postSignupProfilePath('employer'));
     } catch (err) {
       setLocalError(err?.message || '');
     }
@@ -94,7 +95,7 @@ export default function AuthEmployerPage() {
     setLocalError('');
     try {
       await verifySignupEmail(pendingVerifyEmail, token);
-      navigate('/employer/dashboard');
+      navigate(postSignupProfilePath('employer'));
     } catch (err) {
       setLocalError(err?.message || 'Verification failed.');
     }

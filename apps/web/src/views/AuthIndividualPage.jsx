@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Activity, Loader2, ArrowLeft } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
+import { postSignupProfilePath } from '@/lib/postSignupProfilePath.js';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 export default function AuthIndividualPage() {
@@ -81,7 +82,7 @@ export default function AuthIndividualPage() {
         setSignupStep('verify');
         return;
       }
-      navigate('/patient/dashboard');
+      navigate(postSignupProfilePath('individual'));
     } catch (err) {
       setLocalError(err.message);
     }
@@ -91,7 +92,7 @@ export default function AuthIndividualPage() {
     setLocalError('');
     try {
       await verifySignupEmail(pendingVerifyEmail, token);
-      navigate('/patient/dashboard');
+      navigate(postSignupProfilePath('individual'));
     } catch (err) {
       setLocalError(err?.message || 'Verification failed.');
     }

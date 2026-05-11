@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ShieldCheck, Loader2, ArrowLeft } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
+import { postSignupProfilePath } from '@/lib/postSignupProfilePath.js';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 
 export default function AuthInsurancePage() {
@@ -83,7 +84,7 @@ export default function AuthInsurancePage() {
         setSignupStep('verify');
         return;
       }
-      navigate('/insurance/dashboard');
+      navigate(postSignupProfilePath('insurance'));
     } catch (err) {
       setLocalError(err?.message || '');
     }
@@ -93,7 +94,7 @@ export default function AuthInsurancePage() {
     setLocalError('');
     try {
       await verifySignupEmail(pendingVerifyEmail, token);
-      navigate('/insurance/dashboard');
+      navigate(postSignupProfilePath('insurance'));
     } catch (err) {
       setLocalError(err?.message || 'Verification failed.');
     }

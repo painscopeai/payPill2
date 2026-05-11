@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import Header from '@/components/Header.jsx';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
+import { postSignupProfilePath } from '@/lib/postSignupProfilePath.js';
 
 const SignupPage = () => {
   const { signup, verifySignupEmail, isAuthPending } = useAuth();
@@ -86,7 +87,7 @@ const SignupPage = () => {
         return;
       }
       toast.success('Account created successfully');
-      navigate('/patient/onboarding');
+      navigate(postSignupProfilePath('individual'));
     } catch (error) {
       toast.error(error.message || 'Failed to create account');
     } finally {
@@ -98,7 +99,7 @@ const SignupPage = () => {
     try {
       await verifySignupEmail(pendingVerifyEmail, token);
       toast.success('Account created successfully');
-      navigate('/patient/onboarding');
+      navigate(postSignupProfilePath('individual'));
     } catch (error) {
       toast.error(error.message || 'Verification failed');
     }
