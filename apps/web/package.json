@@ -9,7 +9,8 @@
     "start": "next start -p 3000",
     "lint": "eslint . --quiet",
     "lint:warn": "eslint .",
-    "smoke:api": "node scripts/api-smoke.mjs"
+    "smoke:api": "node scripts/api-smoke.mjs",
+    "admin:set-password": "node scripts/admin-set-password.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
