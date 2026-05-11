@@ -27,10 +27,11 @@ export const OnboardingProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // Load saved progress
+  // Load saved progress (patient onboarding only — other roles get 401 from patient APIs)
   useEffect(() => {
     if (!patientId) return;
-    
+    if (currentUser?.role !== 'individual') return;
+
     const loadProgress = async () => {
       try {
         // Try local storage first for immediate feedback
@@ -45,7 +46,6 @@ export const OnboardingProvider = ({ children }) => {
         }
 
         // Sync with backend
-        console.log('[OnboardingContext] API Request to /onboarding/progress for patient_id:', patientId);
         const response = await apiServerClient.fetch('/onboarding/progress');
         if (response.ok) {
           const data = await response.json();
@@ -64,20 +64,13 @@ export const OnboardingProvider = ({ children }) => {
     };
 
     loadProgress();
-  }, [patientId]);
-
-  // Auto-save
-  useEffect(() => {
-    if (!patientId || Object.keys(formData).length === 0) return;
-
-    const saveInterval = setInterval(() => {
-      saveProgress(false);
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(saveInterval);
-  }, [formData, currentStep, completedSteps, patientId]);
+  }, [patientId, currentUser?.role]);
 
   const saveProgress = useCallback(async (showToast = true, explicitPatientId = null) => {
+    if (currentUser?.role && currentUser.role !== 'individual') {
+      return false;
+    }
+
     const activePatientId = explicitPatientId || patientId || currentUser?.id;
     
     console.log('[OnboardingContext] Preparing to save progress. patient_id:', activePatientId);
@@ -136,7 +129,18 @@ export const OnboardingProvider = ({ children }) => {
       if (showToast) toast.error('Failed to sync progress to server. Saved locally.');
       return false;
     }
-  }, [formData, currentStep, completedSteps, patientId, currentUser?.id]);
+  }, [formData, currentStep, completedSteps, patientId, currentUser?.id, currentUser?.role]);
+
+  // Auto-save (patient role only)
+  useEffect(() => {
+    if (!patientId || currentUser?.role !== 'individual' || Object.keys(formData).length === 0) return;
+
+    const saveInterval = setInterval(() => {
+      saveProgress(false);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(saveInterval);
+  }, [formData, currentStep, completedSteps, patientId, currentUser?.role, saveProgress]);
 
   const updateFormData = (step, data) => {
     setFormData(prev => ({

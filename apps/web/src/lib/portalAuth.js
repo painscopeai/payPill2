@@ -10,6 +10,15 @@ const PORTAL_LABELS = {
 
 const NON_ADMIN_PORTALS = ['individual', 'employer', 'insurance', 'provider'];
 
+/** Public sign-in route for each app role (path only, for copy-paste in messages). */
+const ROLE_SIGN_IN_PATH = {
+	individual: '/auth/individual',
+	employer: '/auth/employer',
+	insurance: '/auth/insurance',
+	provider: '/',
+	admin: '/auth/admin',
+};
+
 /**
  * Admin may use any role portal; admin portal is admin-only.
  * @param {AppPortal} portal
@@ -34,8 +43,10 @@ export async function assertPortalSignIn(user, portal, logout) {
 	}
 	if (portalAllowsRole(portal, user.role)) return;
 	await logout();
-	const label = PORTAL_LABELS[portal] || portal;
+	const wantLabel = PORTAL_LABELS[portal] || portal;
+	const actualLabel = PORTAL_LABELS[user.role] || user.role || 'Unknown';
+	const actualPath = ROLE_SIGN_IN_PATH[user.role] || '/';
 	throw new Error(
-		`This portal is for ${label} accounts only. Sign in from the correct portal on the home page.`,
+		`Your account is registered as ${actualLabel}, not ${wantLabel}. Sign in at ${actualPath} (or ask an administrator to change your role to ${wantLabel} in Supabase if you should have employer access).`,
 	);
 }

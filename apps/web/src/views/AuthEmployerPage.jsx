@@ -42,7 +42,10 @@ export default function AuthEmployerPage() {
     e.preventDefault();
     setLocalError('');
     try {
-      const user = await login(signInData.email, signInData.password);
+      const user = await login(
+        String(signInData.email || '').trim().toLowerCase(),
+        signInData.password,
+      );
       await assertPortalSignIn(user, 'employer', logout);
       navigate('/employer/dashboard');
     } catch (err) {
