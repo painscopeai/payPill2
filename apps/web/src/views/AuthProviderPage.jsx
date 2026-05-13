@@ -43,7 +43,11 @@ export default function AuthProviderPage() {
     try {
       const user = await login(String(signInData.email || '').trim().toLowerCase(), signInData.password);
       await assertPortalSignIn(user, 'provider', logout);
-      navigate('/provider/dashboard');
+      if (user?.provider_onboarding_completed !== true) {
+        navigate('/provider/onboarding');
+      } else {
+        navigate('/provider/dashboard');
+      }
     } catch (err) {
       setLocalError(err?.message || '');
     }

@@ -8,6 +8,7 @@ export type ProviderContext = {
 	/** Linked directory org for appointments/booking; null until onboarding links a row in `public.providers`. */
 	providerOrgId: string | null;
 	email: string | null;
+	providerOnboardingCompleted: boolean;
 };
 
 /**
@@ -28,7 +29,7 @@ export async function requireProvider(request: NextRequest): Promise<ProviderCon
 
 	const { data: profile, error: profErr } = await sb
 		.from('profiles')
-		.select('id, email, role, status, provider_org_id')
+		.select('id, email, role, status, provider_org_id, provider_onboarding_completed')
 		.eq('id', uid)
 		.maybeSingle();
 	if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
@@ -47,5 +48,6 @@ export async function requireProvider(request: NextRequest): Promise<ProviderCon
 		userId: uid,
 		providerOrgId: (profile.provider_org_id as string | null) ?? null,
 		email: (profile.email as string) || userData.user.email || null,
+		providerOnboardingCompleted: profile.provider_onboarding_completed === true,
 	};
 }

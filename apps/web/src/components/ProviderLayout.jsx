@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -97,6 +97,16 @@ export default function ProviderLayout({ children }) {
 		return String(unreadMessageCount);
 	}, [unreadMessageCount]);
 
+	/** Self-serve practice / services / schedule wizard until profile flag is set. */
+	const mustFinishProviderOnboarding =
+		currentUser?.role === 'provider' &&
+		currentUser?.provider_onboarding_completed !== true &&
+		!location.pathname.startsWith('/provider/onboarding');
+
+	if (mustFinishProviderOnboarding) {
+		return <Navigate to="/provider/onboarding" replace />;
+	}
+
 	return (
 		<div className="min-h-screen bg-background flex flex-col md:flex-row">
 			<header className="md:hidden sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur flex items-center justify-between px-4 h-16">
@@ -169,13 +179,12 @@ export default function ProviderLayout({ children }) {
 							<p className="text-xs text-muted-foreground truncate">{currentUser?.email}</p>
 						</div>
 					</div>
-					{!currentUser?.provider_org_id ? (
+					{currentUser?.role === 'provider' && currentUser?.provider_onboarding_completed !== true ? (
 						<p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
-							Complete{' '}
-							<Link to="/provider-onboarding/services" className="underline font-medium">
-								services onboarding
+							<Link to="/provider/onboarding" className="underline font-medium">
+								Continue practice setup
 							</Link>{' '}
-							to link bookings.
+							to finish onboarding.
 						</p>
 					) : null}
 				</div>

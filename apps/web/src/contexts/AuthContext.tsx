@@ -34,6 +34,7 @@ function mapProfileToCurrentUser(
 		terms_accepted: profile.terms_accepted,
 		privacy_preferences: profile.privacy_preferences,
 		onboarding_completed: profile.onboarding_completed === true,
+		provider_onboarding_completed: profile.provider_onboarding_completed === true,
 		provider_org_id: profile.provider_org_id ?? null,
 		specialty: profile.specialty ?? null,
 		npi: profile.npi ?? null,

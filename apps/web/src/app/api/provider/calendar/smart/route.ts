@@ -2,6 +2,12 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import {
+	buildSlotSuggestions,
+	getDayKeyForYmdInTimeZone,
+	intervalsToMinuteRanges,
+	validateWeeklyHours,
+} from '@/server/provider/scheduleSettings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,7 +19,7 @@ export async function GET(request: NextRequest) {
 
 	const url = new URL(request.url);
 	const date = String(url.searchParams.get('date') || '').trim();
-	const duration = Math.max(15, parseInt(String(url.searchParams.get('duration_minutes') || '30'), 10) || 30);
+	const rawDur = url.searchParams.get('duration_minutes');
 
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
 		return NextResponse.json({ error: 'Query param date (YYYY-MM-DD) is required' }, { status: 400 });
@@ -22,7 +28,7 @@ export async function GET(request: NextRequest) {
 	if (!ctx.providerOrgId) {
 		return NextResponse.json({
 			date,
-			duration_minutes: duration,
+			duration_minutes: 30,
 			suggestions: [],
 			booked_count: 0,
 			message: 'Link your practice to load calendar availability.',
@@ -30,6 +36,31 @@ export async function GET(request: NextRequest) {
 	}
 
 	const sb = getSupabaseAdmin();
+
+	const { data: sched } = await sb
+		.from('provider_schedule_settings')
+		.select('timezone, slot_duration_minutes, weekly_hours')
+		.eq('provider_user_id', ctx.userId)
+		.maybeSingle();
+
+	let duration =
+		rawDur != null && String(rawDur).trim() !== ''
+			? parseInt(String(rawDur), 10)
+			: Number((sched as { slot_duration_minutes?: number } | null)?.slot_duration_minutes) || 30;
+	if (!Number.isFinite(duration)) duration = 30;
+	duration = Math.min(120, Math.max(10, duration));
+
+	const tz = String((sched as { timezone?: string } | null)?.timezone || 'UTC').trim() || 'UTC';
+	const weeklyRaw = (sched as { weekly_hours?: unknown } | null)?.weekly_hours ?? {};
+	const weeklyParsed = validateWeeklyHours(weeklyRaw);
+	const weekly = weeklyParsed.ok ? weeklyParsed.value : {};
+
+	const dayKey = getDayKeyForYmdInTimeZone(date, tz);
+	let ranges = intervalsToMinuteRanges(dayKey, weekly);
+	if (!ranges.length) {
+		ranges = [{ start: 9 * 60, end: 17 * 60 }];
+	}
+
 	const { data: appointments, error } = await sb
 		.from('appointments')
 		.select('id, appointment_time, duration_minutes')
@@ -41,8 +72,6 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json({ error: 'Failed to load calendar' }, { status: 500 });
 	}
 
-	const workStart = 9;
-	const workEnd = 17;
 	const bookedSlots: { start: number; end: number }[] = [];
 	for (const apt of appointments || []) {
 		const t = String((apt as { appointment_time?: string }).appointment_time || '09:00');
@@ -52,19 +81,7 @@ export async function GET(request: NextRequest) {
 		bookedSlots.push({ start: startMinutes, end: startMinutes + dur });
 	}
 
-	const suggestions: { time: string; available: boolean }[] = [];
-	for (let hour = workStart; hour < workEnd; hour++) {
-		for (let minute = 0; minute < 60; minute += 15) {
-			const slotStart = hour * 60 + minute;
-			const slotEnd = slotStart + duration;
-			if (slotEnd > workEnd * 60) break;
-			const isAvailable = !bookedSlots.some((slot) => slotStart < slot.end && slotEnd > slot.start);
-			if (isAvailable) {
-				const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-				suggestions.push({ time: timeStr, available: true });
-			}
-		}
-	}
+	const suggestions = buildSlotSuggestions(ranges, duration, bookedSlots, 15);
 
 	return NextResponse.json({
 		date,

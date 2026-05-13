@@ -87,6 +87,7 @@ const FormResponsesHubPage = React.lazy(() => import('./views/admin/FormResponse
 const KnowledgeBasePage = React.lazy(() => import('./views/admin/KnowledgeBasePage.jsx'));
 const AILogsPage = React.lazy(() => import('./views/admin/AILogsPage.jsx'));
 
+const ProviderOnboardingWizard = React.lazy(() => import('./views/ProviderOnboardingWizard.jsx'));
 const ProviderDashboard = React.lazy(() => import('./views/ProviderDashboard.jsx'));
 const ProviderAppointmentsPage = React.lazy(() => import('./views/ProviderAppointmentsPage.jsx'));
 const PatientManagementPage = React.lazy(() => import('./views/PatientManagementPage.jsx'));
@@ -341,6 +342,15 @@ export default function AppRoutes() {
 						element={
 							<ProtectedRoleRoute requiredRole="insurance">
 								<InsuranceSettingsPage />
+							</ProtectedRoleRoute>
+						}
+					/>
+
+					<Route
+						path="/provider/onboarding"
+						element={
+							<ProtectedRoleRoute requiredRole="provider">
+								<ProviderOnboardingWizard />
 							</ProtectedRoleRoute>
 						}
 					/>
