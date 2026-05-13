@@ -15,7 +15,7 @@ const ROLE_SIGN_IN_PATH = {
 	individual: '/auth/individual',
 	employer: '/auth/employer',
 	insurance: '/auth/insurance',
-	provider: '/',
+	provider: '/auth/provider',
 	admin: '/auth/admin',
 };
 

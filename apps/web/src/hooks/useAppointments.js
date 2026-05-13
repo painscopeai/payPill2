@@ -1,54 +1,65 @@
 import { useState, useEffect, useCallback } from 'react';
 import pb from '@/lib/supabaseMappedCollections';
 import { useAuth } from '@/contexts/AuthContext';
+import apiServerClient from '@/lib/apiServerClient';
 
 export function useAppointments() {
-  const { currentUser, userRole } = useAuth();
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+	const { currentUser, userRole } = useAuth();
+	const [appointments, setAppointments] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState(null);
 
-  const fetchAppointments = useCallback(async () => {
-    if (!currentUser) return;
-    setLoading(true);
-    try {
-      const filter = userRole === 'provider' 
-        ? `provider_id="${currentUser.id}"` 
-        : `userId="${currentUser.id}"`;
-      
-      const records = await pb.collection('appointments').getFullList({
-        filter,
-        sort: '-appointment_date',
-        $autoCancel: false
-      });
-      setAppointments(records);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching appointments:', err);
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUser, userRole]);
+	const fetchAppointments = useCallback(async () => {
+		if (!currentUser) return;
+		setLoading(true);
+		try {
+			if (userRole === 'provider') {
+				const res = await apiServerClient.fetch('/provider/appointments');
+				const body = await res.json().catch(() => ({}));
+				if (!res.ok) throw new Error(body?.error || 'Failed to load appointments');
+				setAppointments(body.items || []);
+				setError(null);
+				return;
+			}
 
-  useEffect(() => {
-    fetchAppointments();
-  }, [fetchAppointments]);
+			const filter = `userId="${currentUser.id}"`;
+			const records = await pb.collection('appointments').getFullList({
+				filter,
+				sort: '-appointment_date',
+				$autoCancel: false,
+			});
+			setAppointments(records);
+			setError(null);
+		} catch (err) {
+			console.error('Error fetching appointments:', err);
+			setError(err);
+			setAppointments([]);
+		} finally {
+			setLoading(false);
+		}
+	}, [currentUser, userRole]);
 
-  const createAppointment = async (data) => {
-    const record = await pb.collection('appointments').create({
-      ...data,
-      userId: currentUser.id
-    }, { $autoCancel: false });
-    await fetchAppointments();
-    return record;
-  };
+	useEffect(() => {
+		void fetchAppointments();
+	}, [fetchAppointments]);
 
-  const updateAppointment = async (id, data) => {
-    const record = await pb.collection('appointments').update(id, data, { $autoCancel: false });
-    await fetchAppointments();
-    return record;
-  };
+	const createAppointment = async (data) => {
+		const record = await pb.collection('appointments').create(
+			{
+				...data,
+				userId: currentUser.id,
+			},
+			{ $autoCancel: false },
+		);
+		await fetchAppointments();
+		return record;
+	};
 
-  return { appointments, loading, error, fetchAppointments, createAppointment, updateAppointment };
+	const updateAppointment = async (id, data) => {
+		const record = await pb.collection('appointments').update(id, data, { $autoCancel: false });
+		await fetchAppointments();
+		return record;
+	};
+
+	return { appointments, loading, error, fetchAppointments, createAppointment, updateAppointment };
 }

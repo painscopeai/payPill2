@@ -1,34 +1,47 @@
 import { useState, useEffect, useCallback } from 'react';
-import pb from '@/lib/supabaseMappedCollections';
 import { useAuth } from '@/contexts/AuthContext';
+import apiServerClient from '@/lib/apiServerClient';
+
+function mapPatientRow(rel) {
+	const d = rel.patient_details || {};
+	const name = [d.first_name, d.last_name].filter(Boolean).join(' ') || d.email || d.name || 'Patient';
+	return {
+		...rel,
+		id: rel.id,
+		patient_id: rel.patient_id,
+		patient_name: name,
+	};
+}
 
 export function usePatients() {
-  const { currentUser } = useAuth();
-  const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
+	const { currentUser, userRole } = useAuth();
+	const [patients, setPatients] = useState([]);
+	const [loading, setLoading] = useState(true);
 
-  const fetchPatients = useCallback(async () => {
-    if (!currentUser) return;
-    setLoading(true);
-    try {
-      const relationships = await pb.collection('patient_provider_relationships').getFullList({
-        filter: `provider_id="${currentUser.id}"`,
-        $autoCancel: false
-      });
-      
-      // In a real app, we'd expand the user relation or fetch users by IDs
-      // For MVP, we'll just return the relationships
-      setPatients(relationships);
-    } catch (err) {
-      console.error('Error fetching patients:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUser]);
+	const fetchPatients = useCallback(async () => {
+		if (!currentUser || userRole !== 'provider') return;
+		setLoading(true);
+		try {
+			const res = await apiServerClient.fetch('/provider/patients');
+			const data = await res.json().catch(() => []);
+			if (!res.ok) {
+				console.error('[usePatients]', data?.error || res.status);
+				setPatients([]);
+				return;
+			}
+			const list = Array.isArray(data) ? data : [];
+			setPatients(list.map(mapPatientRow));
+		} catch (err) {
+			console.error('Error fetching patients:', err);
+			setPatients([]);
+		} finally {
+			setLoading(false);
+		}
+	}, [currentUser, userRole]);
 
-  useEffect(() => {
-    fetchPatients();
-  }, [fetchPatients]);
+	useEffect(() => {
+		void fetchPatients();
+	}, [fetchPatients]);
 
-  return { patients, loading, fetchPatients };
+	return { patients, loading, fetchPatients };
 }

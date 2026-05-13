@@ -8,7 +8,6 @@ import telemedicineRouter from './telemedicine.js';
 import pharmaciesRouter from './pharmacies.js';
 import prescriptionsRouter from './prescriptions.js';
 import refillsRouter from './refills.js';
-import providerRouter from './provider.js';
 import recommendationsRouter from './recommendations.js';
 import recommendationHistoryRouter from './recommendation-history.js';
 import healthGoalsRouter from './health-goals.js';
@@ -58,9 +57,6 @@ export default () => {
 
   // Refill status tracking
   router.use('/refill-status', refillsRouter);
-
-  // Provider management
-  router.use('/provider', providerRouter);
 
   // Health recommendations (legacy)
   router.use('/recommendations', recommendationsRouter);

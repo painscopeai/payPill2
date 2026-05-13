@@ -4,6 +4,7 @@ import ScrollToTop from './components/ScrollToTop.jsx';
 import ProtectedRoleRoute from './components/ProtectedRoleRoute.jsx';
 import LoadingSpinner from './components/LoadingSpinner.jsx';
 import PatientLayout from './components/PatientLayout.jsx';
+import ProviderLayout from './components/ProviderLayout.jsx';
 
 import RoleSelectionLandingPage from './views/RoleSelectionLandingPage.jsx';
 import AuthIndividualPage from './views/AuthIndividualPage.jsx';
@@ -11,6 +12,7 @@ import AuthResetPasswordRequiredPage from './views/AuthResetPasswordRequiredPage
 import AuthEmployerPage from './views/AuthEmployerPage.jsx';
 import AuthInsurancePage from './views/AuthInsurancePage.jsx';
 import AuthAdminPage from './views/AuthAdminPage.jsx';
+import AuthProviderPage from './views/AuthProviderPage.jsx';
 import NotFoundPage from './views/NotFoundPage.jsx';
 import FormSubmissionPage from './views/FormSubmissionPage.jsx';
 import ProviderServicesIntakePage from './views/ProviderServicesIntakePage.jsx';
@@ -89,6 +91,24 @@ const ProviderDashboard = React.lazy(() => import('./views/ProviderDashboard.jsx
 const ProviderAppointmentsPage = React.lazy(() => import('./views/ProviderAppointmentsPage.jsx'));
 const PatientManagementPage = React.lazy(() => import('./views/PatientManagementPage.jsx'));
 const ProviderMessagingPage = React.lazy(() => import('./views/ProviderMessagingPage.jsx'));
+const ProviderPatientDetailPage = React.lazy(() => import('./views/ProviderPatientDetailPage.jsx'));
+const ProviderBillingPage = React.lazy(() => import('./views/ProviderBillingPage.jsx'));
+const ProviderAnalyticsPage = React.lazy(() => import('./views/ProviderAnalyticsPage.jsx'));
+const ProviderCalendarPage = React.lazy(() => import('./views/ProviderCalendarPage.jsx'));
+const ProviderClaimsPage = React.lazy(() => import('./views/ProviderClaimsPage.jsx'));
+const ProviderSettingsPage = React.lazy(() => import('./views/ProviderSettingsPage.jsx'));
+const ProviderIntegrationsPage = React.lazy(() => import('./views/ProviderIntegrationsPage.jsx'));
+const ProviderInventoryPage = React.lazy(() => import('./views/ProviderInventoryPage.jsx'));
+const ProviderCompliancePage = React.lazy(() => import('./views/ProviderCompliancePage.jsx'));
+const ProviderTeamPage = React.lazy(() => import('./views/ProviderTeamPage.jsx'));
+const ProviderLocationsPage = React.lazy(() => import('./views/ProviderLocationsPage.jsx'));
+const ProviderCommunicationsPage = React.lazy(() => import('./views/ProviderCommunicationsPage.jsx'));
+const ProviderPrescriptionsPage = React.lazy(() => import('./views/ProviderPrescriptionsPage.jsx'));
+const ProviderReferralsPage = React.lazy(() => import('./views/ProviderReferralsPage.jsx'));
+const ProviderFormsPage = React.lazy(() => import('./views/ProviderFormsPage.jsx'));
+const ProviderTelemedicinePage = React.lazy(() => import('./views/ProviderTelemedicinePage.jsx'));
+const ProviderInsuranceProvidersPage = React.lazy(() => import('./views/ProviderInsuranceProvidersPage.jsx'));
+const ProviderConsultationWorkspacePage = React.lazy(() => import('./views/ProviderConsultationWorkspacePage.jsx'));
 
 export default function AppRoutes() {
 	return (
@@ -108,6 +128,7 @@ export default function AppRoutes() {
 					<Route path="/auth/employer" element={<AuthEmployerPage />} />
 					<Route path="/auth/insurance" element={<AuthInsurancePage />} />
 					<Route path="/auth/admin" element={<AuthAdminPage />} />
+					<Route path="/auth/provider" element={<AuthProviderPage />} />
 
 					<Route path="/admin" element={<AdminLandingPage />} />
 					<Route path="/admin/login" element={<AdminLoginPage />} />
@@ -325,34 +346,45 @@ export default function AppRoutes() {
 					/>
 
 					<Route
-						path="/provider/dashboard"
+						path="/provider/*"
 						element={
 							<ProtectedRoleRoute requiredRole="provider">
-								<ProviderDashboard />
-							</ProtectedRoleRoute>
-						}
-					/>
-					<Route
-						path="/provider/appointments"
-						element={
-							<ProtectedRoleRoute requiredRole="provider">
-								<ProviderAppointmentsPage />
-							</ProtectedRoleRoute>
-						}
-					/>
-					<Route
-						path="/provider/patients"
-						element={
-							<ProtectedRoleRoute requiredRole="provider">
-								<PatientManagementPage />
-							</ProtectedRoleRoute>
-						}
-					/>
-					<Route
-						path="/provider/messaging"
-						element={
-							<ProtectedRoleRoute requiredRole="provider">
-								<ProviderMessagingPage />
+								<ProviderLayout>
+									<Suspense
+										fallback={
+											<div className="flex h-[40vh] items-center justify-center">
+												<LoadingSpinner size="lg" />
+											</div>
+										}
+									>
+										<Routes>
+											<Route path="dashboard" element={<ProviderDashboard />} />
+											<Route path="appointments" element={<ProviderAppointmentsPage />} />
+											<Route path="calendar" element={<ProviderCalendarPage />} />
+											<Route path="patients" element={<PatientManagementPage />} />
+											<Route path="patients/:id" element={<ProviderPatientDetailPage />} />
+											<Route path="consultations" element={<ProviderConsultationWorkspacePage />} />
+											<Route path="messaging" element={<ProviderMessagingPage />} />
+											<Route path="billing" element={<ProviderBillingPage />} />
+											<Route path="claims" element={<ProviderClaimsPage />} />
+											<Route path="analytics" element={<ProviderAnalyticsPage />} />
+											<Route path="prescriptions" element={<ProviderPrescriptionsPage />} />
+											<Route path="referrals" element={<ProviderReferralsPage />} />
+											<Route path="forms" element={<ProviderFormsPage />} />
+											<Route path="telemedicine" element={<ProviderTelemedicinePage />} />
+											<Route path="insurance-payers" element={<ProviderInsuranceProvidersPage />} />
+											<Route path="integrations" element={<ProviderIntegrationsPage />} />
+											<Route path="inventory" element={<ProviderInventoryPage />} />
+											<Route path="compliance" element={<ProviderCompliancePage />} />
+											<Route path="team" element={<ProviderTeamPage />} />
+											<Route path="locations" element={<ProviderLocationsPage />} />
+											<Route path="communications" element={<ProviderCommunicationsPage />} />
+											<Route path="settings" element={<ProviderSettingsPage />} />
+											<Route path="" element={<Navigate to="/provider/dashboard" replace />} />
+											<Route path="*" element={<Navigate to="/provider/dashboard" replace />} />
+										</Routes>
+									</Suspense>
+								</ProviderLayout>
 							</ProtectedRoleRoute>
 						}
 					/>

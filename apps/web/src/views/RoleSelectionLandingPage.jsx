@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { User, Building2, ShieldCheck, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { User, Building2, ShieldCheck, ArrowRight, LayoutDashboard, Stethoscope } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
 
@@ -33,7 +33,7 @@ export default function RoleSelectionLandingPage() {
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 max-w-6xl">
+      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 max-w-7xl">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
             Healthcare management, <span className="text-primary">simplified.</span>
@@ -43,7 +43,7 @@ export default function RoleSelectionLandingPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-6 lg:gap-8">
           {/* Individual Card */}
           <Card className="flex flex-col h-full rounded-2xl border-border/60 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
             <CardHeader className="pb-4">
@@ -116,8 +116,33 @@ export default function RoleSelectionLandingPage() {
             </CardFooter>
           </Card>
 
-          {/* Admin Card */}
+          {/* Provider Card */}
           <Card className="flex flex-col h-full rounded-2xl border-border/60 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+            <CardHeader className="pb-4">
+              <div className="h-14 w-14 rounded-2xl bg-teal-500/10 flex items-center justify-center mb-4">
+                <Stethoscope className="h-7 w-7 text-teal-600" />
+              </div>
+              <CardTitle className="text-2xl">Manage Patient Care</CardTitle>
+              <CardDescription className="text-base mt-2">For Doctors & Clinics</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1">
+              <p className="text-muted-foreground">
+                Coordinate appointments, clinical notes, billing, and secure messaging with patients, employers, and
+                payers on one platform.
+              </p>
+            </CardContent>
+            <CardFooter className="pt-4 mt-auto">
+              <Button
+                className="w-full rounded-xl gap-2 bg-teal-600 hover:bg-teal-700 text-white"
+                onClick={() => navigate('/auth/provider')}
+              >
+                Get Started <ArrowRight className="h-4 w-4" />
+              </Button>
+            </CardFooter>
+          </Card>
+
+          {/* Admin Card */}
+          <Card className="flex flex-col h-full rounded-2xl border-border/60 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 sm:col-span-2 xl:col-span-1 2xl:col-span-1">
             <CardHeader className="pb-4">
               <div className="h-14 w-14 rounded-2xl bg-violet-500/10 flex items-center justify-center mb-4">
                 <LayoutDashboard className="h-7 w-7 text-violet-600" />

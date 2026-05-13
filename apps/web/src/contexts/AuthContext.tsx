@@ -34,6 +34,9 @@ function mapProfileToCurrentUser(
 		terms_accepted: profile.terms_accepted,
 		privacy_preferences: profile.privacy_preferences,
 		onboarding_completed: profile.onboarding_completed === true,
+		provider_org_id: profile.provider_org_id ?? null,
+		specialty: profile.specialty ?? null,
+		npi: profile.npi ?? null,
 	};
 }
 
@@ -190,6 +193,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 					name: userData.name,
 					phone: userData.phone,
 					date_of_birth: userData.date_of_birth,
+					specialty: userData.specialty,
+					npi: userData.npi,
 					terms_accepted: userData.terms_accepted === true || userData.terms_accepted === 'true',
 					privacy_preferences:
 						userData.privacy_preferences === true || userData.privacy_preferences === 'true',

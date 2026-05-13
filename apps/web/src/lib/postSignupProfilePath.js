@@ -18,7 +18,7 @@ export function postSignupProfilePath(role) {
 		case 'insurance':
 			return '/insurance/settings';
 		case 'provider':
-			return '/provider-onboarding';
+			return '/provider/dashboard';
 		case 'admin':
 			return '/admin/dashboard';
 		default:

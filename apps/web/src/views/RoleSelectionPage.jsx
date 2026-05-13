@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { User, Building2, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import { User, Building2, ShieldCheck, Stethoscope, ArrowRight, Loader2 } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { toast } from 'sonner';
 
@@ -57,6 +57,14 @@ export default function RoleSelectionPage() {
       icon: ShieldCheck,
       color: 'text-accent',
       bgColor: 'bg-accent/10'
+    },
+    {
+      id: 'provider',
+      title: 'Healthcare Provider',
+      description: 'Manage appointments, patients, clinical notes, and secure messaging.',
+      icon: Stethoscope,
+      color: 'text-teal-600',
+      bgColor: 'bg-teal-500/10'
     }
   ];
 
