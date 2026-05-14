@@ -1,20 +1,50 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, Video, User } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
 
-export default function AppointmentCard({ appointment, onAction, actionLabel, actionIcon: ActionIcon }) {
+/**
+ * @param {object} props
+ * @param {object} props.appointment
+ * @param {string} [props.patientProfileUserId] — When set (provider schedule), title links to `/provider/patients/:id`.
+ */
+export default function AppointmentCard({
+  appointment,
+  onAction,
+  actionLabel,
+  actionIcon: ActionIcon,
+  patientProfileUserId,
+}) {
   const raw = appointment.appointment_date;
   const date = raw ? new Date(raw) : null;
   const dateLabel = date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString() : '—';
-  
+
+  const showPatientProfileLink = Boolean(patientProfileUserId);
+  const titleText = showPatientProfileLink
+    ? (appointment.patient_name || 'Patient')
+    : (appointment.provider_name || appointment.patient_name || 'Unknown');
+
+  const title = showPatientProfileLink ? (
+    <h4 className="font-semibold text-lg">
+      <Link
+        to={`/provider/patients/${encodeURIComponent(String(patientProfileUserId))}`}
+        className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+      >
+        {titleText}
+      </Link>
+    </h4>
+  ) : (
+    <h4 className="font-semibold text-lg">{titleText}</h4>
+  );
+
   return (
     <Card className="shadow-sm border-border/50 hover:shadow-md transition-shadow">
       <CardContent className="p-5">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h4 className="font-semibold text-lg">{appointment.provider_name || appointment.patient_name || 'Unknown'}</h4>
+            {title}
             <p className="text-sm text-muted-foreground capitalize flex items-center gap-1 mt-1">
               {appointment.type === 'telemedicine' ? <Video className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
               {appointment.type} Visit

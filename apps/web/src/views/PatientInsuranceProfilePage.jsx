@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,12 +12,19 @@ import apiServerClient from '@/lib/apiServerClient';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function PatientInsuranceProfilePage() {
-	const { refreshProfile } = useAuth();
+	const { refreshProfile, currentUser } = useAuth();
+	const navigate = useNavigate();
 	const [loading, setLoading] = useState(true);
 	const [orgs, setOrgs] = useState([]);
 	const [profile, setProfile] = useState(null);
 	const [saving, setSaving] = useState(false);
 	const [form, setForm] = useState({ insuranceOrgId: '', memberId: '' });
+
+	useEffect(() => {
+		if (currentUser?.role === 'individual' && currentUser?.employee_patient === true) {
+			navigate('/patient/dashboard', { replace: true });
+		}
+	}, [currentUser, navigate]);
 
 	useEffect(() => {
 		let c = false;

@@ -15,6 +15,23 @@ import { withTimeout } from '@/lib/withTimeout';
 
 const AuthContext = createContext<unknown>(null);
 
+/** Matches GET /api/patient/insurance-change-request `is_employee` (employer roster + assigned option). */
+async function fetchEmployeePatientFlag(userId: string): Promise<boolean> {
+	const { data, error } = await supabase
+		.from('employer_employees')
+		.select('id')
+		.eq('user_id', userId)
+		.in('status', ['active', 'pending', 'draft'])
+		.not('insurance_option_slug', 'is', null)
+		.limit(1)
+		.maybeSingle();
+	if (error) {
+		console.error('[AuthContext] employer_employees roster check failed:', error);
+		return false;
+	}
+	return Boolean(data);
+}
+
 function mapProfileToCurrentUser(
 	profile: Record<string, unknown> | null,
 	authUser: { email?: string | null } | null,
@@ -44,7 +61,10 @@ function mapProfileToCurrentUser(
 	};
 }
 
-const profileInflight = new Map<string, Promise<ReturnType<typeof mapProfileToCurrentUser>>>();
+const profileInflight = new Map<
+	string,
+	Promise<ReturnType<typeof mapProfileToCurrentUser> & { employee_patient?: boolean }>
+>();
 
 async function fetchProfileWithRetry(userId: string, authEmail: string | undefined) {
 	let pending = profileInflight.get(userId);
@@ -56,7 +76,14 @@ async function fetchProfileWithRetry(userId: string, authEmail: string | undefin
 			if (ms) await new Promise((r) => setTimeout(r, ms));
 			const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
 			if (error) throw error;
-			if (data) return mapProfileToCurrentUser(data as Record<string, unknown>, { email: authEmail });
+			if (data) {
+				const mapped = mapProfileToCurrentUser(data as Record<string, unknown>, { email: authEmail });
+				if (mapped?.role === 'individual') {
+					const employee_patient = await fetchEmployeePatientFlag(userId);
+					return { ...mapped, employee_patient };
+				}
+				return mapped;
+			}
 		}
 		throw new Error(
 			'Could not load your profile. Ensure Supabase migrations are applied (supabase/migrations) and try again.',
@@ -70,7 +97,9 @@ async function fetchProfileWithRetry(userId: string, authEmail: string | undefin
 }
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-	const [currentUser, setCurrentUser] = useState<ReturnType<typeof mapProfileToCurrentUser>>(null);
+	const [currentUser, setCurrentUser] = useState<
+		(ReturnType<typeof mapProfileToCurrentUser> & { employee_patient?: boolean }) | null
+	>(null);
 	const [userRole, setUserRoleState] = useState<string | null>(null);
 	const [session, setSession] = useState<import('@supabase/supabase-js').Session | null>(null);
 	const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
@@ -315,7 +344,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 				.select()
 				.single();
 			if (upErr) throw upErr;
-			const mapped = mapProfileToCurrentUser(data as Record<string, unknown>, { email: user.email });
+			let mapped = mapProfileToCurrentUser(data as Record<string, unknown>, { email: user.email });
+			if (mapped?.role === 'individual') {
+				mapped = { ...mapped, employee_patient: await fetchEmployeePatientFlag(user.id) };
+			}
 			setCurrentUser(mapped);
 			setUserRoleState(role);
 			return mapped;
@@ -371,7 +403,7 @@ export const useAuth = () => {
 		throw new Error('useAuth must be used within an AuthProvider');
 	}
 	return context as {
-		currentUser: ReturnType<typeof mapProfileToCurrentUser>;
+		currentUser: (ReturnType<typeof mapProfileToCurrentUser> & { employee_patient?: boolean }) | null;
 		userRole: string | null;
 		passwordChangeRequired: boolean;
 		isInitializing: boolean;

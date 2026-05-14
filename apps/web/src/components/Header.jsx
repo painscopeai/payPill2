@@ -32,14 +32,28 @@ export default function Header() {
 
   const isActive = (path) => location.pathname.startsWith(path);
 
+  const { patientShowMessages, patientShowInsurance } = useMemo(() => {
+    if (currentUser?.role !== 'individual') {
+      return { patientShowMessages: false, patientShowInsurance: false };
+    }
+    return {
+      patientShowMessages: currentUser.employee_patient === true,
+      patientShowInsurance: currentUser.employee_patient !== true,
+    };
+  }, [currentUser?.role, currentUser?.employee_patient]);
+
   const PatientNav = () => (
     <>
       <Link to="/patient/dashboard" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/dashboard') ? 'text-primary' : 'text-muted-foreground'}`}>Dashboard</Link>
-      <Link to="/patient/messages" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/messages') ? 'text-primary' : 'text-muted-foreground'}`}>Messages</Link>
+      {patientShowMessages ? (
+        <Link to="/patient/messages" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/messages') ? 'text-primary' : 'text-muted-foreground'}`}>Messages</Link>
+      ) : null}
       <Link to="/patient/records" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/records') ? 'text-primary' : 'text-muted-foreground'}`}>Records</Link>
       <Link to="/patient/appointments" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/appointments') ? 'text-primary' : 'text-muted-foreground'}`}>Appointments</Link>
       <Link to="/patient/prescriptions" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/prescriptions') ? 'text-primary' : 'text-muted-foreground'}`}>Prescriptions</Link>
-      <Link to="/patient/insurance" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/insurance') ? 'text-primary' : 'text-muted-foreground'}`}>Insurance</Link>
+      {patientShowInsurance ? (
+        <Link to="/patient/insurance" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/insurance') ? 'text-primary' : 'text-muted-foreground'}`}>Insurance</Link>
+      ) : null}
       <Link to="/patient/ai-recommendations" className={`text-sm font-medium transition-colors hover:text-primary flex items-center gap-1 ${isActive('/patient/ai-recommendations') ? 'text-primary' : 'text-muted-foreground'}`}>
         <Sparkles className="h-3 w-3" /> Insights
       </Link>

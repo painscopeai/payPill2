@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,8 +18,11 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function PatientMessagesPage() {
+	const { currentUser } = useAuth();
+	const navigate = useNavigate();
 	const [items, setItems] = useState([]);
 	const [employers, setEmployers] = useState([]);
 	const [loading, setLoading] = useState(true);
@@ -28,6 +32,12 @@ export default function PatientMessagesPage() {
 	const [sending, setSending] = useState(false);
 	const [showComposer, setShowComposer] = useState(false);
 	const [newMessage, setNewMessage] = useState({ employer_id: '', subject: '', body: '' });
+
+	useEffect(() => {
+		if (currentUser?.role === 'individual' && currentUser?.employee_patient === false) {
+			navigate('/patient/dashboard', { replace: true });
+		}
+	}, [currentUser, navigate]);
 
 	const loadList = useCallback(async () => {
 		setLoading(true);

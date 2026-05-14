@@ -6,10 +6,12 @@ import AppointmentCard from '@/components/AppointmentCard.jsx';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TelemedicinePage() {
   const { appointments, loading } = useAppointments();
   const navigate = useNavigate();
+  const { userRole } = useAuth();
 
   const teleAppointments = appointments.filter(a => a.type === 'telemedicine' && ['scheduled', 'in-progress'].includes(a.status));
 
@@ -31,6 +33,7 @@ export default function TelemedicinePage() {
                 <AppointmentCard 
                   key={apt.id} 
                   appointment={apt} 
+                  patientProfileUserId={userRole === 'provider' ? (apt.user_id || apt.userId) : undefined}
                   actionLabel="Join Call"
                   actionIcon={Video}
                   onAction={(a) => navigate(`/telemedicine/${a.id}`)}

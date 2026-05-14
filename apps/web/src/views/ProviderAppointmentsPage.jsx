@@ -25,7 +25,11 @@ export default function ProviderAppointmentsPage() {
 				) : normalized.length > 0 ? (
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 						{normalized.map((apt) => (
-							<AppointmentCard key={apt.id} appointment={apt} />
+							<AppointmentCard
+								key={apt.id}
+								appointment={apt}
+								patientProfileUserId={apt.user_id || apt.userId}
+							/>
 						))}
 					</div>
 				) : (

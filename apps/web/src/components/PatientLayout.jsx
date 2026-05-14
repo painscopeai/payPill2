@@ -9,6 +9,16 @@ import apiServerClient from '@/lib/apiServerClient';
 import NotificationBell from '@/components/NotificationBell.jsx';
 import ThemeToggleButton from '@/components/ThemeToggleButton.jsx';
 
+const ALL_PATIENT_NAV_ITEMS = [
+  { label: 'Dashboard', icon: Home, path: '/patient/dashboard' },
+  { label: 'Messages', icon: MessageSquare, path: '/patient/messages', module: 'messages' },
+  { label: 'Records', icon: FileText, path: '/patient/records' },
+  { label: 'Appointments', icon: Calendar, path: '/patient/appointments' },
+  { label: 'Insurance', icon: Shield, path: '/patient/insurance', module: 'insurance' },
+  { label: 'Insights', icon: Sparkles, path: '/patient/ai-recommendations' },
+  { label: 'Profile', icon: User, path: '/patient/onboarding' },
+];
+
 export default function PatientLayout({ children }) {
   const { currentUser, logout } = useAuth();
   const location = useLocation();
@@ -18,19 +28,24 @@ export default function PatientLayout({ children }) {
     void logout();
   };
 
-  const navItems = [
-    { label: 'Dashboard', icon: Home, path: '/patient/dashboard' },
-    { label: 'Messages', icon: MessageSquare, path: '/patient/messages' },
-    { label: 'Records', icon: FileText, path: '/patient/records' },
-    { label: 'Appointments', icon: Calendar, path: '/patient/appointments' },
-    { label: 'Insurance', icon: Shield, path: '/patient/insurance' },
-    { label: 'Insights', icon: Sparkles, path: '/patient/ai-recommendations' },
-    { label: 'Profile', icon: User, path: '/patient/onboarding' },
-  ];
+  const navItems = useMemo(() => {
+    if (currentUser?.role !== 'individual') return ALL_PATIENT_NAV_ITEMS;
+    const showMessages = currentUser?.employee_patient === true;
+    const showInsurance = currentUser?.employee_patient !== true;
+    return ALL_PATIENT_NAV_ITEMS.filter((item) => {
+      if (item.module === 'messages') return showMessages;
+      if (item.module === 'insurance') return showInsurance;
+      return true;
+    });
+  }, [currentUser?.role, currentUser?.employee_patient]);
 
   const isActive = (path) => location.pathname.startsWith(path);
 
   useEffect(() => {
+    if (currentUser?.role !== 'individual' || currentUser?.employee_patient !== true) {
+      setUnreadMessageCount(0);
+      return undefined;
+    }
     let mounted = true;
     const loadUnread = async () => {
       try {
@@ -53,7 +68,7 @@ export default function PatientLayout({ children }) {
       mounted = false;
       window.clearInterval(t);
     };
-  }, [location.pathname]);
+  }, [location.pathname, currentUser?.role, currentUser?.employee_patient]);
 
   const unreadBadgeText = useMemo(() => {
     if (unreadMessageCount <= 0) return '';
