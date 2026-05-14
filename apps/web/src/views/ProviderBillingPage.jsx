@@ -152,7 +152,7 @@ export default function ProviderBillingPage() {
 			<div>
 				<h1 className="text-3xl font-bold tracking-tight">Billing</h1>
 				<p className="text-muted-foreground mt-1">
-					Draft invoices for patients. Completing a consultation creates a draft charge automatically. Eligible lines
+					Invoices for patients. Completing a consultation creates a charge automatically. Eligible lines
 					also appear on the{' '}
 					<Link to="/provider/claims" className="text-teal-700 dark:text-teal-400 underline-offset-2 hover:underline">
 						Claims
@@ -163,7 +163,7 @@ export default function ProviderBillingPage() {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>New draft invoice</CardTitle>
+					<CardTitle>New invoice</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<form onSubmit={createInvoice} className="space-y-6">
@@ -315,8 +315,7 @@ export default function ProviderBillingPage() {
 											</p>
 										) : null}
 									</div>
-									<span className="text-muted-foreground capitalize shrink-0">{inv.status}</span>
-									<span className="tabular-nums shrink-0">${Number(inv.amount || 0).toFixed(2)}</span>
+									<span className="tabular-nums shrink-0 font-medium">${Number(inv.amount || 0).toFixed(2)}</span>
 								</li>
 							))}
 						</ul>
