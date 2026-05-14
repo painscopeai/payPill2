@@ -44,13 +44,14 @@ export async function GET(request: NextRequest) {
 		profileById = new Map((profs || []).map((p: { id: string }) => [p.id, p]));
 	}
 
-	const items = rowsSorted.map((apt: { user_id?: string | null; id: string }) => {
+	const items = rowsSorted.map((raw) => {
+		const apt = raw as { id: string; user_id?: string | null };
 		const p = apt.user_id ? profileById.get(apt.user_id) : undefined;
 		const patientName =
 			p?.first_name || p?.last_name
 				? [p?.first_name, p?.last_name].filter(Boolean).join(' ')
 				: p?.email || apt.user_id || 'Patient';
-		return { ...apt, patient_name: patientName };
+		return { ...raw, patient_name: patientName };
 	});
 
 	return NextResponse.json({ items });

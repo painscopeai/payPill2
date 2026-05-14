@@ -24,7 +24,7 @@ export async function fetchAppointmentsForPracticeOrg(
 	}
 	for (const r of direct || []) {
 		const id = (r as { id?: string }).id;
-		if (id) aptById.set(id, r as Record<string, unknown>);
+		if (id) aptById.set(id, r as unknown as Record<string, unknown>);
 	}
 
 	const { data: svcIdRows, error: svcErr } = await sb
@@ -51,7 +51,7 @@ export async function fetchAppointmentsForPracticeOrg(
 	}
 	for (const r of viaService || []) {
 		const id = (r as { id?: string }).id;
-		if (id && !aptById.has(id)) aptById.set(id, r as Record<string, unknown>);
+		if (id && !aptById.has(id)) aptById.set(id, r as unknown as Record<string, unknown>);
 	}
 
 	return { rows: [...aptById.values()], error: null };
