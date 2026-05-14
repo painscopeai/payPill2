@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
 	const { data: appointments, error } = await sb
 		.from('appointments')
-		.select('id, appointment_time, duration_minutes')
+		.select('id, appointment_time, duration_minutes, status')
 		.eq('provider_id', ctx.providerOrgId)
 		.eq('appointment_date', date);
 
@@ -73,7 +73,11 @@ export async function GET(request: NextRequest) {
 	}
 
 	const bookedSlots: { start: number; end: number }[] = [];
+	let bookedCount = 0;
 	for (const apt of appointments || []) {
+		const st = String((apt as { status?: string | null }).status || 'scheduled').toLowerCase();
+		if (st === 'cancelled') continue;
+		bookedCount += 1;
 		const t = String((apt as { appointment_time?: string }).appointment_time || '09:00');
 		const [h, m] = t.split(':').map((x) => parseInt(x, 10));
 		const startMinutes = (h || 0) * 60 + (m || 0);
@@ -87,6 +91,6 @@ export async function GET(request: NextRequest) {
 		date,
 		duration_minutes: duration,
 		suggestions,
-		booked_count: (appointments || []).length,
+		booked_count: bookedCount,
 	});
 }

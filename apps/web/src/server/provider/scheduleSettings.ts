@@ -155,3 +155,55 @@ export function buildSlotSuggestions(
 	out.sort((a, b) => a.time.localeCompare(b.time));
 	return out;
 }
+
+export type SlotGridEntry = { time: string; available: boolean; reason?: 'booked' };
+
+/** Every step-sized start in working windows, marked booked vs free (for patient booking UI). */
+export function buildSlotGridWithAvailability(
+	windows: { start: number; end: number }[],
+	durationMinutes: number,
+	bookedSlots: { start: number; end: number }[],
+	stepMinutes = 15,
+): SlotGridEntry[] {
+	const seen = new Set<string>();
+	const out: SlotGridEntry[] = [];
+	for (const w of windows.length ? windows : [DEFAULT_DAY_RANGE]) {
+		for (let slotStart = w.start; slotStart + durationMinutes <= w.end; slotStart += stepMinutes) {
+			const slotEnd = slotStart + durationMinutes;
+			const booked = bookedSlots.some((b) => slotStart < b.end && slotEnd > b.start);
+			const h = Math.floor(slotStart / 60);
+			const m = slotStart % 60;
+			const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+			if (seen.has(timeStr)) continue;
+			seen.add(timeStr);
+			out.push({ time: timeStr, available: !booked, reason: booked ? 'booked' : undefined });
+		}
+	}
+	out.sort((a, b) => a.time.localeCompare(b.time));
+	return out;
+}
+
+const DAY_LONG: Record<DayKey, string> = {
+	sun: 'Sunday',
+	mon: 'Monday',
+	tue: 'Tuesday',
+	wed: 'Wednesday',
+	thu: 'Thursday',
+	fri: 'Friday',
+	sat: 'Saturday',
+};
+
+/** Human-readable weekly lines for tooltips (empty weekly → default note). */
+export function weeklyHoursSummaryLines(weekly: WeeklyHours): string[] {
+	if (!weeklyHoursHasAnyWindow(weekly)) {
+		return ['No custom weekly hours — visits use 09:00–17:00 on this day.'];
+	}
+	const lines: string[] = [];
+	for (const k of DAY_KEYS) {
+		const arr = weekly[k];
+		if (!arr?.length) continue;
+		const parts = arr.map((iv) => `${iv.start}–${iv.end}`);
+		lines.push(`${DAY_LONG[k]}: ${parts.join(', ')}`);
+	}
+	return lines;
+}
