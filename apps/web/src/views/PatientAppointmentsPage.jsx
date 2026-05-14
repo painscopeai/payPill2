@@ -305,15 +305,6 @@ export default function PatientAppointmentsPage() {
                         <Button variant="outline" type="button" onClick={() => void cancelAppointment(apt)}>
                           Cancel
                         </Button>
-                        {tele ? (
-                          <Button type="button" disabled>
-                            Join Call
-                          </Button>
-                        ) : (
-                          <Button type="button" disabled>
-                            Get Directions
-                          </Button>
-                        )}
                       </div>
                     </CardContent>
                   </Card>
