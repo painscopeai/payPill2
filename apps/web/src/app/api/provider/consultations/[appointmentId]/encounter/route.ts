@@ -1,0 +1,180 @@
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { requireProvider } from '@/server/auth/requireProvider';
+import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { isConsultationQueueVisit, visitSlugFromAppointmentRow } from '@/server/provider/consultationVisitSlugs';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+type LoadedApt =
+	| { ok: true; apt: Record<string, unknown>; slug: string }
+	| { ok: false; error: string; status: number };
+
+async function loadConsultationAppointment(
+	sb: ReturnType<typeof getSupabaseAdmin>,
+	providerOrgId: string,
+	appointmentId: string,
+): Promise<LoadedApt> {
+	const { data: apt, error } = await sb
+		.from('appointments')
+		.select(
+			`
+      id,
+      user_id,
+      provider_id,
+      appointment_date,
+      appointment_time,
+      appointment_type,
+      type,
+      status,
+      reason,
+      confirmation_number,
+      visit_types ( slug, label )
+    `,
+		)
+		.eq('id', appointmentId)
+		.maybeSingle();
+	if (error || !apt) return { ok: false, error: 'Appointment not found', status: 404 };
+	const row = apt as Record<string, unknown>;
+	if (row.provider_id !== providerOrgId) {
+		return { ok: false, error: 'Not part of your practice', status: 403 };
+	}
+	const slug = visitSlugFromAppointmentRow(row as never);
+	if (!isConsultationQueueVisit(slug)) {
+		return {
+			ok: false,
+			error: 'This appointment is not a consultation or follow-up visit.',
+			status: 400,
+		};
+	}
+	return { ok: true, apt: row, slug };
+}
+
+/** GET — appointment shell + patient + encounter draft (if any). */
+export async function GET(request: NextRequest, ctx: { params: Promise<{ appointmentId: string }> }) {
+	void request;
+	const auth = await requireProvider(request);
+	if (auth instanceof NextResponse) return auth;
+	if (!auth.providerOrgId) {
+		return NextResponse.json({ error: 'Link your practice first.' }, { status: 400 });
+	}
+
+	const { appointmentId } = await ctx.params;
+	const sb = getSupabaseAdmin();
+	const res = await loadConsultationAppointment(sb, auth.providerOrgId, appointmentId);
+	if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+
+	const apt = res.apt as {
+		id: string;
+		user_id: string;
+		appointment_date: string;
+		appointment_time: string | null;
+		status: string | null;
+		reason: string | null;
+		confirmation_number: string | null;
+	};
+
+	const { data: profile } = await sb
+		.from('profiles')
+		.select('id, first_name, last_name, email, phone, date_of_birth')
+		.eq('id', apt.user_id)
+		.maybeSingle();
+
+	const { data: encounter } = await sb
+		.from('provider_consultation_encounters')
+		.select('*')
+		.eq('appointment_id', appointmentId)
+		.maybeSingle();
+
+	return NextResponse.json({
+		appointment: {
+			id: apt.id,
+			appointment_date: apt.appointment_date,
+			appointment_time: apt.appointment_time,
+			status: apt.status,
+			reason: apt.reason,
+			confirmation_number: apt.confirmation_number,
+			visit_slug: res.slug,
+		},
+		patient: profile,
+		encounter: encounter || null,
+	});
+}
+
+/** PUT — create/update SOAP encounter for this appointment. */
+export async function PUT(request: NextRequest, ctx: { params: Promise<{ appointmentId: string }> }) {
+	const auth = await requireProvider(request);
+	if (auth instanceof NextResponse) return auth;
+	if (!auth.providerOrgId) {
+		return NextResponse.json({ error: 'Link your practice first.' }, { status: 400 });
+	}
+
+	const { appointmentId } = await ctx.params;
+	const body = (await request.json().catch(() => ({}))) as {
+		subjective?: string;
+		objective?: string;
+		assessment?: string;
+		plan?: string;
+		additional_notes?: string;
+		vitals?: Record<string, unknown>;
+		status?: string;
+	};
+
+	const sb = getSupabaseAdmin();
+	const res = await loadConsultationAppointment(sb, auth.providerOrgId, appointmentId);
+	if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+
+	const apt = res.apt as { id: string; user_id: string };
+
+	const status = body.status === 'finalized' ? 'finalized' : 'draft';
+	const vitals = body.vitals && typeof body.vitals === 'object' ? body.vitals : {};
+
+	const payload = {
+		appointment_id: appointmentId,
+		patient_user_id: apt.user_id,
+		provider_user_id: auth.userId,
+		subjective: body.subjective ?? null,
+		objective: body.objective ?? null,
+		assessment: body.assessment ?? null,
+		plan: body.plan ?? null,
+		additional_notes: body.additional_notes ?? null,
+		vitals,
+		status,
+		updated_at: new Date().toISOString(),
+	};
+
+	const { data: existing } = await sb
+		.from('provider_consultation_encounters')
+		.select('id')
+		.eq('appointment_id', appointmentId)
+		.maybeSingle();
+
+	let dbErr = null as { message?: string } | null;
+	if (existing && typeof existing === 'object' && 'id' in existing && (existing as { id: string }).id) {
+		const { error } = await sb
+			.from('provider_consultation_encounters')
+			.update(payload)
+			.eq('id', (existing as { id: string }).id);
+		dbErr = error;
+	} else {
+		const { error } = await sb.from('provider_consultation_encounters').insert(payload);
+		dbErr = error;
+	}
+
+	if (dbErr) {
+		console.error('[api/provider/consultations/encounter]', dbErr.message);
+		return NextResponse.json({ error: 'Failed to save encounter' }, { status: 500 });
+	}
+
+	const { data: encounter, error: selErr } = await sb
+		.from('provider_consultation_encounters')
+		.select('*')
+		.eq('appointment_id', appointmentId)
+		.single();
+	if (selErr || !encounter) {
+		return NextResponse.json({ error: 'Encounter saved but could not reload.' }, { status: 500 });
+	}
+
+	return NextResponse.json({ encounter });
+}

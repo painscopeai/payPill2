@@ -3,17 +3,146 @@ import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { buildPatientCoverageSummary } from '@/server/patient/buildPatientCoverageSummary';
+import { fetchAppointmentsForPracticeOrg } from '@/server/provider/fetchAppointmentsForPracticeOrg';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET /api/provider/patients — relationships + patient profile + onboarding summary (replaces legacy /provider/patients). */
+function displayNameFromProfile(
+	p: { first_name?: string | null; last_name?: string | null; name?: string | null; email?: string | null } | null,
+) {
+	if (!p) return '';
+	const n = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+	if (n) return n;
+	return String(p.name || '').trim() || String(p.email || '').trim() || '';
+}
+
+type LinkedVia =
+	| 'relationship'
+	| 'appointment'
+	| 'clinical_note'
+	| 'telemedicine'
+	| 'prescription'
+	| 'consultation_encounter';
+
+type AptRow = {
+	id?: string;
+	user_id: string | null;
+	status: string | null;
+	appointment_date: string | null;
+	appointment_time: string | null;
+};
+
+function utcDateString(): string {
+	return new Date().toISOString().slice(0, 10);
+}
+
+function appointmentOpen(status: string | null | undefined): boolean {
+	const x = String(status || 'scheduled')
+		.trim()
+		.toLowerCase();
+	if (['cancelled', 'canceled', 'completed', 'no_show', 'no-show'].includes(x)) return false;
+	return true;
+}
+
+function formatShortDate(isoDate: string): string {
+	if (!isoDate || !/^\d{4}-\d{2}-\d{2}/.test(isoDate)) return isoDate;
+	const d = new Date(`${isoDate.slice(0, 10)}T12:00:00Z`);
+	if (Number.isNaN(d.getTime())) return isoDate.slice(0, 10);
+	return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function computeActivity(args: {
+	patientId: string;
+	aptsForPatient: AptRow[];
+	draftEncounterPatientIds: Set<string>;
+	today: string;
+	linkedVia: LinkedVia[];
+}): { patient_activity_status: string; patient_activity_kind: string } {
+	const { patientId, aptsForPatient, draftEncounterPatientIds, today, linkedVia } = args;
+	if (draftEncounterPatientIds.has(patientId)) {
+		return { patient_activity_status: 'Consultation note in progress', patient_activity_kind: 'documenting' };
+	}
+	const mine = aptsForPatient.filter((a) => appointmentOpen(a.status));
+	const sorted = [...mine].sort((a, b) => {
+		const da = String(a.appointment_date || '');
+		const db = String(b.appointment_date || '');
+		if (da !== db) return da.localeCompare(db);
+		return String(a.appointment_time || '00:00:00').localeCompare(String(b.appointment_time || '00:00:00'));
+	});
+
+	const next = sorted.find((a) => String(a.appointment_date || '') >= today);
+	if (next?.appointment_date) {
+		if (String(next.appointment_date) === today) {
+			return { patient_activity_status: 'Appointment today', patient_activity_kind: 'today' };
+		}
+		return {
+			patient_activity_status: `Upcoming visit · ${formatShortDate(next.appointment_date)}`,
+			patient_activity_kind: 'upcoming',
+		};
+	}
+
+	const past = [...sorted]
+		.filter((a) => String(a.appointment_date || '') < today)
+		.sort((a, b) => String(b.appointment_date || '').localeCompare(String(a.appointment_date || '')));
+	if (past[0]?.appointment_date) {
+		return {
+			patient_activity_status: `Last visit · ${formatShortDate(past[0].appointment_date)}`,
+			patient_activity_kind: 'past_visit',
+		};
+	}
+
+	if (linkedVia.includes('appointment')) {
+		return { patient_activity_status: 'Visits on file', patient_activity_kind: 'appointments_history' };
+	}
+	if (linkedVia.includes('clinical_note')) {
+		return { patient_activity_status: 'Clinical notes on file', patient_activity_kind: 'clinical_notes' };
+	}
+	if (linkedVia.includes('prescription')) {
+		return { patient_activity_status: 'Prescriptions on file', patient_activity_kind: 'prescriptions' };
+	}
+	if (linkedVia.includes('telemedicine')) {
+		return { patient_activity_status: 'Telemedicine on file', patient_activity_kind: 'telemedicine' };
+	}
+	if (linkedVia.includes('consultation_encounter')) {
+		return { patient_activity_status: 'Consultation documented', patient_activity_kind: 'encounter_done' };
+	}
+	if (linkedVia.includes('relationship')) {
+		return { patient_activity_status: 'On your care team', patient_activity_kind: 'care_team' };
+	}
+	return { patient_activity_status: 'Connected', patient_activity_kind: 'linked' };
+}
+
+async function collectUserIdsFromColumn(
+	sb: ReturnType<typeof getSupabaseAdmin>,
+	table: string,
+	column: string,
+	filter: { col: string; val: string },
+): Promise<Set<string>> {
+	const out = new Set<string>();
+	const { data, error } = await sb.from(table).select(column).eq(filter.col, filter.val);
+	if (error) {
+		if (!/does not exist|schema cache/i.test(error.message)) {
+			console.warn(`[api/provider/patients] ${table}`, error.message);
+		}
+		return out;
+	}
+	for (const row of data || []) {
+		const v = (row as Record<string, string | null>)[column];
+		if (v) out.add(v);
+	}
+	return out;
+}
+
+/** GET /api/provider/patients — roster ∪ anyone who booked, received prescriptions, notes, telemedicine, or consultation encounters with this practice/provider. */
 export async function GET(request: NextRequest) {
 	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
+	void request;
 
 	const sb = getSupabaseAdmin();
 	const providerId = ctx.userId;
+	const providerOrgId = ctx.providerOrgId;
 
 	const { data: relationships, error } = await sb
 		.from('patient_provider_relationships')
@@ -25,34 +154,214 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json({ error: 'Failed to load patients' }, { status: 500 });
 	}
 
+	const relList = relationships || [];
+	const relByPatient = new Map<string, (typeof relList)[number]>();
+	for (const r of relList) {
+		const row = r as { patient_id?: string };
+		if (row.patient_id) relByPatient.set(row.patient_id, r as (typeof relList)[number]);
+	}
+
+	const appointmentPatientIds = new Set<string>();
+	let orgAppointments: AptRow[] = [];
+	if (providerOrgId) {
+		const { rows: merged, error: aptErr } = await fetchAppointmentsForPracticeOrg(
+			sb,
+			providerOrgId,
+			'id, user_id, status, appointment_date, appointment_time',
+			{ limitDirect: 1500, limitService: 1500 },
+		);
+		if (aptErr) {
+			console.error('[api/provider/patients] appointments', aptErr);
+		} else {
+			orgAppointments = (merged || [])
+				.map((r) => r as AptRow)
+				.filter((r) => r.user_id);
+			for (const row of orgAppointments) {
+				if (row.user_id) appointmentPatientIds.add(row.user_id);
+			}
+		}
+	}
+
+	const clinicalNotePatientIds = await collectUserIdsFromColumn(sb, 'clinical_notes', 'user_id', {
+		col: 'provider_id',
+		val: providerId,
+	});
+	const telemedicinePatientIds = await collectUserIdsFromColumn(sb, 'telemedicine_sessions', 'user_id', {
+		col: 'provider_id',
+		val: providerId,
+	});
+
+	const prescriptionPatientIds = new Set<string>();
+	if (providerOrgId) {
+		const ids = await collectUserIdsFromColumn(sb, 'prescriptions', 'user_id', {
+			col: 'provider_id',
+			val: providerOrgId,
+		});
+		for (const id of ids) prescriptionPatientIds.add(id);
+	}
+
+	const encounterPatientIds = new Set<string>();
+	const draftEncounterPatientIds = new Set<string>();
+	{
+		const { data: encRows, error: encErr } = await sb
+			.from('provider_consultation_encounters')
+			.select('patient_user_id, status')
+			.eq('provider_user_id', providerId);
+		if (encErr) {
+			if (!/does not exist|schema cache/i.test(encErr.message)) {
+				console.warn('[api/provider/patients] encounters', encErr.message);
+			}
+		} else {
+			for (const row of encRows || []) {
+				const r = row as { patient_user_id?: string; status?: string };
+				if (r.patient_user_id) {
+					encounterPatientIds.add(r.patient_user_id);
+					if (String(r.status || '').toLowerCase() === 'draft') {
+						draftEncounterPatientIds.add(r.patient_user_id);
+					}
+				}
+			}
+		}
+	}
+
+	const allIds = [
+		...new Set([
+			...relByPatient.keys(),
+			...appointmentPatientIds,
+			...clinicalNotePatientIds,
+			...telemedicinePatientIds,
+			...prescriptionPatientIds,
+			...encounterPatientIds,
+		]),
+	];
+
+	if (!allIds.length) {
+		return NextResponse.json([]);
+	}
+
+	const { data: profRows, error: profErr } = await sb.from('profiles').select('*').in('id', allIds);
+	if (profErr) {
+		console.error('[api/provider/patients] profiles batch', profErr.message);
+		return NextResponse.json({ error: 'Failed to load patient profiles' }, { status: 500 });
+	}
+	const profileById = new Map((profRows || []).map((p: { id: string }) => [p.id, p]));
+
+	const { data: stepRows, error: stepErr } = await sb
+		.from('patient_onboarding_steps')
+		.select('user_id, step, data')
+		.in('user_id', allIds)
+		.limit(2000);
+	if (stepErr) {
+		console.warn('[api/provider/patients] onboarding steps', stepErr.message);
+	}
+	const stepsByUser = new Map<string, { step: number; data: unknown }[]>();
+	for (const s of stepRows || []) {
+		const row = s as { user_id: string; step: number; data: unknown };
+		if (!row.user_id) continue;
+		const arr = stepsByUser.get(row.user_id) || [];
+		arr.push({ step: row.step, data: row.data });
+		stepsByUser.set(row.user_id, arr);
+	}
+
+	const today = utcDateString();
+	const aptsByUser = new Map<string, AptRow[]>();
+	for (const a of orgAppointments) {
+		if (!a.user_id) continue;
+		const arr = aptsByUser.get(a.user_id) || [];
+		arr.push(a);
+		aptsByUser.set(a.user_id, arr);
+	}
+
 	const patientsWithDetails = await Promise.all(
-		(relationships || []).map(async (relationship: { patient_id: string }) => {
+		allIds.map(async (patient_id) => {
+			const relationship = relByPatient.get(patient_id);
+			const user = profileById.get(patient_id) ?? null;
 			try {
-				const { data: user } = await sb.from('profiles').select('*').eq('id', relationship.patient_id).maybeSingle();
+				const steps = stepsByUser.get(patient_id) || [];
+				const health_summary = Object.fromEntries(
+					steps.map((s: { step: number; data: unknown }) => [`step_${s.step}`, s.data]),
+				);
 
-				const { data: steps } = await sb
-					.from('patient_onboarding_steps')
-					.select('step, data')
-					.eq('user_id', relationship.patient_id)
-					.limit(20);
+				const coverage_summary = await buildPatientCoverageSummary(sb, patient_id);
 
-				const health_summary = Object.fromEntries((steps || []).map((s: { step: number; data: unknown }) => [`step_${s.step}`, s.data]));
+				const linked_via: LinkedVia[] = [];
+				if (relationship) linked_via.push('relationship');
+				if (appointmentPatientIds.has(patient_id)) linked_via.push('appointment');
+				if (clinicalNotePatientIds.has(patient_id)) linked_via.push('clinical_note');
+				if (telemedicinePatientIds.has(patient_id)) linked_via.push('telemedicine');
+				if (prescriptionPatientIds.has(patient_id)) linked_via.push('prescription');
+				if (encounterPatientIds.has(patient_id)) linked_via.push('consultation_encounter');
 
-				const coverage_summary = await buildPatientCoverageSummary(sb, relationship.patient_id);
+				const activity = computeActivity({
+					patientId: patient_id,
+					aptsForPatient: aptsByUser.get(patient_id) || [],
+					draftEncounterPatientIds,
+					today,
+					linkedVia: linked_via,
+				});
 
 				return {
-					...relationship,
+					...(relationship || {
+						id: patient_id,
+						patient_id,
+						provider_id: providerId,
+						created_at: null,
+					}),
+					id: (relationship as { id?: string } | undefined)?.id || patient_id,
+					patient_id,
 					patient_details: user,
 					health_summary,
 					coverage_summary,
+					linked_via,
+					patient_activity_status: activity.patient_activity_status,
+					patient_activity_kind: activity.patient_activity_kind,
 				};
 			} catch (e: unknown) {
 				const msg = e instanceof Error ? e.message : String(e);
-				console.warn(`[api/provider/patients] patient ${relationship.patient_id}: ${msg}`);
-				return relationship;
+				console.warn(`[api/provider/patients] patient ${patient_id}: ${msg}`);
+				const linked_via: LinkedVia[] = [];
+				if (relationship) linked_via.push('relationship');
+				if (appointmentPatientIds.has(patient_id)) linked_via.push('appointment');
+				if (clinicalNotePatientIds.has(patient_id)) linked_via.push('clinical_note');
+				if (telemedicinePatientIds.has(patient_id)) linked_via.push('telemedicine');
+				if (prescriptionPatientIds.has(patient_id)) linked_via.push('prescription');
+				if (encounterPatientIds.has(patient_id)) linked_via.push('consultation_encounter');
+				const activity = computeActivity({
+					patientId: patient_id,
+					aptsForPatient: aptsByUser.get(patient_id) || [],
+					draftEncounterPatientIds,
+					today,
+					linkedVia: linked_via,
+				});
+				return {
+					...(relationship || {}),
+					id: (relationship as { id?: string } | undefined)?.id || patient_id,
+					patient_id,
+					provider_id: providerId,
+					patient_details: user,
+					linked_via,
+					patient_activity_status: activity.patient_activity_status,
+					patient_activity_kind: activity.patient_activity_kind,
+				};
 			}
 		}),
 	);
+
+	patientsWithDetails.sort((a, b) => {
+		type Row = {
+			patient_details?: Parameters<typeof displayNameFromProfile>[0];
+			patient_id: string;
+			coverage_summary?: { full_name?: string } | null;
+		};
+		const ra = a as Row;
+		const rb = b as Row;
+		const na = (ra.coverage_summary?.full_name || displayNameFromProfile(ra.patient_details ?? null)).toLowerCase();
+		const nb = (rb.coverage_summary?.full_name || displayNameFromProfile(rb.patient_details ?? null)).toLowerCase();
+		if (na && nb) return na.localeCompare(nb);
+		if (na) return -1;
+		if (nb) return 1;
+		return String(ra.patient_id).localeCompare(String(rb.patient_id));
+	});
 
 	return NextResponse.json(patientsWithDetails);
 }

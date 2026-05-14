@@ -123,7 +123,9 @@ export default function ProviderDashboard() {
 								) : patients.length > 0 ? (
 									patients.slice(0, 6).map((p) => <PatientCard key={p.id} patient={p} />)
 								) : (
-									<div className="p-8 text-center text-muted-foreground">No patients assigned yet.</div>
+									<div className="p-8 text-center text-muted-foreground">
+										No patients in your roster yet. Bookings and care activity will appear here once they exist.
+									</div>
 								)}
 							</div>
 						</CardContent>

@@ -10,6 +10,9 @@ function mapPatientRow(rel) {
 		id: rel.id,
 		patient_id: rel.patient_id,
 		patient_name: name,
+		linked_via: Array.isArray(rel.linked_via) ? rel.linked_via : [],
+		patient_activity_status: rel.patient_activity_status || '',
+		patient_activity_kind: rel.patient_activity_kind || '',
 	};
 }
 
@@ -19,7 +22,16 @@ export function usePatients() {
 	const [loading, setLoading] = useState(true);
 
 	const fetchPatients = useCallback(async () => {
-		if (!currentUser || userRole !== 'provider') return;
+		if (!currentUser) {
+			setPatients([]);
+			setLoading(false);
+			return;
+		}
+		if (userRole !== 'provider') {
+			setPatients([]);
+			setLoading(false);
+			return;
+		}
 		setLoading(true);
 		try {
 			const res = await apiServerClient.fetch('/provider/patients');

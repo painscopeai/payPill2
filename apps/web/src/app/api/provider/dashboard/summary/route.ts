@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { fetchAppointmentsForPracticeOrg } from '@/server/provider/fetchAppointmentsForPracticeOrg';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,22 +22,38 @@ export async function GET(request: NextRequest) {
 	const orgId = ctx.providerOrgId;
 	const today = todayISO();
 
-	const { count: patientCount, error: pRelErr } = await sb
+	const { data: relRows, error: pRelErr } = await sb
 		.from('patient_provider_relationships')
-		.select('*', { count: 'exact', head: true })
+		.select('patient_id')
 		.eq('provider_id', uid);
 	if (pRelErr) console.error('[api/provider/dashboard/summary] relationships', pRelErr.message);
 
+	const rosterIds = new Set<string>();
+	for (const r of relRows || []) {
+		const pid = (r as { patient_id?: string | null }).patient_id;
+		if (pid) rosterIds.add(pid);
+	}
 	let todayAppointments = 0;
 	if (orgId) {
-		const { data: appts, error: apErr } = await sb
-			.from('appointments')
-			.select('id')
-			.eq('provider_id', orgId)
-			.eq('appointment_date', today);
-		if (apErr) console.error('[api/provider/dashboard/summary] appointments', apErr.message);
-		todayAppointments = (appts || []).length;
+		const { rows: aptRows, error: aptUserErr } = await fetchAppointmentsForPracticeOrg(
+			sb,
+			orgId,
+			'id, user_id, appointment_date',
+			{ limitDirect: 4000, limitService: 4000 },
+		);
+		if (aptUserErr) {
+			console.error('[api/provider/dashboard/summary] appointment patients', aptUserErr);
+		} else {
+			for (const row of aptRows || []) {
+				const u = (row as { user_id?: string | null }).user_id;
+				if (u) rosterIds.add(u);
+				if (String((row as { appointment_date?: string | null }).appointment_date || '') === today) {
+					todayAppointments += 1;
+				}
+			}
+		}
 	}
+	const totalPatients = rosterIds.size;
 
 	const { data: invoices } = await sb
 		.from('provider_invoices')
@@ -56,7 +73,7 @@ export async function GET(request: NextRequest) {
 
 	return NextResponse.json({
 		todayAppointments,
-		totalPatients: patientCount ?? 0,
+		totalPatients,
 		pendingTasks: pendingInvoices,
 		unreadMessages,
 		providerOrgLinked: Boolean(orgId),
