@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getBearerUserId } from '@/server/auth/getBearerUserId';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { blockWalkInEmployerMessaging } from '@/server/patient/walkInPatientMessaging';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,9 @@ export async function POST(
 	if (!text) return NextResponse.json({ error: 'Reply body is required' }, { status: 400 });
 
 	const sb = getSupabaseAdmin();
+	const walkInBlock = await blockWalkInEmployerMessaging(sb, uid);
+	if (walkInBlock) return walkInBlock;
+
 	const { data: rec, error: rErr } = await sb
 		.from('employer_broadcast_recipients')
 		.select('id, broadcast_id, employer_id, patient_user_id')

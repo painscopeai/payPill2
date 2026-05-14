@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getBearerUserId } from '@/server/auth/getBearerUserId';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { blockWalkInEmployerMessaging, patientProfileIsWalkIn } from '@/server/patient/walkInPatientMessaging';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,61 @@ function employerLabel(p: { company_name?: string | null; name?: string | null; 
 	return p?.company_name || p?.name || p?.email || id;
 }
 
+async function buildClinicalProviderThreadList(
+	sb: ReturnType<typeof getSupabaseAdmin>,
+	clinicalRows: unknown[],
+): Promise<ThreadRow[]> {
+	const threads: ThreadRow[] = [];
+	const byProv = new Map<string, { last_at: string; preview: string; unread: number }>();
+	for (const row of clinicalRows) {
+		const r = row as {
+			provider_user_id: string;
+			created_at: string;
+			body: string;
+			sender_user_id: string;
+			read_at: string | null;
+		};
+		const pid = r.provider_user_id;
+		const cur = byProv.get(pid);
+		const unreadInc = r.sender_user_id === pid && !r.read_at ? 1 : 0;
+		if (!cur) {
+			byProv.set(pid, {
+				last_at: r.created_at,
+				preview: String(r.body || '').slice(0, 200),
+				unread: unreadInc,
+			});
+		} else {
+			if (new Date(r.created_at) > new Date(cur.last_at)) {
+				cur.last_at = r.created_at;
+				cur.preview = String(r.body || '').slice(0, 200);
+			}
+			cur.unread += unreadInc;
+		}
+	}
+	if (byProv.size === 0) return threads;
+	const pids = Array.from(byProv.keys());
+	const { data: pprofs } = await sb.from('profiles').select('id, first_name, last_name, email').in('id', pids);
+	const nameBy = new Map<string, string>();
+	for (const p of pprofs || []) {
+		const pr = p as { id: string; first_name: string | null; last_name: string | null; email: string | null };
+		nameBy.set(
+			pr.id,
+			[pr.first_name, pr.last_name].filter(Boolean).join(' ').trim() || pr.email || 'Care team',
+		);
+	}
+	for (const [providerUserId, v] of byProv) {
+		threads.push({
+			kind: 'clinical_provider',
+			sort_at: v.last_at,
+			title: nameBy.get(providerUserId) || 'Care team',
+			subtitle: 'Provider',
+			unread: v.unread,
+			open: { kind: 'clinical_provider', provider_user_id: providerUserId },
+		});
+	}
+	return threads;
+}
+
 /**
  * GET /api/patient/messages — unified inbox: employer broadcasts, workplace DMs, care-team (provider) threads.
  */
@@ -30,6 +86,35 @@ export async function GET(request: NextRequest) {
 	if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
 	const sb = getSupabaseAdmin();
+
+	const { data: coverageProf } = await sb
+		.from('profiles')
+		.select('patient_coverage_source')
+		.eq('id', uid)
+		.maybeSingle();
+	if (
+		patientProfileIsWalkIn(
+			(coverageProf as { patient_coverage_source?: string | null } | null)?.patient_coverage_source,
+		)
+	) {
+		const { data: walkClinicalRows, error: wClinErr } = await sb
+			.from('provider_secure_messages')
+			.select('id, provider_user_id, patient_user_id, sender_user_id, body, read_at, created_at')
+			.eq('patient_user_id', uid)
+			.order('created_at', { ascending: false })
+			.limit(400);
+		if (wClinErr) {
+			console.error('[api/patient/messages GET] clinical (walk-in)', wClinErr.message);
+			return NextResponse.json({ error: 'Failed to load care messages' }, { status: 500 });
+		}
+		const wt = await buildClinicalProviderThreadList(sb, walkClinicalRows || []);
+		wt.sort((a, b) => Date.parse(b.sort_at) - Date.parse(a.sort_at));
+		return NextResponse.json({
+			threads: wt,
+			employers: [],
+			employer_messaging: false,
+		});
+	}
 
 	const [
 		{ data: recipients, error: recErr },
@@ -209,62 +294,12 @@ export async function GET(request: NextRequest) {
 	}
 
 	// --- Clinical (provider ↔ patient / walk-in) ---
-	const byProv = new Map<
-		string,
-		{ last_at: string; preview: string; unread: number }
-	>();
-	for (const row of clinicalRows || []) {
-		const r = row as {
-			provider_user_id: string;
-			created_at: string;
-			body: string;
-			sender_user_id: string;
-			read_at: string | null;
-		};
-		const pid = r.provider_user_id;
-		const cur = byProv.get(pid);
-		const unreadInc = r.sender_user_id === pid && !r.read_at ? 1 : 0;
-		if (!cur) {
-			byProv.set(pid, {
-				last_at: r.created_at,
-				preview: String(r.body || '').slice(0, 200),
-				unread: unreadInc,
-			});
-		} else {
-			if (new Date(r.created_at) > new Date(cur.last_at)) {
-				cur.last_at = r.created_at;
-				cur.preview = String(r.body || '').slice(0, 200);
-			}
-			cur.unread += unreadInc;
-		}
-	}
-
-	if (byProv.size > 0) {
-		const pids = Array.from(byProv.keys());
-		const { data: pprofs } = await sb.from('profiles').select('id, first_name, last_name, email').in('id', pids);
-		const nameBy = new Map<string, string>();
-		for (const p of pprofs || []) {
-			const pr = p as { id: string; first_name: string | null; last_name: string | null; email: string | null };
-			nameBy.set(
-				pr.id,
-				[pr.first_name, pr.last_name].filter(Boolean).join(' ').trim() || pr.email || 'Care team',
-			);
-		}
-		for (const [providerUserId, v] of byProv) {
-			threads.push({
-				kind: 'clinical_provider',
-				sort_at: v.last_at,
-				title: nameBy.get(providerUserId) || 'Care team',
-				subtitle: 'Provider',
-				unread: v.unread,
-				open: { kind: 'clinical_provider', provider_user_id: providerUserId },
-			});
-		}
-	}
+	const clinicalThreads = await buildClinicalProviderThreadList(sb, clinicalRows || []);
+	threads.push(...clinicalThreads);
 
 	threads.sort((a, b) => Date.parse(b.sort_at) - Date.parse(a.sort_at));
 
-	return NextResponse.json({ threads, employers: employerOptions });
+	return NextResponse.json({ threads, employers: employerOptions, employer_messaging: true });
 }
 
 type ComposePatientMessageBody = {
@@ -295,6 +330,8 @@ export async function POST(request: NextRequest) {
 	if (subject) body = `${subject}\n\n${body}`;
 
 	const sb = getSupabaseAdmin();
+	const walkInBlock = await blockWalkInEmployerMessaging(sb, uid);
+	if (walkInBlock) return walkInBlock;
 
 	const { data: membership, error: mErr } = await sb
 		.from('employer_employees')

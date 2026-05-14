@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Inbox, Mail, Send, Loader2, PlusCircle, Building2, Stethoscope, Megaphone } from 'lucide-react';
+import { Inbox, Send, Loader2, PlusCircle, Building2, Stethoscope, Megaphone } from 'lucide-react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -47,6 +47,7 @@ export default function PatientMessagesPage() {
 	const [sending, setSending] = useState(false);
 	const [showEmployerComposer, setShowEmployerComposer] = useState(false);
 	const [showProviderComposer, setShowProviderComposer] = useState(false);
+	const [employerMessagingEnabled, setEmployerMessagingEnabled] = useState(true);
 	const [newEmployerMessage, setNewEmployerMessage] = useState({ employer_id: '', subject: '', body: '' });
 	const [newProviderMessage, setNewProviderMessage] = useState({ provider_user_id: '', body: '' });
 
@@ -61,6 +62,7 @@ export default function PatientMessagesPage() {
 			if (!res.ok) throw new Error(body.error || 'Failed to load messages');
 			setThreads(Array.isArray(body.threads) ? body.threads : []);
 			setEmployers(Array.isArray(body.employers) ? body.employers : []);
+			setEmployerMessagingEnabled(body.employer_messaging !== false);
 			const pb = await provRes.json().catch(() => ({}));
 			if (provRes.ok) setMessagableProviders(Array.isArray(pb.items) ? pb.items : []);
 			else setMessagableProviders([]);
@@ -80,6 +82,15 @@ export default function PatientMessagesPage() {
 			setNewEmployerMessage((m) => ({ ...m, employer_id: employers[0].employer_id }));
 		}
 	}, [employers, newEmployerMessage.employer_id]);
+
+	const hideEmployerSection = useMemo(() => {
+		const walkIn = String(currentUser?.patient_coverage_source ?? '').toLowerCase() === 'walk_in';
+		return walkIn || employerMessagingEnabled === false;
+	}, [currentUser?.patient_coverage_source, employerMessagingEnabled]);
+
+	useEffect(() => {
+		if (hideEmployerSection && filter === 'work') setFilter('all');
+	}, [hideEmployerSection, filter]);
 
 	const filteredThreads = useMemo(() => {
 		if (filter === 'care') return threads.filter((t) => t.kind === 'clinical_provider');
@@ -357,11 +368,13 @@ export default function PatientMessagesPage() {
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">Messages</h1>
 					<p className="text-muted-foreground mt-1">
-						Care team, employer announcements, and workplace direct messages in one place.
+						{hideEmployerSection
+							? 'Secure messaging with your care team.'
+							: 'Care team, employer announcements, and workplace direct messages in one place.'}
 					</p>
 				</div>
 				<div className="flex flex-wrap gap-2">
-					{employers.length > 0 ? (
+					{!hideEmployerSection && employers.length > 0 ? (
 						<Button variant="outline" className="gap-2" onClick={() => setShowEmployerComposer((v) => !v)}>
 							<PlusCircle className="h-4 w-4" /> Message employer
 						</Button>
@@ -375,14 +388,21 @@ export default function PatientMessagesPage() {
 			</div>
 
 			<Tabs value={filter} onValueChange={setFilter} className="w-full max-w-md">
-				<TabsList className="grid w-full grid-cols-3">
-					<TabsTrigger value="all">All</TabsTrigger>
-					<TabsTrigger value="care">Care team</TabsTrigger>
-					<TabsTrigger value="work">Employer</TabsTrigger>
-				</TabsList>
+				{hideEmployerSection ? (
+					<TabsList className="grid w-full grid-cols-2">
+						<TabsTrigger value="all">All</TabsTrigger>
+						<TabsTrigger value="care">Care team</TabsTrigger>
+					</TabsList>
+				) : (
+					<TabsList className="grid w-full grid-cols-3">
+						<TabsTrigger value="all">All</TabsTrigger>
+						<TabsTrigger value="care">Care team</TabsTrigger>
+						<TabsTrigger value="work">Employer</TabsTrigger>
+					</TabsList>
+				)}
 			</Tabs>
 
-			{showEmployerComposer && employers.length > 0 ? (
+			{!hideEmployerSection && showEmployerComposer && employers.length > 0 ? (
 				<Card>
 					<CardContent className="p-4 space-y-4">
 						<div className="grid gap-2">
@@ -576,7 +596,9 @@ export default function PatientMessagesPage() {
 							</Card>
 						) : (
 							<div className="h-[70vh] border rounded-xl bg-card flex items-center justify-center text-muted-foreground text-sm px-6 text-center">
-								Select a conversation or start a new message to your employer or care team.
+								{hideEmployerSection
+									? 'Select a conversation or message your care team.'
+									: 'Select a conversation or start a new message to your employer or care team.'}
 							</div>
 						)}
 					</div>

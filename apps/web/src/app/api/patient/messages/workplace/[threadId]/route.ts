@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getBearerUserId } from '@/server/auth/getBearerUserId';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { blockWalkInEmployerMessaging } from '@/server/patient/walkInPatientMessaging';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,9 @@ export async function GET(
 	if (!tid) return NextResponse.json({ error: 'Invalid thread' }, { status: 400 });
 
 	const sb = getSupabaseAdmin();
+	const walkInBlockGet = await blockWalkInEmployerMessaging(sb, uid);
+	if (walkInBlockGet) return walkInBlockGet;
+
 	const { thread, error } = await loadThreadForEmployee(sb, uid, tid);
 	if (error && !/does not exist|schema cache/i.test(error.message)) {
 		return NextResponse.json({ error: error.message }, { status: 500 });
@@ -90,6 +94,9 @@ export async function POST(
 	if (!body) return NextResponse.json({ error: 'body is required' }, { status: 400 });
 
 	const sb = getSupabaseAdmin();
+	const walkInBlockPost = await blockWalkInEmployerMessaging(sb, uid);
+	if (walkInBlockPost) return walkInBlockPost;
+
 	const { thread, error } = await loadThreadForEmployee(sb, uid, tid);
 	if (error && !/does not exist|schema cache/i.test(error.message)) {
 		return NextResponse.json({ error: error.message }, { status: 500 });
