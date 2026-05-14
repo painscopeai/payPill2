@@ -2,11 +2,13 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { buildProviderAnalyticsActivity } from '@/server/provider/buildProviderAnalyticsActivity';
+import { profileDisplayName } from '@/server/provider/profileDisplayName';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET /api/provider/analytics/summary — lightweight KPIs for provider analytics page */
+/** GET /api/provider/analytics/summary — KPIs + recent activity (visits, health, billing, claims). */
 export async function GET(_request: NextRequest) {
 	const ctx = await requireProvider(_request);
 	if (ctx instanceof NextResponse) return ctx;
@@ -39,11 +41,40 @@ export async function GET(_request: NextRequest) {
 
 	const completedAppts = appts.filter((a) => (a.status || '').toLowerCase() === 'completed').length;
 
+	const { events: rawEvents, counts: activity } = await buildProviderAnalyticsActivity(sb, {
+		providerUserId: uid,
+		providerOrgId: orgId,
+	});
+
+	const patientIds = [...new Set(rawEvents.map((e) => e.patient_user_id).filter(Boolean))] as string[];
+	let profileById = new Map<string, { first_name?: string | null; last_name?: string | null; email?: string | null }>();
+	if (patientIds.length) {
+		const { data: profs } = await sb.from('profiles').select('id, first_name, last_name, email').in('id', patientIds);
+		if (profs) {
+			profileById = new Map(
+				(profs as { id: string; first_name?: string | null; last_name?: string | null; email?: string | null }[]).map(
+					(p) => [p.id, p],
+				),
+			);
+		}
+	}
+
+	const events = rawEvents.map((e) => {
+		const pid = e.patient_user_id || '';
+		const prof = pid ? profileById.get(pid) : undefined;
+		return {
+			...e,
+			patient_display: pid ? profileDisplayName(prof || null) || 'Patient' : null,
+		};
+	});
+
 	return NextResponse.json({
 		activePatients: relCount ?? 0,
 		appointmentsTotal: appts.length,
 		appointmentsCompleted: completedAppts,
 		revenueInvoiced: invoiceTotal,
 		revenuePayments: paymentTotal,
+		activity,
+		events,
 	});
 }
