@@ -31,7 +31,7 @@ export default function PatientLayout({ children }) {
 
   const navItems = useMemo(() => {
     if (currentUser?.role !== 'individual') return ALL_PATIENT_NAV_ITEMS;
-    const showMessages = currentUser?.employee_patient === true;
+    const showMessages = true;
     const showInsurance = currentUser?.employee_patient !== true;
     return ALL_PATIENT_NAV_ITEMS.filter((item) => {
       if (item.module === 'messages') return showMessages;
@@ -43,7 +43,7 @@ export default function PatientLayout({ children }) {
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   useEffect(() => {
-    if (currentUser?.role !== 'individual' || currentUser?.employee_patient !== true) {
+    if (currentUser?.role !== 'individual') {
       setUnreadMessageCount(0);
       return undefined;
     }
@@ -53,11 +53,8 @@ export default function PatientLayout({ children }) {
         const res = await apiServerClient.fetch('/patient/messages');
         const body = await res.json().catch(() => ({}));
         if (!res.ok || !mounted) return;
-        const items = Array.isArray(body.items) ? body.items : [];
-        const count = items.reduce(
-          (sum, item) => sum + Number(item.unread_from_employer || (!item.read_at ? 1 : 0)),
-          0,
-        );
+        const threads = Array.isArray(body.threads) ? body.threads : [];
+        const count = threads.reduce((sum, t) => sum + Number(t.unread || 0), 0);
         setUnreadMessageCount(count);
       } catch {
         /* keep layout usable */
@@ -69,7 +66,7 @@ export default function PatientLayout({ children }) {
       mounted = false;
       window.clearInterval(t);
     };
-  }, [location.pathname, currentUser?.role, currentUser?.employee_patient]);
+  }, [location.pathname, currentUser?.role]);
 
   const unreadBadgeText = useMemo(() => {
     if (unreadMessageCount <= 0) return '';

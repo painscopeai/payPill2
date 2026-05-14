@@ -74,6 +74,12 @@ export default function ProviderLayout({ children }) {
 				const res = await apiServerClient.fetch('/provider/messages');
 				const body = await res.json().catch(() => ({}));
 				if (!res.ok || !mounted) return;
+				const threads = Array.isArray(body.threads) ? body.threads : [];
+				const fromThreads = threads.reduce((sum, t) => sum + Number(t.unread_for_provider || 0), 0);
+				if (fromThreads > 0) {
+					setUnreadMessageCount(fromThreads);
+					return;
+				}
 				const items = Array.isArray(body.items) ? body.items : [];
 				const uid = currentUser?.id;
 				const count = items.filter((m) => !m.read_at && m.sender_user_id !== uid).length;

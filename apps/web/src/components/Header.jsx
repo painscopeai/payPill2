@@ -37,7 +37,7 @@ export default function Header() {
       return { patientShowMessages: false, patientShowInsurance: false };
     }
     return {
-      patientShowMessages: currentUser.employee_patient === true,
+      patientShowMessages: true,
       patientShowInsurance: currentUser.employee_patient !== true,
     };
   }, [currentUser?.role, currentUser?.employee_patient]);

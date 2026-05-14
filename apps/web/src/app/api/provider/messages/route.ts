@@ -2,15 +2,16 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { clinicalMessagingAllowed } from '@/server/messaging/clinicalChannelEligibility';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET /api/provider/messages — provider–patient secure messages. */
+/** GET /api/provider/messages — thread summaries + recent flat rows for dashboards. */
 export async function GET(request: NextRequest) {
 	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
-	void request;
+	const flat = request.nextUrl.searchParams.get('flat') === '1';
 
 	const sb = getSupabaseAdmin();
 	const { data: rows, error } = await sb
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
 		.select('*')
 		.eq('provider_user_id', ctx.userId)
 		.order('created_at', { ascending: false })
-		.limit(200);
+		.limit(400);
 
 	if (error) {
 		console.error('[api/provider/messages GET]', error.message);
@@ -44,7 +45,53 @@ export async function GET(request: NextRequest) {
 		patient_label: names.get(String(r.patient_user_id)) || 'Patient',
 	}));
 
-	return NextResponse.json({ items });
+	if (flat) {
+		return NextResponse.json({ items, threads: [] as unknown[] });
+	}
+
+	const byPatient = new Map<
+		string,
+		{
+			patient_user_id: string;
+			patient_label: string;
+			last_at: string;
+			preview: string;
+			unread_for_provider: number;
+		}
+	>();
+	for (const r of rows || []) {
+		const row = r as {
+			patient_user_id: string;
+			created_at: string;
+			body: string;
+			sender_user_id: string;
+			read_at: string | null;
+		};
+		const pid = row.patient_user_id;
+		const label = names.get(pid) || 'Patient';
+		const cur = byPatient.get(pid);
+		const isUnreadPatient =
+			row.sender_user_id === pid && (row.read_at == null || row.read_at === '');
+		if (!cur) {
+			byPatient.set(pid, {
+				patient_user_id: pid,
+				patient_label: label,
+				last_at: row.created_at,
+				preview: String(row.body || '').slice(0, 220),
+				unread_for_provider: isUnreadPatient ? 1 : 0,
+			});
+		} else {
+			if (new Date(row.created_at) > new Date(cur.last_at)) {
+				cur.last_at = row.created_at;
+				cur.preview = String(row.body || '').slice(0, 220);
+			}
+			if (isUnreadPatient) cur.unread_for_provider += 1;
+		}
+	}
+
+	const threads = Array.from(byPatient.values()).sort((a, b) => Date.parse(b.last_at) - Date.parse(a.last_at));
+
+	return NextResponse.json({ threads, items });
 }
 
 /** POST /api/provider/messages { patient_user_id, subject?, body } */
@@ -64,15 +111,12 @@ export async function POST(request: NextRequest) {
 
 	const sb = getSupabaseAdmin();
 
-	const { data: relationship } = await sb
-		.from('patient_provider_relationships')
-		.select('id')
-		.eq('provider_id', ctx.userId)
-		.eq('patient_id', body.patient_user_id)
-		.maybeSingle();
-
-	if (!relationship) {
-		return NextResponse.json({ error: 'No care relationship with this patient' }, { status: 403 });
+	const allowed = await clinicalMessagingAllowed(sb, ctx.userId, body.patient_user_id);
+	if (!allowed) {
+		return NextResponse.json(
+			{ error: 'No active care channel with this patient (relationship or visit required).' },
+			{ status: 403 },
+		);
 	}
 
 	const { data: row, error } = await sb

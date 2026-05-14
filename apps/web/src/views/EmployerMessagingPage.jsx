@@ -16,7 +16,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Search, Send, Mail, Inbox, Reply as ReplyIcon, Loader2, ChevronLeft } from 'lucide-react';
+import { Search, Send, Mail, Inbox, Reply as ReplyIcon, Loader2, ChevronLeft, Users } from 'lucide-react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -31,6 +31,12 @@ export default function EmployerMessagingPage() {
 	const [loading, setLoading] = useState(true);
 	const [searchTerm, setSearchTerm] = useState('');
 	const [activeTab, setActiveTab] = useState('inbox');
+	const [messagingTab, setMessagingTab] = useState('broadcasts');
+	const [workplaceThreads, setWorkplaceThreads] = useState([]);
+	const [workplaceLoading, setWorkplaceLoading] = useState(false);
+	const [openDirect, setOpenDirect] = useState(null);
+	const [directReply, setDirectReply] = useState('');
+	const [directCompose, setDirectCompose] = useState({ employee_user_id: '', body: '' });
 	const [compose, setCompose] = useState(emptyCompose());
 	const [sending, setSending] = useState(false);
 	const [openBroadcast, setOpenBroadcast] = useState(null);
@@ -57,6 +63,24 @@ export default function EmployerMessagingPage() {
 	useEffect(() => {
 		void loadBroadcasts();
 	}, [loadBroadcasts]);
+
+	const loadWorkplaceThreads = useCallback(async () => {
+		setWorkplaceLoading(true);
+		try {
+			const res = await apiServerClient.fetch('/employer/workplace-threads');
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'Failed to load direct messages');
+			setWorkplaceThreads(body.items || []);
+		} catch (e) {
+			toast.error(e.message || 'Failed to load direct messages');
+		} finally {
+			setWorkplaceLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		if (messagingTab === 'direct') void loadWorkplaceThreads();
+	}, [messagingTab, loadWorkplaceThreads]);
 
 	useEffect(() => {
 		(async () => {
@@ -316,6 +340,71 @@ export default function EmployerMessagingPage() {
 		);
 	}, [openBroadcast]);
 
+	const openDirectThread = async (threadId) => {
+		setOpenLoading(true);
+		try {
+			const res = await apiServerClient.fetch(`/employer/workplace-threads/${encodeURIComponent(threadId)}`);
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'Failed to open');
+			setOpenDirect(body);
+			setDirectReply('');
+			void loadWorkplaceThreads();
+		} catch (e) {
+			toast.error(e.message || 'Failed to open');
+		} finally {
+			setOpenLoading(false);
+		}
+	};
+
+	const sendDirectReply = async () => {
+		const text = directReply.trim();
+		if (!text || !openDirect?.thread?.id) return;
+		try {
+			const res = await apiServerClient.fetch(
+				`/employer/workplace-threads/${encodeURIComponent(openDirect.thread.id)}`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ body: text }),
+				},
+			);
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'Send failed');
+			setDirectReply('');
+			toast.success('Sent');
+			await openDirectThread(openDirect.thread.id);
+		} catch (e) {
+			toast.error(e.message || 'Send failed');
+		}
+	};
+
+	const sendDirectNew = async () => {
+		const uid = directCompose.employee_user_id;
+		const text = directCompose.body.trim();
+		if (!uid || !text) {
+			toast.error('Choose an employee and enter a message.');
+			return;
+		}
+		setSending(true);
+		try {
+			const res = await apiServerClient.fetch('/employer/workplace-threads', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ employee_user_id: uid, body: text }),
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'Send failed');
+			toast.success('Message sent');
+			setDirectCompose({ employee_user_id: uid, body: '' });
+			await loadWorkplaceThreads();
+			if (body.thread_id) await openDirectThread(body.thread_id);
+		} catch (e) {
+			toast.error(e.message || 'Send failed');
+		} finally {
+			setSending(false);
+		}
+	};
+
 	const renderThread = () => {
 		if (!openBroadcast) return null;
 		const { broadcast } = openBroadcast;
@@ -419,6 +508,59 @@ export default function EmployerMessagingPage() {
 		);
 	};
 
+	const renderWorkplaceConversation = () => {
+		if (!openDirect?.thread) return null;
+		const uid = currentUser?.id;
+		return (
+			<div className="space-y-4">
+				<div className="flex items-center gap-2">
+					<Button variant="outline" size="sm" onClick={() => setOpenDirect(null)} className="gap-2">
+						<ChevronLeft className="h-4 w-4" /> Back
+					</Button>
+					<div>
+						<h2 className="text-xl font-semibold">
+							{openDirect.employee
+								? [openDirect.employee.first_name, openDirect.employee.last_name].filter(Boolean).join(' ') ||
+									openDirect.employee.email
+								: 'Employee'}
+						</h2>
+						<p className="text-xs text-muted-foreground">Direct message</p>
+					</div>
+				</div>
+				<div className="rounded-xl border bg-card p-4 space-y-3 max-h-[55vh] overflow-y-auto">
+					{(openDirect.messages || []).map((r) => {
+						const mine = r.sender_user_id === uid;
+						return (
+							<div key={r.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+								<div
+									className={`max-w-[85%] rounded-xl border px-3 py-2 text-sm ${
+										mine ? 'bg-primary/10 border-primary/20' : 'bg-muted/30 border-border'
+									}`}
+								>
+									<div className="text-[10px] text-muted-foreground mb-1">
+										{r.created_at ? format(new Date(r.created_at), 'MMM d, h:mm a') : ''}
+									</div>
+									<div className="whitespace-pre-wrap">{r.body}</div>
+								</div>
+							</div>
+						);
+					})}
+				</div>
+				<div className="rounded-xl border bg-card p-4 flex gap-2 items-end">
+					<Textarea
+						className="min-h-[72px]"
+						placeholder="Reply…"
+						value={directReply}
+						onChange={(e) => setDirectReply(e.target.value)}
+					/>
+					<Button onClick={() => void sendDirectReply()} className="gap-2">
+						<Send className="h-4 w-4" /> Send
+					</Button>
+				</div>
+			</div>
+		);
+	};
+
 	return (
 		<div className="min-h-screen bg-background flex flex-col">
 			<Helmet><title>Messaging - PayPill</title></Helmet>
@@ -433,7 +575,15 @@ export default function EmployerMessagingPage() {
 					</p>
 				</div>
 
-				{openBroadcast ? (
+				{openDirect ? (
+					openLoading ? (
+						<div className="flex items-center justify-center p-12 text-muted-foreground">
+							<Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading thread…
+						</div>
+					) : (
+						renderWorkplaceConversation()
+					)
+				) : openBroadcast ? (
 					openLoading ? (
 						<div className="flex items-center justify-center p-12 text-muted-foreground">
 							<Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading thread…
@@ -442,6 +592,26 @@ export default function EmployerMessagingPage() {
 						renderThread()
 					)
 				) : (
+					<>
+						<div className="flex flex-wrap gap-2 mb-6">
+							<Button
+								type="button"
+								variant={messagingTab === 'broadcasts' ? 'default' : 'outline'}
+								onClick={() => setMessagingTab('broadcasts')}
+							>
+								Announcements
+							</Button>
+							<Button
+								type="button"
+								variant={messagingTab === 'direct' ? 'default' : 'outline'}
+								onClick={() => setMessagingTab('direct')}
+								className="gap-2"
+							>
+								<Users className="h-4 w-4" /> Team direct
+							</Button>
+						</div>
+
+						{messagingTab === 'broadcasts' ? (
 					<Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 						<div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
 							<TabsList className="grid w-full md:w-[300px] grid-cols-2">
@@ -588,6 +758,74 @@ export default function EmployerMessagingPage() {
 							</Card>
 						</TabsContent>
 					</Tabs>
+						) : (
+							<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+								<div className="lg:col-span-1 space-y-3">
+									<Card>
+										<CardContent className="p-4 space-y-3">
+											<p className="text-sm font-medium">New direct message</p>
+											<Select
+												value={directCompose.employee_user_id || undefined}
+												onValueChange={(v) => setDirectCompose((c) => ({ ...c, employee_user_id: v }))}
+											>
+												<SelectTrigger>
+													<SelectValue placeholder="Select employee" />
+												</SelectTrigger>
+												<SelectContent>
+													{employees.map((e) => (
+														<SelectItem key={e.user_id} value={e.user_id}>
+															{e.label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<Textarea
+												placeholder="Message…"
+												className="min-h-[100px]"
+												value={directCompose.body}
+												onChange={(e) => setDirectCompose((c) => ({ ...c, body: e.target.value }))}
+											/>
+											<Button onClick={() => void sendDirectNew()} disabled={sending} className="w-full gap-2">
+												{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+												Send
+											</Button>
+										</CardContent>
+									</Card>
+									<div className="border rounded-xl bg-card divide-y max-h-[50vh] overflow-y-auto">
+										{workplaceLoading ? (
+											<div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
+												<Loader2 className="h-4 w-4 animate-spin" /> Loading…
+											</div>
+										) : workplaceThreads.length === 0 ? (
+											<div className="p-6 text-sm text-muted-foreground">No direct threads yet.</div>
+										) : (
+											workplaceThreads.map((t) => (
+												<button
+													key={t.id}
+													type="button"
+													className="w-full text-left p-4 hover:bg-muted/30 flex justify-between gap-2"
+													onClick={() => void openDirectThread(t.id)}
+												>
+													<div className="min-w-0">
+														<p className="text-sm font-medium truncate">{t.employee_label}</p>
+														<p className="text-xs text-muted-foreground truncate">{t.preview}</p>
+													</div>
+													{t.unread > 0 ? (
+														<Badge variant="secondary" className="shrink-0">
+															{t.unread}
+														</Badge>
+													) : null}
+												</button>
+											))
+										)}
+									</div>
+								</div>
+								<div className="lg:col-span-2 text-sm text-muted-foreground border rounded-xl bg-card/50 flex items-center justify-center min-h-[280px] p-6">
+									Select a conversation on the left, or send a new message to an employee.
+								</div>
+							</div>
+						)}
+					</>
 				)}
 			</main>
 		</div>
