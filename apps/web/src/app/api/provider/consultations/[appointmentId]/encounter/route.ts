@@ -223,6 +223,18 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 			prescription_lines: enc.prescription_lines,
 			lab_orders: enc.lab_orders,
 		});
+
+		const { data: aptStatusRow } = await sb.from('appointments').select('status').eq('id', appointmentId).maybeSingle();
+		const curAptStatus = String((aptStatusRow as { status?: string | null } | null)?.status || '').toLowerCase();
+		if (!['cancelled', 'canceled', 'no_show', 'no-show'].includes(curAptStatus)) {
+			const { error: aptUpErr } = await sb
+				.from('appointments')
+				.update({ status: 'completed', updated_at: new Date().toISOString() })
+				.eq('id', appointmentId);
+			if (aptUpErr) {
+				console.error('[api/provider/consultations/encounter] mark appointment completed', aptUpErr.message);
+			}
+		}
 	}
 
 	return NextResponse.json({ encounter });
