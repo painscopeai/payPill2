@@ -8,6 +8,52 @@ import apiServerClient from '@/lib/apiServerClient';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { toast } from 'sonner';
 import { ArrowLeft, Calendar, CheckCircle2, CircleDashed } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+function vitalsEntries(vitals) {
+	if (!vitals || typeof vitals !== 'object') return [];
+	const labels = {
+		bp_systolic: 'BP systolic',
+		bp_diastolic: 'BP diastolic',
+		heart_rate: 'Heart rate',
+		temperature_c: 'Temperature (°C)',
+		weight_kg: 'Weight (kg)',
+		spo2: 'SpO₂ (%)',
+	};
+	return Object.entries(vitals)
+		.filter(([, val]) => val != null && String(val).trim() !== '')
+		.map(([key, val]) => [labels[key] || key.replace(/_/g, ' '), val]);
+}
+
+function SoapBlock({ title, text }) {
+	const body = text != null && String(text).trim() ? String(text) : '—';
+	return (
+		<div className="rounded-lg border border-border/60 bg-card p-4">
+			<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
+			<p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{body}</p>
+		</div>
+	);
+}
+
+function actionSubtitle(item) {
+	const p = item.payload && typeof item.payload === 'object' ? item.payload : {};
+	if (item.item_type === 'prescription') {
+		const parts = [];
+		if (p.sig && String(p.sig).trim()) parts.push(String(p.sig).trim());
+		else {
+			const bits = [p.dose, p.frequency, p.route].filter((x) => x != null && String(x).trim());
+			if (bits.length) parts.push(bits.map(String).join(' · '));
+		}
+		if (p.quantity != null && String(p.quantity).trim()) parts.push(`Qty ${p.quantity}`);
+		if (p.refills != null && String(p.refills).trim()) parts.push(`Refills ${p.refills}`);
+		if (p.duration_days != null && String(p.duration_days).trim()) parts.push(`${p.duration_days} days`);
+		return parts.length ? parts.join(' · ') : null;
+	}
+	const parts = [];
+	if (p.indication && String(p.indication).trim()) parts.push(String(p.indication).trim());
+	if (p.priority && String(p.priority).trim()) parts.push(String(p.priority).trim());
+	return parts.length ? parts.join(' · ') : null;
+}
 
 function formatVisitDate(d, t) {
 	if (!d) return '—';
@@ -107,8 +153,15 @@ export default function PatientConsultationsPage() {
 	};
 
 	if (appointmentId) {
+		const enc = detail?.encounter;
+		const rxList = Array.isArray(enc?.prescription_lines)
+			? enc.prescription_lines.filter((r) => r && String(r.medication_name || '').trim())
+			: [];
+		const labList = Array.isArray(enc?.lab_orders) ? enc.lab_orders.filter((r) => r && String(r.test_name || '').trim()) : [];
+		const vitalPairs = enc?.vitals ? vitalsEntries(enc.vitals) : [];
+
 		return (
-			<div className="space-y-6 max-w-3xl mx-auto">
+			<div className="space-y-6 max-w-4xl mx-auto">
 				<Helmet>
 					<title>Consultation visit - PayPill</title>
 				</Helmet>
@@ -135,23 +188,127 @@ export default function PatientConsultationsPage() {
 								Provider: <span className="text-foreground font-medium">{detail.encounter?.provider_name}</span>
 							</p>
 							{detail.appointment?.reason ? (
-								<p className="text-sm mt-3">
+								<p className="text-sm mt-2">
 									<span className="text-muted-foreground">Reason for visit: </span>
 									{detail.appointment.reason}
 								</p>
 							) : null}
-							{detail.encounter?.plan ? (
-								<Card className="mt-4 border-border/60">
-									<CardHeader className="py-3">
-										<CardTitle className="text-base">Care plan notes</CardTitle>
-										<CardDescription>Summary from your visit (not a full medical record).</CardDescription>
-									</CardHeader>
-									<CardContent className="pt-0 text-sm whitespace-pre-wrap text-muted-foreground">
-										{detail.encounter.plan}
-									</CardContent>
-								</Card>
+							{detail.appointment?.confirmation_number ? (
+								<p className="text-sm text-muted-foreground mt-1">
+									Confirmation:{' '}
+									<span className="text-foreground font-mono text-xs">{detail.appointment.confirmation_number}</span>
+								</p>
+							) : null}
+							{detail.action_plan_message ? (
+								<Alert className="mt-4 border-amber-500/40 bg-amber-500/5">
+									<AlertDescription className="text-sm">{detail.action_plan_message}</AlertDescription>
+								</Alert>
 							) : null}
 						</div>
+
+						{vitalPairs.length > 0 ? (
+							<Card>
+								<CardHeader className="py-3">
+									<CardTitle className="text-base">Vitals</CardTitle>
+									<CardDescription>Recorded at your visit.</CardDescription>
+								</CardHeader>
+								<CardContent className="pt-0">
+									<dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+										{vitalPairs.map(([label, val]) => (
+											<div key={label} className="flex justify-between gap-4 rounded-md border border-border/50 px-3 py-2 bg-muted/20">
+												<dt className="text-muted-foreground">{label}</dt>
+												<dd className="font-medium tabular-nums">{String(val)}</dd>
+											</div>
+										))}
+									</dl>
+								</CardContent>
+							</Card>
+						) : null}
+
+						<Card>
+							<CardHeader className="py-3">
+								<CardTitle className="text-base">Visit documentation</CardTitle>
+								<CardDescription>Structured notes from your provider (SOAP).</CardDescription>
+							</CardHeader>
+							<CardContent className="pt-0 space-y-3">
+								<SoapBlock title="Subjective" text={enc?.subjective} />
+								<SoapBlock title="Objective" text={enc?.objective} />
+								<SoapBlock title="Assessment" text={enc?.assessment} />
+								<SoapBlock title="Plan" text={enc?.plan} />
+								<SoapBlock title="Additional notes" text={enc?.additional_notes} />
+							</CardContent>
+						</Card>
+
+						{rxList.length > 0 ? (
+							<Card>
+								<CardHeader className="py-3">
+									<CardTitle className="text-base">Prescriptions</CardTitle>
+									<CardDescription>Medications discussed or ordered at this visit.</CardDescription>
+								</CardHeader>
+								<CardContent className="pt-0 overflow-x-auto">
+									<table className="w-full text-sm text-left">
+										<thead className="text-xs text-muted-foreground uppercase border-b">
+											<tr>
+												<th className="py-2 pr-3 font-medium">Medication</th>
+												<th className="py-2 pr-3 font-medium">Strength</th>
+												<th className="py-2 pr-3 font-medium">Sig / directions</th>
+												<th className="py-2 pr-3 font-medium">Qty</th>
+												<th className="py-2 font-medium">RF</th>
+											</tr>
+										</thead>
+										<tbody className="divide-y">
+											{rxList.map((rx) => (
+												<tr key={rx.id || `${rx.medication_name}-${rx.strength}`} className="align-top">
+													<td className="py-2 pr-3 font-medium">
+														{rx.medication_name}
+														{rx.dose ? <span className="block text-xs text-muted-foreground font-normal">{rx.dose}</span> : null}
+													</td>
+													<td className="py-2 pr-3 text-muted-foreground">{rx.strength || '—'}</td>
+													<td className="py-2 pr-3 text-xs whitespace-pre-wrap max-w-[220px]">
+														{rx.sig && String(rx.sig).trim()
+															? rx.sig
+															: [rx.frequency, rx.route].filter(Boolean).join(' · ') || '—'}
+													</td>
+													<td className="py-2 pr-3 tabular-nums">{rx.quantity != null && rx.quantity !== '' ? rx.quantity : '—'}</td>
+													<td className="py-2 tabular-nums">{rx.refills != null && rx.refills !== '' ? rx.refills : '—'}</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</CardContent>
+							</Card>
+						) : null}
+
+						{labList.length > 0 ? (
+							<Card>
+								<CardHeader className="py-3">
+									<CardTitle className="text-base">Laboratory orders</CardTitle>
+									<CardDescription>Tests ordered or recommended at this visit.</CardDescription>
+								</CardHeader>
+								<CardContent className="pt-0 overflow-x-auto">
+									<table className="w-full text-sm text-left">
+										<thead className="text-xs text-muted-foreground uppercase border-b">
+											<tr>
+												<th className="py-2 pr-3 font-medium">Test</th>
+												<th className="py-2 pr-3 font-medium">Code</th>
+												<th className="py-2 pr-3 font-medium">Priority</th>
+												<th className="py-2 font-medium">Clinical indication</th>
+											</tr>
+										</thead>
+										<tbody className="divide-y">
+											{labList.map((lab) => (
+												<tr key={lab.id || lab.test_name} className="align-top">
+													<td className="py-2 pr-3 font-medium">{lab.test_name}</td>
+													<td className="py-2 pr-3 text-muted-foreground">{lab.code || '—'}</td>
+													<td className="py-2 pr-3 capitalize">{lab.priority || '—'}</td>
+													<td className="py-2 text-muted-foreground">{lab.indication || '—'}</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</CardContent>
+							</Card>
+						) : null}
 
 						<Card>
 							<CardHeader>
@@ -163,9 +320,15 @@ export default function PatientConsultationsPage() {
 							</CardHeader>
 							<CardContent className="space-y-3">
 								{!detail.action_items?.length ? (
-									<p className="text-sm text-muted-foreground">No prescriptions or lab orders were attached to this visit.</p>
+									<p className="text-sm text-muted-foreground">
+										{rxList.length === 0 && labList.length === 0
+											? 'No prescriptions or lab orders were attached to this visit.'
+											: 'Use the checklist below when available, or follow the prescriptions and lab tables above.'}
+									</p>
 								) : (
-									detail.action_items.map((item) => (
+									detail.action_items.map((item) => {
+										const sub = actionSubtitle(item);
+										return (
 										<div
 											key={item.id}
 											className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border p-4 bg-muted/20"
@@ -184,6 +347,7 @@ export default function PatientConsultationsPage() {
 													)}
 												</div>
 												<p className="font-medium text-foreground">{actionLabel(item)}</p>
+												{sub ? <p className="text-xs text-muted-foreground">{sub}</p> : null}
 											</div>
 											{item.status === 'pending' ? (
 												<Button
@@ -206,7 +370,8 @@ export default function PatientConsultationsPage() {
 												<span className="text-xs text-muted-foreground shrink-0">Logged in Records</span>
 											)}
 										</div>
-									))
+										);
+									})
 								)}
 							</CardContent>
 						</Card>

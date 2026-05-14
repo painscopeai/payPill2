@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import { getBearerUserId } from '@/server/auth/getBearerUserId';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { isConsultationQueueVisit, visitSlugFromAppointmentRow } from '@/server/provider/consultationVisitSlugs';
+import {
+	coerceJsonArray,
+	syncConsultationActionItemsOnFinalize,
+} from '@/server/patient/syncConsultationActionItemsOnFinalize';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,7 +17,17 @@ function formatName(p: { first_name?: string | null; last_name?: string | null; 
 	return n || p.email || 'Provider';
 }
 
-/** GET /api/patient/consultations/[appointmentId] — one finalized consultation + action items. */
+function hasNonEmptyRxOrLab(prescription_lines: unknown, lab_orders: unknown): boolean {
+	const rx = coerceJsonArray(prescription_lines).filter(
+		(x) => x && typeof x === 'object' && String((x as Record<string, unknown>).medication_name || '').trim(),
+	);
+	const lab = coerceJsonArray(lab_orders).filter(
+		(x) => x && typeof x === 'object' && String((x as Record<string, unknown>).test_name || '').trim(),
+	);
+	return rx.length > 0 || lab.length > 0;
+}
+
+/** GET /api/patient/consultations/[appointmentId] — finalized visit, full encounter summary, action plan (with lazy backfill). */
 export async function GET(request: NextRequest, ctx: { params: Promise<{ appointmentId: string }> }) {
 	void request;
 	const uid = await getBearerUserId(request);
@@ -54,7 +68,24 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ appoint
 
 	const { data: encounter, error: encErr } = await sb
 		.from('provider_consultation_encounters')
-		.select('id, status, updated_at, plan, provider_user_id')
+		.select(
+			`
+      id,
+      status,
+      updated_at,
+      patient_user_id,
+      provider_user_id,
+      appointment_id,
+      subjective,
+      objective,
+      assessment,
+      plan,
+      additional_notes,
+      vitals,
+      prescription_lines,
+      lab_orders
+    `,
+		)
 		.eq('appointment_id', appointmentId)
 		.maybeSingle();
 
@@ -66,27 +97,75 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ appoint
 		return NextResponse.json({ error: 'No finalized consultation for this visit yet.' }, { status: 404 });
 	}
 
+	const enc = encounter as {
+		id: string;
+		patient_user_id: string;
+		provider_user_id: string;
+		appointment_id: string;
+		subjective: string | null;
+		objective: string | null;
+		assessment: string | null;
+		plan: string | null;
+		additional_notes: string | null;
+		vitals: Record<string, unknown> | null;
+		prescription_lines: unknown;
+		lab_orders: unknown;
+		updated_at: string;
+	};
+
 	const { data: prof } = await sb
 		.from('profiles')
 		.select('first_name, last_name, email')
-		.eq('id', encounter.provider_user_id)
+		.eq('id', enc.provider_user_id)
 		.maybeSingle();
 
-	const { data: actionItems, error: actErr } = await sb
+	const { data: actionRows, error: actErr } = await sb
 		.from('patient_consultation_action_items')
 		.select('id, item_type, line_index, payload, status, completed_at, health_record_id')
-		.eq('encounter_id', encounter.id)
+		.eq('encounter_id', enc.id)
 		.order('line_index', { ascending: true })
 		.order('item_type', { ascending: false });
 
-	if (actErr && !/does not exist|schema cache/i.test(actErr.message)) {
+	let actionItems = actionRows || [];
+	let actionPlanMessage: string | null = null;
+
+	const actionsTableMissing = Boolean(actErr && /does not exist|schema cache/i.test(actErr.message));
+	if (actErr && !actionsTableMissing) {
 		console.error('[api/patient/consultations/:id GET] actions', actErr.message);
 		return NextResponse.json({ error: 'Failed to load action plan' }, { status: 500 });
+	}
+
+	if (!actionsTableMissing && actionItems.length === 0 && hasNonEmptyRxOrLab(enc.prescription_lines, enc.lab_orders)) {
+		await syncConsultationActionItemsOnFinalize(sb, {
+			id: enc.id,
+			appointment_id: enc.appointment_id,
+			patient_user_id: enc.patient_user_id,
+			prescription_lines: enc.prescription_lines,
+			lab_orders: enc.lab_orders,
+		});
+		const { data: refetched, error: refErr } = await sb
+			.from('patient_consultation_action_items')
+			.select('id, item_type, line_index, payload, status, completed_at, health_record_id')
+			.eq('encounter_id', enc.id)
+			.order('line_index', { ascending: true })
+			.order('item_type', { ascending: false });
+		if (!refErr) {
+			actionItems = refetched || [];
+		}
+		if (actionItems.length === 0 && hasNonEmptyRxOrLab(enc.prescription_lines, enc.lab_orders)) {
+			actionPlanMessage =
+				'Prescriptions and lab orders are on file, but the action checklist could not be created. Your administrator may need to apply the latest database migration (patient consultation action plans).';
+		}
+	} else if (actionsTableMissing && hasNonEmptyRxOrLab(enc.prescription_lines, enc.lab_orders)) {
+		actionPlanMessage =
+			'Prescriptions and lab orders from this visit are shown below. The step-by-step checklist will be available after your database is updated with the latest PayPill migration.';
 	}
 
 	const vt = row.visit_types as { label?: string } | { label?: string }[] | null | undefined;
 	const visitLabel =
 		(vt && !Array.isArray(vt) && vt.label) || (Array.isArray(vt) && vt[0]?.label) || slug || 'Visit';
+
+	const vitals = enc.vitals && typeof enc.vitals === 'object' ? enc.vitals : {};
 
 	return NextResponse.json({
 		appointment: {
@@ -99,11 +178,19 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ appoint
 			visit_label: visitLabel,
 		},
 		encounter: {
-			id: encounter.id,
-			updated_at: encounter.updated_at,
-			plan: encounter.plan,
+			id: enc.id,
+			updated_at: enc.updated_at,
 			provider_name: formatName(prof || null),
+			subjective: enc.subjective,
+			objective: enc.objective,
+			assessment: enc.assessment,
+			plan: enc.plan,
+			additional_notes: enc.additional_notes,
+			vitals,
+			prescription_lines: coerceJsonArray(enc.prescription_lines),
+			lab_orders: coerceJsonArray(enc.lab_orders),
 		},
-		action_items: actionItems || [],
+		action_items: actionItems,
+		action_plan_message: actionPlanMessage,
 	});
 }

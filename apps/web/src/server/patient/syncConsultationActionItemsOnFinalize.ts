@@ -8,9 +8,22 @@ export type EncounterForActionSync = {
 	lab_orders: unknown;
 };
 
+/** JSONB is usually an array; tolerate legacy stringified JSON. */
+export function coerceJsonArray(raw: unknown): unknown[] {
+	if (Array.isArray(raw)) return raw;
+	if (raw && typeof raw === 'string') {
+		try {
+			const p = JSON.parse(raw) as unknown;
+			return Array.isArray(p) ? p : [];
+		} catch {
+			return [];
+		}
+	}
+	return [];
+}
+
 function normalizeLines(raw: unknown): Record<string, unknown>[] {
-	if (!Array.isArray(raw)) return [];
-	return raw.filter((x) => x && typeof x === 'object') as Record<string, unknown>[];
+	return coerceJsonArray(raw).filter((x) => x && typeof x === 'object') as Record<string, unknown>[];
 }
 
 function stableLineId(itemType: 'prescription' | 'lab', idx: number, payload: Record<string, unknown>): string {
@@ -44,6 +57,9 @@ export async function syncConsultationActionItemsOnFinalize(
 		.eq('encounter_id', encounter.id);
 	if (exErr) {
 		console.error('[syncConsultationActionItemsOnFinalize] select', exErr.message);
+		if (/does not exist|schema cache/i.test(exErr.message)) {
+			console.warn('[syncConsultationActionItemsOnFinalize] patient_consultation_action_items table missing — apply migration 20260614160000_patient_consultation_action_plans.sql');
+		}
 		return;
 	}
 
@@ -62,7 +78,7 @@ export async function syncConsultationActionItemsOnFinalize(
 			.maybeSingle();
 
 		if (!row) {
-			await sb.from('patient_consultation_action_items').insert({
+			const { error: insErr } = await sb.from('patient_consultation_action_items').insert({
 				encounter_id: encounter.id,
 				appointment_id: encounter.appointment_id,
 				patient_user_id: encounter.patient_user_id,
@@ -72,11 +88,15 @@ export async function syncConsultationActionItemsOnFinalize(
 				payload,
 				status: 'pending',
 			});
+			if (insErr) {
+				console.error('[syncConsultationActionItemsOnFinalize] insert prescription', source_line_id, insErr.message);
+			}
 		} else if (row.status === 'pending') {
-			await sb
+			const { error: upErr } = await sb
 				.from('patient_consultation_action_items')
 				.update({ payload, line_index: idx, updated_at: new Date().toISOString() })
 				.eq('id', row.id);
+			if (upErr) console.error('[syncConsultationActionItemsOnFinalize] update prescription', source_line_id, upErr.message);
 		}
 		idx += 1;
 	}
@@ -94,7 +114,7 @@ export async function syncConsultationActionItemsOnFinalize(
 			.maybeSingle();
 
 		if (!row) {
-			await sb.from('patient_consultation_action_items').insert({
+			const { error: insErr } = await sb.from('patient_consultation_action_items').insert({
 				encounter_id: encounter.id,
 				appointment_id: encounter.appointment_id,
 				patient_user_id: encounter.patient_user_id,
@@ -104,11 +124,15 @@ export async function syncConsultationActionItemsOnFinalize(
 				payload,
 				status: 'pending',
 			});
+			if (insErr) {
+				console.error('[syncConsultationActionItemsOnFinalize] insert lab', source_line_id, insErr.message);
+			}
 		} else if (row.status === 'pending') {
-			await sb
+			const { error: upErr } = await sb
 				.from('patient_consultation_action_items')
 				.update({ payload, line_index: idx, updated_at: new Date().toISOString() })
 				.eq('id', row.id);
+			if (upErr) console.error('[syncConsultationActionItemsOnFinalize] update lab', source_line_id, upErr.message);
 		}
 		idx += 1;
 	}
