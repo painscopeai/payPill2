@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
 	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
-	if (!ctx.providerOrgId) {
+	const orgId = ctx.providerOrgId;
+	if (!orgId) {
 		return NextResponse.json({ error: 'Link your practice first.' }, { status: 400 });
 	}
 
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
 	const sb = getSupabaseAdmin();
 
 	if (body.item && typeof body.item === 'object' && !Array.isArray(body.items)) {
-		const row = mapSvcInsert(ctx.providerOrgId, body.item);
+		const row = mapSvcInsert(orgId, body.item);
 		if (!row.name) {
 			return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 		}
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
 	}
 
 	const rawItems = Array.isArray(body.items) ? body.items : [];
-	const items = rawItems.map((it) => mapSvcInsert(ctx.providerOrgId, it)).filter((r) => r.name.length > 0);
+	const items = rawItems.map((it) => mapSvcInsert(orgId, it)).filter((r) => r.name.length > 0);
 
 	if (!items.length) {
 		return NextResponse.json({ error: 'No valid rows (each item needs name).' }, { status: 400 });
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
 	const { data: refreshed } = await sb
 		.from('provider_services')
 		.select('id, name, category, unit, price, currency, notes, is_active, sort_order')
-		.eq('provider_id', ctx.providerOrgId)
+		.eq('provider_id', orgId)
 		.order('sort_order', { ascending: true })
 		.order('name', { ascending: true })
 		.limit(5000);

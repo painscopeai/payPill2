@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
 	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
-	if (!ctx.providerOrgId) {
+	const orgId = ctx.providerOrgId;
+	if (!orgId) {
 		return NextResponse.json({ error: 'Link your practice first.' }, { status: 400 });
 	}
 
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
 	const sb = getSupabaseAdmin();
 
 	if (body.item && typeof body.item === 'object' && !Array.isArray(body.items)) {
-		const row = mapLabInsert(ctx.providerOrgId, body.item);
+		const row = mapLabInsert(orgId, body.item);
 		if (!row.test_name) {
 			return NextResponse.json({ error: 'test_name is required' }, { status: 400 });
 		}
@@ -91,14 +92,14 @@ export async function POST(request: NextRequest) {
 	}
 
 	const rawItems = Array.isArray(body.items) ? body.items : [];
-	const items = rawItems.map((it) => mapLabInsert(ctx.providerOrgId, it)).filter((r) => r.test_name.length > 0);
+	const items = rawItems.map((it) => mapLabInsert(orgId, it)).filter((r) => r.test_name.length > 0);
 
 	if (!items.length) {
 		return NextResponse.json({ error: 'No valid rows (each item needs test_name).' }, { status: 400 });
 	}
 
 	if (body.replace) {
-		const { error: delErr } = await sb.from('provider_lab_test_catalog').delete().eq('provider_org_id', ctx.providerOrgId);
+		const { error: delErr } = await sb.from('provider_lab_test_catalog').delete().eq('provider_org_id', orgId);
 		if (delErr) {
 			console.error('[api/provider/catalog/labs POST delete]', delErr.message);
 			return NextResponse.json({ error: 'Failed to replace catalog' }, { status: 500 });
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
 	const { data: refreshed } = await sb
 		.from('provider_lab_test_catalog')
 		.select('*')
-		.eq('provider_org_id', ctx.providerOrgId)
+		.eq('provider_org_id', orgId)
 		.eq('is_active', true)
 		.order('sort_order', { ascending: true })
 		.order('test_name', { ascending: true })

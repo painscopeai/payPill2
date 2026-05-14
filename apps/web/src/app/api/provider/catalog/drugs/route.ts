@@ -77,7 +77,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
 	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
-	if (!ctx.providerOrgId) {
+	const orgId = ctx.providerOrgId;
+	if (!orgId) {
 		return NextResponse.json({ error: 'Link your practice first.' }, { status: 400 });
 	}
 
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
 	const sb = getSupabaseAdmin();
 
 	if (body.item && typeof body.item === 'object' && !Array.isArray(body.items)) {
-		const row = mapDrugInsert(ctx.providerOrgId, body.item);
+		const row = mapDrugInsert(orgId, body.item);
 		if (!row.name) {
 			return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 		}
@@ -108,14 +109,14 @@ export async function POST(request: NextRequest) {
 	}
 
 	const rawItems = Array.isArray(body.items) ? body.items : [];
-	const items = rawItems.map((it) => mapDrugInsert(ctx.providerOrgId, it)).filter((r) => r.name.length > 0);
+	const items = rawItems.map((it) => mapDrugInsert(orgId, it)).filter((r) => r.name.length > 0);
 
 	if (!items.length) {
 		return NextResponse.json({ error: 'No valid rows (each item needs a name).' }, { status: 400 });
 	}
 
 	if (body.replace) {
-		const { error: delErr } = await sb.from('provider_drug_catalog').delete().eq('provider_org_id', ctx.providerOrgId);
+		const { error: delErr } = await sb.from('provider_drug_catalog').delete().eq('provider_org_id', orgId);
 		if (delErr) {
 			console.error('[api/provider/catalog/drugs POST delete]', delErr.message);
 			return NextResponse.json({ error: 'Failed to replace catalog' }, { status: 500 });
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
 	const { data: refreshed } = await sb
 		.from('provider_drug_catalog')
 		.select('*')
-		.eq('provider_org_id', ctx.providerOrgId)
+		.eq('provider_org_id', orgId)
 		.eq('is_active', true)
 		.order('sort_order', { ascending: true })
 		.order('name', { ascending: true })
