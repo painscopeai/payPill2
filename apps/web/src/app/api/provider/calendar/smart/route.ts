@@ -61,27 +61,41 @@ export async function GET(request: NextRequest) {
 		ranges = [{ start: 9 * 60, end: 17 * 60 }];
 	}
 
-	const { data: appointments, error } = await sb
+	let aptRes = await sb
 		.from('appointments')
-		.select('id, appointment_time, duration_minutes, status')
+		.select('id, appointment_time, status')
 		.eq('provider_id', ctx.providerOrgId)
 		.eq('appointment_date', date);
 
-	if (error) {
-		console.error('[api/provider/calendar/smart]', error.message);
+	if (aptRes.error) {
+		console.warn(
+			'[api/provider/calendar/smart] appointments primary select failed, retrying minimal',
+			aptRes.error.message,
+		);
+		aptRes = await sb
+			.from('appointments')
+			.select('id, appointment_time')
+			.eq('provider_id', ctx.providerOrgId)
+			.eq('appointment_date', date);
+	}
+
+	if (aptRes.error) {
+		console.error('[api/provider/calendar/smart]', aptRes.error.message);
 		return NextResponse.json({ error: 'Failed to load calendar' }, { status: 500 });
 	}
 
+	const appointments = aptRes.data || [];
+
 	const bookedSlots: { start: number; end: number }[] = [];
 	let bookedCount = 0;
-	for (const apt of appointments || []) {
+	for (const apt of appointments) {
 		const st = String((apt as { status?: string | null }).status || 'scheduled').toLowerCase();
 		if (st === 'cancelled') continue;
 		bookedCount += 1;
 		const t = String((apt as { appointment_time?: string }).appointment_time || '09:00');
 		const [h, m] = t.split(':').map((x) => parseInt(x, 10));
 		const startMinutes = (h || 0) * 60 + (m || 0);
-		const dur = Number((apt as { duration_minutes?: number }).duration_minutes) || 30;
+		const dur = duration;
 		bookedSlots.push({ start: startMinutes, end: startMinutes + dur });
 	}
 

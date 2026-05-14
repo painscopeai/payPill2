@@ -95,25 +95,40 @@ export async function GET(request: NextRequest) {
 		ranges = [{ start: 9 * 60, end: 17 * 60 }];
 	}
 
-	const { data: appointments, error: aptErr } = await sb
+	// Avoid selecting columns some DBs never migrated (e.g. duration_minutes); use grid duration for overlap math.
+	let aptRes = await sb
 		.from('appointments')
-		.select('id, appointment_time, duration_minutes, status')
+		.select('id, appointment_time, status')
 		.eq('provider_id', providerId)
 		.eq('appointment_date', date);
 
-	if (aptErr) {
-		console.error('[patient/booking/slots]', aptErr.message);
-		return NextResponse.json({ error: 'Failed to load appointments' }, { status: 500 });
+	if (aptRes.error) {
+		console.warn('[patient/booking/slots] appointments primary select failed, retrying minimal', aptRes.error.message);
+		aptRes = await sb
+			.from('appointments')
+			.select('id, appointment_time')
+			.eq('provider_id', providerId)
+			.eq('appointment_date', date);
 	}
 
+	if (aptRes.error) {
+		console.error('[patient/booking/slots] appointments', aptRes.error.message);
+		return NextResponse.json(
+			{ error: 'Failed to load appointments', detail: aptRes.error.message },
+			{ status: 500 },
+		);
+	}
+
+	const appointments = aptRes.data || [];
+
 	const bookedSlots: { start: number; end: number }[] = [];
-	for (const apt of appointments || []) {
+	for (const apt of appointments) {
 		const st = String((apt as { status?: string | null }).status || 'scheduled').toLowerCase();
 		if (st === 'cancelled') continue;
 		const t = String((apt as { appointment_time?: string }).appointment_time || '09:00');
 		const [h, m] = t.split(':').map((x) => parseInt(x, 10));
 		const startMinutes = (h || 0) * 60 + (m || 0);
-		const dur = Number((apt as { duration_minutes?: number }).duration_minutes) || duration;
+		const dur = duration;
 		bookedSlots.push({ start: startMinutes, end: startMinutes + dur });
 	}
 
