@@ -61,6 +61,7 @@ export default function ProviderLayout({ children }) {
 	const { currentUser, logout } = useAuth();
 	const location = useLocation();
 	const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+	const [breadcrumbTick, setBreadcrumbTick] = useState(0);
 
 	const handleLogout = () => {
 		void logout();
@@ -91,11 +92,45 @@ export default function ProviderLayout({ children }) {
 		};
 	}, [location.pathname, currentUser?.id]);
 
+	useEffect(() => {
+		const bump = () => setBreadcrumbTick((n) => n + 1);
+		window.addEventListener('paypill-provider-chart-bc', bump);
+		return () => window.removeEventListener('paypill-provider-chart-bc', bump);
+	}, []);
+
 	const unreadBadgeText = useMemo(() => {
 		if (unreadMessageCount <= 0) return '';
 		if (unreadMessageCount > 99) return '99+';
 		return String(unreadMessageCount);
 	}, [unreadMessageCount]);
+
+	const UUID_RE =
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+	const breadcrumbLabel = useMemo(() => {
+		const path = location.pathname;
+		const segments = path.split('/').filter(Boolean);
+		if (segments[0] !== 'provider') {
+			return segments.map((s) => s.replace(/-/g, ' ')).join(' / ');
+		}
+		if (segments[1] === 'patients' && segments[2] && UUID_RE.test(segments[2])) {
+			try {
+				const name = sessionStorage.getItem(`paypill_provider_chart_bc_${segments[2]}`);
+				if (name) return `Provider / Patients / ${name}`;
+			} catch {
+				/* ignore */
+			}
+			return 'Provider / Patients / Patient chart';
+		}
+		return segments
+			.map((seg) =>
+				seg
+					.split('-')
+					.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+					.join(' '),
+			)
+			.join(' / ');
+	}, [location.pathname, breadcrumbTick]);
 
 	/** Self-serve practice / services / schedule wizard until profile flag is set. */
 	const mustFinishProviderOnboarding =
@@ -222,8 +257,8 @@ export default function ProviderLayout({ children }) {
 
 			<main className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
 				<header className="hidden md:flex h-16 items-center justify-between px-8 border-b bg-background/95 backdrop-blur sticky top-0 z-40">
-					<div className="text-sm text-muted-foreground capitalize truncate">
-						{location.pathname.split('/').filter(Boolean).join(' / ')}
+					<div className="text-sm text-muted-foreground truncate max-w-[70%]" title={breadcrumbLabel}>
+						{breadcrumbLabel}
 					</div>
 					<div className="flex items-center gap-4">
 						<ThemeToggleButton />
