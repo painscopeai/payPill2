@@ -300,6 +300,20 @@ export default function ProviderBillingPage() {
 										{inv.patient_display ? (
 											<p className="text-xs text-muted-foreground truncate">Patient: {inv.patient_display}</p>
 										) : null}
+										{inv.consultation_summary ? (
+											<p className="text-xs mt-1">
+												{inv.appointment_id ? (
+													<Link
+														to={`/provider/consultations?appointment=${encodeURIComponent(String(inv.appointment_id))}`}
+														className="text-teal-700 dark:text-teal-400 underline-offset-2 hover:underline"
+													>
+														{inv.consultation_summary}
+													</Link>
+												) : (
+													<span className="text-muted-foreground">{inv.consultation_summary}</span>
+												)}
+											</p>
+										) : null}
 									</div>
 									<span className="text-muted-foreground capitalize shrink-0">{inv.status}</span>
 									<span className="tabular-nums shrink-0">${Number(inv.amount || 0).toFixed(2)}</span>

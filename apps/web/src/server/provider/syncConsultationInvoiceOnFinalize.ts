@@ -80,10 +80,18 @@ export async function syncConsultationInvoiceOnFinalize(
 	}
 
 	const description = `${visitLabel} — ${serviceName}`;
+	const aptDate =
+		appointmentRow.appointment_date != null ? String(appointmentRow.appointment_date).slice(0, 10) : null;
+	const aptTime = appointmentRow.appointment_time != null ? String(appointmentRow.appointment_time) : null;
+	const confirmation =
+		appointmentRow.confirmation_number != null ? String(appointmentRow.confirmation_number) : null;
 	const metadata = {
 		source: 'consultation_complete',
 		service_label: serviceName,
 		visit_label: visitLabel,
+		appointment_date: aptDate,
+		appointment_time: aptTime,
+		confirmation_number: confirmation,
 		claim_ready: true,
 		claim_status: 'ready_to_file',
 		line_items: [

@@ -31,6 +31,17 @@ function sourceLabel(meta: Record<string, unknown> | null | undefined): string {
 	return '';
 }
 
+function consultationSummaryLine(inv: InvoiceRow): string | null {
+	const m = inv.metadata;
+	if (!m || typeof m !== 'object' || m.source !== 'consultation_complete') return null;
+	const visit = typeof m.visit_label === 'string' ? m.visit_label : '';
+	const ad = typeof m.appointment_date === 'string' ? m.appointment_date.slice(0, 10) : '';
+	if (visit && ad) return `Finalized consultation · ${visit} · ${ad}`;
+	if (visit) return `Finalized consultation · ${visit}`;
+	if (ad) return `Finalized consultation · ${ad}`;
+	return 'Finalized consultation';
+}
+
 /** GET /api/provider/billing/invoices */
 export async function GET(request: NextRequest) {
 	const ctx = await requireProvider(request);
@@ -74,6 +85,7 @@ export async function GET(request: NextRequest) {
 			...inv,
 			patient_display: profileDisplayName(p || null) || (pid ? 'Patient' : ''),
 			source_label: sourceLabel(inv.metadata as Record<string, unknown> | null),
+			consultation_summary: consultationSummaryLine(inv),
 		};
 	});
 
