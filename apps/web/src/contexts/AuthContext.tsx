@@ -61,10 +61,13 @@ function mapProfileToCurrentUser(
 	};
 }
 
-const profileInflight = new Map<
-	string,
-	Promise<ReturnType<typeof mapProfileToCurrentUser> & { employee_patient?: boolean }>
->();
+/** Profile row mapped for session; excludes `null` from `mapProfileToCurrentUser`. */
+type MappedUser = NonNullable<ReturnType<typeof mapProfileToCurrentUser>>;
+
+/** Session user; `employee_patient` is set when `role === 'individual'`. */
+type CurrentUserState = MappedUser & { employee_patient?: boolean };
+
+const profileInflight = new Map<string, Promise<CurrentUserState>>();
 
 async function fetchProfileWithRetry(userId: string, authEmail: string | undefined) {
 	let pending = profileInflight.get(userId);
@@ -78,7 +81,8 @@ async function fetchProfileWithRetry(userId: string, authEmail: string | undefin
 			if (error) throw error;
 			if (data) {
 				const mapped = mapProfileToCurrentUser(data as Record<string, unknown>, { email: authEmail });
-				if (mapped?.role === 'individual') {
+				if (!mapped) continue;
+				if (mapped.role === 'individual') {
 					const employee_patient = await fetchEmployeePatientFlag(userId);
 					return { ...mapped, employee_patient };
 				}
@@ -97,9 +101,7 @@ async function fetchProfileWithRetry(userId: string, authEmail: string | undefin
 }
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-	const [currentUser, setCurrentUser] = useState<
-		(ReturnType<typeof mapProfileToCurrentUser> & { employee_patient?: boolean }) | null
-	>(null);
+	const [currentUser, setCurrentUser] = useState<CurrentUserState | null>(null);
 	const [userRole, setUserRoleState] = useState<string | null>(null);
 	const [session, setSession] = useState<import('@supabase/supabase-js').Session | null>(null);
 	const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
@@ -344,13 +346,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 				.select()
 				.single();
 			if (upErr) throw upErr;
-			let mapped = mapProfileToCurrentUser(data as Record<string, unknown>, { email: user.email });
-			if (mapped?.role === 'individual') {
-				mapped = { ...mapped, employee_patient: await fetchEmployeePatientFlag(user.id) };
+			const mapped = mapProfileToCurrentUser(data as Record<string, unknown>, { email: user.email });
+			if (!mapped) {
+				setError('Profile not found after role update.');
+				toast.error('Profile not found after role update.');
+				return null;
 			}
-			setCurrentUser(mapped);
+			let next: CurrentUserState = mapped;
+			if (mapped.role === 'individual') {
+				next = { ...mapped, employee_patient: await fetchEmployeePatientFlag(user.id) };
+			}
+			setCurrentUser(next);
 			setUserRoleState(role);
-			return mapped;
+			return next;
 		} catch (err) {
 			console.error('[AuthContext] Failed to update role:', err);
 			setError('Failed to update user role.');
@@ -403,7 +411,7 @@ export const useAuth = () => {
 		throw new Error('useAuth must be used within an AuthProvider');
 	}
 	return context as {
-		currentUser: (ReturnType<typeof mapProfileToCurrentUser> & { employee_patient?: boolean }) | null;
+		currentUser: CurrentUserState | null;
 		userRole: string | null;
 		passwordChangeRequired: boolean;
 		isInitializing: boolean;
