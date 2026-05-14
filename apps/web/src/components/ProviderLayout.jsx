@@ -6,7 +6,6 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
 	Home,
 	Calendar,
-	CalendarClock,
 	Users,
 	MessageSquare,
 	CreditCard,
@@ -36,7 +35,6 @@ import ThemeToggleButton from '@/components/ThemeToggleButton.jsx';
 const navItems = [
 	{ label: 'Dashboard', icon: Home, path: '/provider/dashboard' },
 	{ label: 'Appointments', icon: Calendar, path: '/provider/appointments' },
-	{ label: 'Calendar', icon: CalendarClock, path: '/provider/calendar' },
 	{ label: 'Patients', icon: Users, path: '/provider/patients' },
 	{ label: 'Consultations', icon: FileText, path: '/provider/consultations' },
 	{ label: 'Messages', icon: MessageSquare, path: '/provider/messaging' },

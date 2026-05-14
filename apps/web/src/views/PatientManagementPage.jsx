@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import DataTable from '@/components/DataTable.jsx';
+import ProviderDataTable from '@/components/provider/ProviderDataTable.jsx';
 import { usePatients } from '@/hooks/usePatients.js';
 import { FileText } from 'lucide-react';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
@@ -45,12 +45,23 @@ function linkedBadges(linked) {
 export default function PatientManagementPage() {
 	const { patients, loading } = usePatients();
 
+	const rows = useMemo(
+		() =>
+			(patients || []).map((p) => ({
+				...p,
+				coverage_sort: coverageLine(p.coverage_summary),
+				activity_sort: [...(Array.isArray(p.linked_via) ? p.linked_via : [])].sort().join(','),
+			})),
+		[patients],
+	);
+
 	const columns = useMemo(
 		() => [
 			{
-				header: 'Patient',
-				accessorKey: 'patient_name',
-				cell: (row) => {
+				key: 'patient_name',
+				label: 'Patient',
+				sortable: true,
+				render: (row) => {
 					const name = formatPersonDisplayName(row.patient_name || 'Patient');
 					const initials = name ? name.substring(0, 2).toUpperCase() : 'PT';
 					return (
@@ -64,9 +75,10 @@ export default function PatientManagementPage() {
 				},
 			},
 			{
-				header: 'Status',
-				accessorKey: 'patient_activity_status',
-				cell: (row) => {
+				key: 'patient_activity_status',
+				label: 'Status',
+				sortable: true,
+				render: (row) => {
 					const linked = row.linked_via || [];
 					const showBooked = linked.includes('appointment');
 					const label =
@@ -83,16 +95,18 @@ export default function PatientManagementPage() {
 				},
 			},
 			{
-				header: 'Coverage',
-				accessorKey: 'coverage',
-				cell: (row) => (
+				key: 'coverage_sort',
+				label: 'Coverage',
+				sortable: true,
+				render: (row) => (
 					<p className="text-sm text-muted-foreground max-w-xs line-clamp-2">{coverageLine(row.coverage_summary)}</p>
 				),
 			},
 			{
-				header: 'Activity',
-				accessorKey: 'linked_via',
-				cell: (row) => (
+				key: 'activity_sort',
+				label: 'Activity',
+				sortable: true,
+				render: (row) => (
 					<div className="flex flex-wrap gap-1">
 						{linkedBadges(row.linked_via).map((b) => (
 							<Badge
@@ -107,9 +121,11 @@ export default function PatientManagementPage() {
 				),
 			},
 			{
-				header: '',
-				accessorKey: 'actions',
-				cell: (row) => (
+				key: 'actions',
+				label: '',
+				sortable: false,
+				className: 'w-[140px]',
+				render: (row) => (
 					<div className="flex justify-end">
 						<Button variant="ghost" size="sm" className="gap-1.5 text-teal-700 dark:text-teal-300" asChild>
 							<Link to={`/provider/patients/${encodeURIComponent(row.patient_id)}`}>
@@ -146,11 +162,12 @@ export default function PatientManagementPage() {
 					<CardTitle>Your patients</CardTitle>
 				</CardHeader>
 				<CardContent className="overflow-x-auto">
-					<DataTable
+					<ProviderDataTable
 						columns={columns}
-						data={patients}
-						loading={loading}
+						data={rows}
+						isLoading={loading}
 						emptyMessage={emptyMessage}
+						getRowId={(r) => String(r.patient_id ?? r.id ?? '')}
 					/>
 				</CardContent>
 			</Card>

@@ -15,6 +15,21 @@ type SvcItem = {
 	sort_order?: number | null;
 };
 
+function mapSvcInsert(orgId: string, it: SvcItem) {
+	const price = typeof it.price === 'number' && Number.isFinite(it.price) ? Math.max(0, it.price) : 0;
+	return {
+		provider_id: orgId,
+		name: String(it.name || '').trim(),
+		category: (it.category && String(it.category).trim()) || 'service',
+		unit: (it.unit && String(it.unit).trim()) || 'per_visit',
+		price,
+		currency: 'USD',
+		notes: it.notes != null ? String(it.notes).trim() || null : null,
+		is_active: true,
+		sort_order: typeof it.sort_order === 'number' && Number.isFinite(it.sort_order) ? Math.floor(it.sort_order) : 0,
+	};
+}
+
 /** GET — published services for this practice (provider_services). */
 export async function GET(request: NextRequest) {
 	const ctx = await requireProvider(request);
@@ -41,7 +56,7 @@ export async function GET(request: NextRequest) {
 	return NextResponse.json({ items: data || [] });
 }
 
-/** POST — bulk append services (does not delete existing). Body: { items: SvcItem[] } */
+/** POST — single `{ item }` or bulk `{ items[] }` (append). */
 export async function POST(request: NextRequest) {
 	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
@@ -49,30 +64,29 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Link your practice first.' }, { status: 400 });
 	}
 
-	const body = (await request.json().catch(() => ({}))) as { items?: SvcItem[] };
+	const body = (await request.json().catch(() => ({}))) as { item?: SvcItem; items?: SvcItem[] };
+	const sb = getSupabaseAdmin();
+
+	if (body.item && typeof body.item === 'object' && !Array.isArray(body.items)) {
+		const row = mapSvcInsert(ctx.providerOrgId, body.item);
+		if (!row.name) {
+			return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+		}
+		const { data, error } = await sb.from('provider_services').insert(row).select().single();
+		if (error) {
+			console.error('[api/provider/catalog/services POST single]', error.message);
+			return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
+		}
+		return NextResponse.json({ ok: true, item: data });
+	}
+
 	const rawItems = Array.isArray(body.items) ? body.items : [];
-	const items = rawItems
-		.map((it) => {
-			const price = typeof it.price === 'number' && Number.isFinite(it.price) ? Math.max(0, it.price) : 0;
-			return {
-				provider_id: ctx.providerOrgId,
-				name: String(it.name || '').trim(),
-				category: (it.category && String(it.category).trim()) || 'service',
-				unit: (it.unit && String(it.unit).trim()) || 'per_visit',
-				price,
-				currency: 'USD',
-				notes: it.notes != null ? String(it.notes).trim() || null : null,
-				is_active: true,
-				sort_order: typeof it.sort_order === 'number' && Number.isFinite(it.sort_order) ? Math.floor(it.sort_order) : 0,
-			};
-		})
-		.filter((r) => r.name.length > 0);
+	const items = rawItems.map((it) => mapSvcInsert(ctx.providerOrgId, it)).filter((r) => r.name.length > 0);
 
 	if (!items.length) {
 		return NextResponse.json({ error: 'No valid rows (each item needs name).' }, { status: 400 });
 	}
 
-	const sb = getSupabaseAdmin();
 	const { error: insErr } = await sb.from('provider_services').insert(items);
 	if (insErr) {
 		console.error('[api/provider/catalog/services POST]', insErr.message);

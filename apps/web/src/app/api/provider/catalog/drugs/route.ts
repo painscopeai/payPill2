@@ -18,6 +18,31 @@ type DrugItem = {
 	sort_order?: number | null;
 };
 
+function mapDrugInsert(orgId: string, it: DrugItem) {
+	return {
+		provider_org_id: orgId,
+		name: String(it.name || '').trim(),
+		default_strength: it.default_strength != null ? String(it.default_strength).trim() || null : null,
+		default_route: it.default_route != null ? String(it.default_route).trim() || null : null,
+		default_frequency: it.default_frequency != null ? String(it.default_frequency).trim() || null : null,
+		default_duration_days:
+			typeof it.default_duration_days === 'number' && Number.isFinite(it.default_duration_days)
+				? Math.max(0, Math.floor(it.default_duration_days))
+				: null,
+		default_quantity:
+			typeof it.default_quantity === 'number' && Number.isFinite(it.default_quantity)
+				? Math.max(0, Math.floor(it.default_quantity))
+				: null,
+		default_refills:
+			typeof it.default_refills === 'number' && Number.isFinite(it.default_refills)
+				? Math.max(0, Math.floor(it.default_refills))
+				: 0,
+		notes: it.notes != null ? String(it.notes).trim() || null : null,
+		sort_order: typeof it.sort_order === 'number' && Number.isFinite(it.sort_order) ? Math.floor(it.sort_order) : 0,
+		is_active: true,
+	};
+}
+
 /** GET — practice drug formulary for consultation prescribing. */
 export async function GET(request: NextRequest) {
 	const ctx = await requireProvider(request);
@@ -48,7 +73,7 @@ export async function GET(request: NextRequest) {
 	return NextResponse.json({ items: data || [] });
 }
 
-/** POST — bulk add or replace catalog rows. Body: { items: DrugItem[], replace?: boolean } */
+/** POST — single create `{ item }`, or bulk `{ items[], replace? }`. */
 export async function POST(request: NextRequest) {
 	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
@@ -57,40 +82,37 @@ export async function POST(request: NextRequest) {
 	}
 
 	const body = (await request.json().catch(() => ({}))) as {
+		item?: DrugItem;
 		items?: DrugItem[];
 		replace?: boolean;
 	};
+	const sb = getSupabaseAdmin();
+
+	if (body.item && typeof body.item === 'object' && !Array.isArray(body.items)) {
+		const row = mapDrugInsert(ctx.providerOrgId, body.item);
+		if (!row.name) {
+			return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+		}
+		const { data, error } = await sb.from('provider_drug_catalog').insert(row).select().single();
+		if (error) {
+			if (/does not exist|schema cache/i.test(error.message)) {
+				return NextResponse.json(
+					{ error: 'Drug catalog table missing. Apply migration 20260614150000_provider_catalog_encounter_rx_labs.sql.' },
+					{ status: 503 },
+				);
+			}
+			console.error('[api/provider/catalog/drugs POST single]', error.message);
+			return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
+		}
+		return NextResponse.json({ ok: true, item: data });
+	}
+
 	const rawItems = Array.isArray(body.items) ? body.items : [];
-	const items = rawItems
-		.map((it) => ({
-			provider_org_id: ctx.providerOrgId,
-			name: String(it.name || '').trim(),
-			default_strength: it.default_strength != null ? String(it.default_strength).trim() || null : null,
-			default_route: it.default_route != null ? String(it.default_route).trim() || null : null,
-			default_frequency: it.default_frequency != null ? String(it.default_frequency).trim() || null : null,
-			default_duration_days:
-				typeof it.default_duration_days === 'number' && Number.isFinite(it.default_duration_days)
-					? Math.max(0, Math.floor(it.default_duration_days))
-					: null,
-			default_quantity:
-				typeof it.default_quantity === 'number' && Number.isFinite(it.default_quantity)
-					? Math.max(0, Math.floor(it.default_quantity))
-					: null,
-			default_refills:
-				typeof it.default_refills === 'number' && Number.isFinite(it.default_refills)
-					? Math.max(0, Math.floor(it.default_refills))
-					: 0,
-			notes: it.notes != null ? String(it.notes).trim() || null : null,
-			sort_order: typeof it.sort_order === 'number' && Number.isFinite(it.sort_order) ? Math.floor(it.sort_order) : 0,
-			is_active: true,
-		}))
-		.filter((r) => r.name.length > 0);
+	const items = rawItems.map((it) => mapDrugInsert(ctx.providerOrgId, it)).filter((r) => r.name.length > 0);
 
 	if (!items.length) {
 		return NextResponse.json({ error: 'No valid rows (each item needs a name).' }, { status: 400 });
 	}
-
-	const sb = getSupabaseAdmin();
 
 	if (body.replace) {
 		const { error: delErr } = await sb.from('provider_drug_catalog').delete().eq('provider_org_id', ctx.providerOrgId);

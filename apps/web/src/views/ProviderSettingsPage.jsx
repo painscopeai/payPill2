@@ -50,11 +50,27 @@ export default function ProviderSettingsPage() {
 
 			<Card>
 				<CardHeader>
+					<CardTitle>Practice calendar</CardTitle>
+				</CardHeader>
+				<CardContent className="space-y-2 text-sm">
+					<p className="text-muted-foreground">
+						View open appointment slots from your linked practice hours. This used to live in the main sidebar; it is now here under settings.
+					</p>
+					<p>
+						<Link to="/provider/settings/calendar" className="text-teal-600 font-medium underline">
+							Open smart scheduling
+						</Link>
+					</p>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
 					<CardTitle>Clinical catalogs & services</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-3 text-sm">
 					<p className="text-muted-foreground">
-						Manage drug and lab pick-lists for consultations, and bulk-import billable services. JSON bulk upload is supported on each page.
+						Manage drug and lab pick-lists for consultations, and billable services. Add or edit rows manually on each page, or use JSON bulk import.
 					</p>
 					<ul className="list-disc pl-5 space-y-1.5">
 						<li>

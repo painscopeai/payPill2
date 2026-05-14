@@ -14,6 +14,18 @@ type LabItem = {
 	sort_order?: number | null;
 };
 
+function mapLabInsert(orgId: string, it: LabItem) {
+	return {
+		provider_org_id: orgId,
+		test_name: String(it.test_name || '').trim(),
+		code: it.code != null ? String(it.code).trim() || null : null,
+		category: it.category != null ? String(it.category).trim() || null : null,
+		notes: it.notes != null ? String(it.notes).trim() || null : null,
+		sort_order: typeof it.sort_order === 'number' && Number.isFinite(it.sort_order) ? Math.floor(it.sort_order) : 0,
+		is_active: true,
+	};
+}
+
 /** GET — practice lab test catalog. */
 export async function GET(request: NextRequest) {
 	const ctx = await requireProvider(request);
@@ -44,7 +56,7 @@ export async function GET(request: NextRequest) {
 	return NextResponse.json({ items: data || [] });
 }
 
-/** POST — bulk add or replace lab catalog. Body: { items: LabItem[], replace?: boolean } */
+/** POST — single `{ item }` or bulk `{ items[], replace? }`. */
 export async function POST(request: NextRequest) {
 	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
@@ -52,25 +64,38 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Link your practice first.' }, { status: 400 });
 	}
 
-	const body = (await request.json().catch(() => ({}))) as { items?: LabItem[]; replace?: boolean };
+	const body = (await request.json().catch(() => ({}))) as {
+		item?: LabItem;
+		items?: LabItem[];
+		replace?: boolean;
+	};
+	const sb = getSupabaseAdmin();
+
+	if (body.item && typeof body.item === 'object' && !Array.isArray(body.items)) {
+		const row = mapLabInsert(ctx.providerOrgId, body.item);
+		if (!row.test_name) {
+			return NextResponse.json({ error: 'test_name is required' }, { status: 400 });
+		}
+		const { data, error } = await sb.from('provider_lab_test_catalog').insert(row).select().single();
+		if (error) {
+			if (/does not exist|schema cache/i.test(error.message)) {
+				return NextResponse.json(
+					{ error: 'Lab catalog table missing. Apply migration 20260614150000_provider_catalog_encounter_rx_labs.sql.' },
+					{ status: 503 },
+				);
+			}
+			console.error('[api/provider/catalog/labs POST single]', error.message);
+			return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
+		}
+		return NextResponse.json({ ok: true, item: data });
+	}
+
 	const rawItems = Array.isArray(body.items) ? body.items : [];
-	const items = rawItems
-		.map((it) => ({
-			provider_org_id: ctx.providerOrgId,
-			test_name: String(it.test_name || '').trim(),
-			code: it.code != null ? String(it.code).trim() || null : null,
-			category: it.category != null ? String(it.category).trim() || null : null,
-			notes: it.notes != null ? String(it.notes).trim() || null : null,
-			sort_order: typeof it.sort_order === 'number' && Number.isFinite(it.sort_order) ? Math.floor(it.sort_order) : 0,
-			is_active: true,
-		}))
-		.filter((r) => r.test_name.length > 0);
+	const items = rawItems.map((it) => mapLabInsert(ctx.providerOrgId, it)).filter((r) => r.test_name.length > 0);
 
 	if (!items.length) {
 		return NextResponse.json({ error: 'No valid rows (each item needs test_name).' }, { status: 400 });
 	}
-
-	const sb = getSupabaseAdmin();
 
 	if (body.replace) {
 		const { error: delErr } = await sb.from('provider_lab_test_catalog').delete().eq('provider_org_id', ctx.providerOrgId);

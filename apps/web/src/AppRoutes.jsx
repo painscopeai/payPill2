@@ -382,7 +382,7 @@ export default function AppRoutes() {
 										<Routes>
 											<Route path="dashboard" element={<ProviderDashboard />} />
 											<Route path="appointments" element={<ProviderAppointmentsPage />} />
-											<Route path="calendar" element={<ProviderCalendarPage />} />
+											<Route path="calendar" element={<Navigate to="/provider/settings/calendar" replace />} />
 											<Route path="patients" element={<PatientManagementPage />} />
 											<Route path="patients/:id" element={<ProviderPatientDetailPage />} />
 											<Route path="consultations" element={<ProviderConsultationWorkspacePage />} />
@@ -401,6 +401,7 @@ export default function AppRoutes() {
 											<Route path="team" element={<ProviderTeamPage />} />
 											<Route path="locations" element={<ProviderLocationsPage />} />
 											<Route path="communications" element={<ProviderCommunicationsPage />} />
+											<Route path="settings/calendar" element={<ProviderCalendarPage />} />
 											<Route path="settings/catalog/drugs" element={<ProviderSettingsCatalogPage />} />
 											<Route path="settings/catalog/labs" element={<ProviderSettingsCatalogPage />} />
 											<Route path="settings/catalog/services" element={<ProviderSettingsCatalogPage />} />
