@@ -4,6 +4,7 @@ import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { isConsultationQueueVisit, visitSlugFromAppointmentRow } from '@/server/provider/consultationVisitSlugs';
 import { syncConsultationActionItemsOnFinalize } from '@/server/patient/syncConsultationActionItemsOnFinalize';
+import { syncConsultationInvoiceOnFinalize } from '@/server/provider/syncConsultationInvoiceOnFinalize';
 
 function normalizeJsonArray(raw: unknown): unknown[] {
 	if (Array.isArray(raw)) return raw;
@@ -223,6 +224,18 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 			prescription_lines: enc.prescription_lines,
 			lab_orders: enc.lab_orders,
 		});
+
+		const inv = await syncConsultationInvoiceOnFinalize(sb, {
+			encounterId: enc.id,
+			appointmentId: enc.appointment_id,
+			patientUserId: enc.patient_user_id,
+			providerUserId: auth.userId,
+			providerOrgId: auth.providerOrgId,
+			appointmentRow: res.apt as Record<string, unknown>,
+		});
+		if (!inv.created && inv.reason && !['invoice_exists', 'unique_encounter'].includes(inv.reason)) {
+			console.warn('[api/provider/consultations/encounter] invoice sync skipped', inv.reason);
+		}
 
 		const { data: aptStatusRow } = await sb.from('appointments').select('status').eq('id', appointmentId).maybeSingle();
 		const curAptStatus = String((aptStatusRow as { status?: string | null } | null)?.status || '').toLowerCase();
