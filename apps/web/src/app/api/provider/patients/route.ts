@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { buildPatientCoverageSummary } from '@/server/patient/buildPatientCoverageSummary';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,10 +38,13 @@ export async function GET(request: NextRequest) {
 
 				const health_summary = Object.fromEntries((steps || []).map((s: { step: number; data: unknown }) => [`step_${s.step}`, s.data]));
 
+				const coverage_summary = await buildPatientCoverageSummary(sb, relationship.patient_id);
+
 				return {
 					...relationship,
 					patient_details: user,
 					health_summary,
+					coverage_summary,
 				};
 			} catch (e: unknown) {
 				const msg = e instanceof Error ? e.message : String(e);

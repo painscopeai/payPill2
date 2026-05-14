@@ -53,12 +53,40 @@ export async function GET(request: NextRequest) {
 	const uniqueUserIds = [...new Set(userIds)];
 	const employerIds = [...new Set(rows.map((r) => r.employer_id).filter(Boolean))];
 
+	const { data: walkInProfiles, error: walkErr } = await sb
+		.from('profiles')
+		.select('id, email, first_name, last_name, date_of_birth, insurance_member_id, updated_at, created_at')
+		.eq('role', 'individual')
+		.eq('primary_insurance_user_id', ctx.insuranceId);
+	if (walkErr) return NextResponse.json({ error: walkErr.message }, { status: 500 });
+
+	const rosterUidSet = new Set(uniqueUserIds);
+	const walkIns = (
+		(walkInProfiles || []) as {
+			id: string;
+			email: string | null;
+			first_name: string | null;
+			last_name: string | null;
+			date_of_birth: string | null;
+			insurance_member_id: string | null;
+			updated_at: string | null;
+			created_at: string | null;
+		}[]
+	).filter((w) => !rosterUidSet.has(w.id));
+	const walkInUserIds = walkIns.map((w) => w.id);
+
 	const [patientsRes, formsRes, employerRes] = await Promise.all([
-		uniqueUserIds.length
-			? sb.from('patients').select('user_id,conditions').in('user_id', uniqueUserIds)
+		uniqueUserIds.length || walkInUserIds.length
+			? sb
+					.from('patients')
+					.select('user_id,conditions')
+					.in('user_id', [...new Set([...uniqueUserIds, ...walkInUserIds])])
 			: Promise.resolve({ data: [], error: null }),
-		uniqueUserIds.length
-			? sb.from('form_responses').select('user_id,completed').in('user_id', uniqueUserIds)
+		uniqueUserIds.length || walkInUserIds.length
+			? sb
+					.from('form_responses')
+					.select('user_id,completed')
+					.in('user_id', [...new Set([...uniqueUserIds, ...walkInUserIds])])
 			: Promise.resolve({ data: [], error: null }),
 		employerIds.length
 			? sb.from('profiles').select('id,company_name,name,email').in('id', employerIds)
@@ -102,6 +130,7 @@ export async function GET(request: NextRequest) {
 		const employer = employerById.get(r.employer_id);
 		return {
 			id: String(r.id),
+			coverage_kind: 'employer' as const,
 			name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.email,
 			email: r.email,
 			employerId: r.employer_id,
@@ -116,30 +145,55 @@ export async function GET(request: NextRequest) {
 		};
 	});
 
-	const scoreRows = memberRows.filter((m) => Number.isFinite(Number(m.score)));
+	const walkInMemberRows = walkIns.map((w) => {
+		const uid = w.id;
+		const formStats = formsByUser.get(uid);
+		const adherenceRate =
+			formStats && formStats.total > 0 ? formStats.completed / formStats.total : Number.NaN;
+		const conditions = conditionsByUser.get(uid) ?? [];
+		return {
+			id: `walkin:${w.id}`,
+			coverage_kind: 'walk_in' as const,
+			name: [w.first_name, w.last_name].filter(Boolean).join(' ').trim() || w.email || w.id,
+			email: w.email,
+			employerId: null,
+			employer: 'Walk-in',
+			score: null,
+			chronic: conditions.length,
+			adherence: adherenceLabel(adherenceRate),
+			risk: 'Medium' as const,
+			lastActive: w.updated_at || w.created_at,
+			status: 'active',
+			member_id_hint: w.insurance_member_id ? String(w.insurance_member_id).slice(0, 4) + '…' : null,
+		};
+	});
+
+	const combinedMembers = [...memberRows, ...walkInMemberRows];
+
+	const scoreRows = combinedMembers.filter((m) => Number.isFinite(Number(m.score)));
 	const averageHealthScore = scoreRows.length
 		? Number((scoreRows.reduce((sum, m) => sum + Number(m.score), 0) / scoreRows.length).toFixed(1))
 		: 0;
-	const chronicConditionRate = memberRows.length
+	const chronicConditionRate = combinedMembers.length
 		? Number(
 				(
-					(memberRows.filter((m) => m.chronic > 0).length / Math.max(memberRows.length, 1)) *
+					(combinedMembers.filter((m) => m.chronic > 0).length / Math.max(combinedMembers.length, 1)) *
 					100
 				).toFixed(1),
 			)
 		: 0;
-	const adherenceRate = memberRows.length
+	const adherenceRate = combinedMembers.length
 		? Number(
 				(
-					(memberRows.filter((m) => m.adherence === 'High').length / Math.max(memberRows.length, 1)) *
+					(combinedMembers.filter((m) => m.adherence === 'High').length / Math.max(combinedMembers.length, 1)) *
 					100
 				).toFixed(1),
 			)
 		: 0;
-	const preventiveCompletion = memberRows.length
+	const preventiveCompletion = combinedMembers.length
 		? Number(
 				(
-					(memberRows.filter((m) => m.status === 'active').length / Math.max(memberRows.length, 1)) *
+					(combinedMembers.filter((m) => m.status === 'active').length / Math.max(combinedMembers.length, 1)) *
 					100
 				).toFixed(1),
 			)
@@ -157,9 +211,9 @@ export async function GET(request: NextRequest) {
 		.map(([name, count]) => ({ name, count }));
 
 	const adherenceCounts = {
-		high: memberRows.filter((m) => m.adherence === 'High').length,
-		medium: memberRows.filter((m) => m.adherence === 'Medium').length,
-		low: memberRows.filter((m) => m.adherence === 'Low').length,
+		high: combinedMembers.filter((m) => m.adherence === 'High').length,
+		medium: combinedMembers.filter((m) => m.adherence === 'Medium').length,
+		low: combinedMembers.filter((m) => m.adherence === 'Low').length,
 	};
 	const adherenceData = [
 		{ name: 'Adherent (>80%)', value: adherenceCounts.high },
@@ -194,7 +248,7 @@ export async function GET(request: NextRequest) {
 		chronicConditions,
 		adherenceData,
 		healthScores,
-		members: memberRows,
-		employers: [...new Set(memberRows.map((m) => m.employer))].sort(),
+		members: combinedMembers,
+		employers: [...new Set(combinedMembers.map((m) => m.employer))].sort(),
 	});
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Activity, Loader2, ArrowLeft } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
 import { postSignupProfilePath } from '@/lib/postSignupProfilePath.js';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
+import apiServerClient from '@/lib/apiServerClient';
 
 export default function AuthIndividualPage() {
   const navigate = useNavigate();
@@ -30,8 +32,25 @@ export default function AuthIndividualPage() {
     confirmPassword: '',
     phone: '',
     dateOfBirth: '',
+    primaryInsuranceUserId: '',
+    insuranceMemberId: '',
     termsAccepted: false
   });
+  const [insuranceOrgs, setInsuranceOrgs] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiServerClient.fetch('/public/insurance-organizations');
+        const body = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) setInsuranceOrgs(body.organizations || []);
+      } catch {
+        /* signup still possible if route fails in dev */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSignIn = async (e) => {
     e.preventDefault();
@@ -57,6 +76,10 @@ export default function AuthIndividualPage() {
       setLocalError("Please accept the terms and conditions");
       return;
     }
+    if (!signUpData.primaryInsuranceUserId || !signUpData.insuranceMemberId.trim()) {
+      setLocalError('Select your insurance company and enter your insurance / member ID.');
+      return;
+    }
 
     try {
       const nameParts = signUpData.fullName.split(' ');
@@ -73,7 +96,9 @@ export default function AuthIndividualPage() {
           phone: signUpData.phone,
           date_of_birth: signUpData.dateOfBirth,
           terms_accepted: true,
-          privacy_preferences: true
+          privacy_preferences: true,
+          primary_insurance_user_id: signUpData.primaryInsuranceUserId,
+          insurance_member_id: signUpData.insuranceMemberId.trim(),
         }, 
         'individual'
       );
@@ -226,6 +251,35 @@ export default function AuthIndividualPage() {
                         value={signUpData.dateOfBirth} onChange={e => setSignUpData({...signUpData, dateOfBirth: e.target.value})}
                       />
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Insurance company <span className="text-destructive">*</span></Label>
+                    <Select
+                      required
+                      value={signUpData.primaryInsuranceUserId || undefined}
+                      onValueChange={(v) => setSignUpData({ ...signUpData, primaryInsuranceUserId: v })}
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder={insuranceOrgs.length ? 'Select your insurer' : 'Loading insurers…'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {insuranceOrgs.map((o) => (
+                          <SelectItem key={o.id} value={o.id}>{o.display_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Your insurer must have an account in PayPill. Contact support if yours is missing.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="insMemberId">Insurance / member ID <span className="text-destructive">*</span></Label>
+                    <Input
+                      id="insMemberId"
+                      required
+                      className="rounded-xl"
+                      value={signUpData.insuranceMemberId}
+                      onChange={(e) => setSignUpData({ ...signUpData, insuranceMemberId: e.target.value })}
+                      placeholder="Policy or member number on your card"
+                    />
                   </div>
                   <div className="flex items-center space-x-2 pt-2">
                     <Checkbox 

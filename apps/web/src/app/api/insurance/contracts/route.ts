@@ -59,6 +59,25 @@ export async function GET(request: NextRequest) {
 	const userIds = Array.from(new Set(coverageRows.map((r) => r.user_id).filter(Boolean))) as string[];
 	const employerIds = Array.from(new Set(coverageRows.map((r) => r.employer_id).filter(Boolean))) as string[];
 
+	const { data: walkInProfiles, error: walkErr } = await sb
+		.from('profiles')
+		.select('id, first_name, last_name, email')
+		.eq('role', 'individual')
+		.eq('primary_insurance_user_id', ctx.insuranceId);
+	if (walkErr) return NextResponse.json({ error: walkErr.message }, { status: 500 });
+
+	const rosterUserSet = new Set(userIds);
+	const walkInRows = (
+		(walkInProfiles || []) as {
+			id: string;
+			first_name: string | null;
+			last_name: string | null;
+			email: string | null;
+		}[]
+	).filter((p) => !rosterUserSet.has(p.id));
+	const walkInUserIds = walkInRows.map((p) => p.id);
+	const walkInById = new Map(walkInRows.map((p) => [p.id, p]));
+
 	const [contractRes, employerProfiles] = await Promise.all([
 		sb
 			.from('employer_contracts')
@@ -78,25 +97,27 @@ export async function GET(request: NextRequest) {
 		'id,user_id,provider_id,provider_name,provider_service_id,appointment_type,reason,status,created_at,appointment_date,appointment_time';
 	const appointmentSelectNoService =
 		'id,user_id,provider_id,provider_name,appointment_type,reason,status,created_at,appointment_date,appointment_time';
-	const appointmentRes = userIds.length
-		? await (async () => {
-				const attempt = await sb
-					.from('appointments')
-					.select(appointmentSelectWithService)
-					.in('user_id', userIds)
-					.gte('created_at', from)
-					.lte('created_at', to);
-				if (attempt.error && isMissingProviderServiceIdColumn(attempt.error)) {
-					return sb
+	const appointmentRes =
+		userIds.length || walkInUserIds.length
+			? await (async () => {
+					const allIds = [...new Set([...userIds, ...walkInUserIds])];
+					const attempt = await sb
 						.from('appointments')
-						.select(appointmentSelectNoService)
-						.in('user_id', userIds)
+						.select(appointmentSelectWithService)
+						.in('user_id', allIds)
 						.gte('created_at', from)
 						.lte('created_at', to);
-				}
-				return attempt;
-		  })()
-		: { data: [], error: null };
+					if (attempt.error && isMissingProviderServiceIdColumn(attempt.error)) {
+						return sb
+							.from('appointments')
+							.select(appointmentSelectNoService)
+							.in('user_id', allIds)
+							.gte('created_at', from)
+							.lte('created_at', to);
+					}
+					return attempt;
+			  })()
+			: { data: [], error: null };
 	if (appointmentRes.error) return NextResponse.json({ error: appointmentRes.error.message }, { status: 500 });
 
 	type AppointmentRow = {
@@ -130,18 +151,61 @@ export async function GET(request: NextRequest) {
 
 	const claimRows = appointments
 		.map((a) => {
-			const coverage = a.user_id ? userToCoverage.get(a.user_id) : null;
+			const uid = a.user_id ? String(a.user_id) : '';
+			const coverage = uid ? userToCoverage.get(uid) : null;
+			const walk = uid ? walkInById.get(uid) : undefined;
 			const service: ServiceRow | null = a.provider_service_id ? serviceById.get(a.provider_service_id) || null : null;
 			const cost = Number(service?.price || 0);
-			const employer = coverage ? employerById.get(coverage.employer_id) : null;
+			if (coverage) {
+				const employer = employerById.get(coverage.employer_id);
+				return {
+					id: a.id,
+					coverage_type: 'employer' as const,
+					employer: employer?.company_name || employer?.name || employer?.email || coverage?.employer_id || 'Employer',
+					employer_id: coverage?.employer_id || null,
+					employee_name:
+						[coverage.first_name, coverage.last_name].filter(Boolean).join(' ').trim() || coverage.email,
+					employee_email: coverage?.email || null,
+					provider_name: a.provider_name || 'Provider',
+					service_name:
+						service?.name || a.reason || a.appointment_type || 'General visit - no catalog line',
+					service_category: service?.category || 'service',
+					status: a.status || 'unknown',
+					activity_at: a.created_at,
+					appointment_date: a.appointment_date,
+					appointment_time: a.appointment_time,
+					amount: cost,
+					receivable_amount: cost,
+				};
+			}
+			if (walk) {
+				const nm = [walk.first_name, walk.last_name].filter(Boolean).join(' ').trim() || walk.email || walk.id;
+				return {
+					id: a.id,
+					coverage_type: 'walk_in' as const,
+					employer: 'Walk-in',
+					employer_id: null,
+					employee_name: nm,
+					employee_email: walk.email || null,
+					provider_name: a.provider_name || 'Provider',
+					service_name:
+						service?.name || a.reason || a.appointment_type || 'General visit - no catalog line',
+					service_category: service?.category || 'service',
+					status: a.status || 'unknown',
+					activity_at: a.created_at,
+					appointment_date: a.appointment_date,
+					appointment_time: a.appointment_time,
+					amount: cost,
+					receivable_amount: cost,
+				};
+			}
 			return {
 				id: a.id,
-				employer: employer?.company_name || employer?.name || employer?.email || coverage?.employer_id || 'Employer',
-				employer_id: coverage?.employer_id || null,
-				employee_name:
-					coverage &&
-					([coverage.first_name, coverage.last_name].filter(Boolean).join(' ').trim() || coverage.email),
-				employee_email: coverage?.email || null,
+				coverage_type: 'unknown' as const,
+				employer: '—',
+				employer_id: null,
+				employee_name: '—',
+				employee_email: null,
 				provider_name: a.provider_name || 'Provider',
 				service_name:
 					service?.name || a.reason || a.appointment_type || 'General visit - no catalog line',

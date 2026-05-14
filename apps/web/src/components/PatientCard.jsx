@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 export default function PatientCard({ patient }) {
   const navigate = useNavigate();
   const isHighRisk = Math.random() > 0.8; // Mock risk for MVP
+  const cov = patient.coverage_summary;
 
   return (
     <Card 
@@ -25,6 +26,13 @@ export default function PatientCard({ patient }) {
             <p className="text-xs text-muted-foreground">
               ID: {patient.patient_id?.substring(0, 8) || 'Unknown'}
             </p>
+            {cov ? (
+              <p className="text-xs text-muted-foreground mt-1">
+                {cov.coverage_type === 'employer' ? 'Employee' : 'Walk-in'}
+                {cov.insurance_label ? ` · ${cov.insurance_label}` : ''}
+                {cov.employer_name ? ` · ${cov.employer_name}` : ''}
+              </p>
+            ) : null}
           </div>
         </div>
         <ChevronRight className="h-5 w-5 text-muted-foreground" />

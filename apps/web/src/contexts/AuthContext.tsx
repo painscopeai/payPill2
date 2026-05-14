@@ -38,6 +38,9 @@ function mapProfileToCurrentUser(
 		provider_org_id: profile.provider_org_id ?? null,
 		specialty: profile.specialty ?? null,
 		npi: profile.npi ?? null,
+		primary_insurance_user_id: profile.primary_insurance_user_id ?? null,
+		insurance_member_id: profile.insurance_member_id ?? null,
+		patient_coverage_source: profile.patient_coverage_source ?? null,
 	};
 }
 
@@ -199,6 +202,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 					terms_accepted: userData.terms_accepted === true || userData.terms_accepted === 'true',
 					privacy_preferences:
 						userData.privacy_preferences === true || userData.privacy_preferences === 'true',
+					primary_insurance_user_id: userData.primary_insurance_user_id,
+					insurance_member_id: userData.insurance_member_id,
 				};
 
 				const { data, error: signUpErr } = await supabase.auth.signUp({

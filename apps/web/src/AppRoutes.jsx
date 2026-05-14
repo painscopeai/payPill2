@@ -32,6 +32,7 @@ const BookingPage = React.lazy(() => import('./views/BookingPage.jsx'));
 const PatientAppointmentsPage = React.lazy(() => import('./views/PatientAppointmentsPage.jsx'));
 const PatientPrescriptionsPage = React.lazy(() => import('./views/PatientPrescriptionsPage.jsx'));
 const PatientMessagesPage = React.lazy(() => import('./views/PatientMessagesPage.jsx'));
+const PatientInsuranceProfilePage = React.lazy(() => import('./views/PatientInsuranceProfilePage.jsx'));
 
 const PharmacyPage = React.lazy(() => import('./views/PharmacyPage.jsx'));
 const TelemedicinePage = React.lazy(() => import('./views/TelemedicinePage.jsx'));
@@ -53,6 +54,7 @@ const InsuranceGenericsPage = React.lazy(() => import('./views/InsuranceGenerics
 const InsurancePaymentsPage = React.lazy(() => import('./views/InsurancePaymentsPage.jsx'));
 const InsuranceAnalyticsPage = React.lazy(() => import('./views/InsuranceAnalyticsPage.jsx'));
 const InsuranceSettingsPage = React.lazy(() => import('./views/InsuranceSettingsPage.jsx'));
+const InsuranceMemberRequestsPage = React.lazy(() => import('./views/InsuranceMemberRequestsPage.jsx'));
 
 const PatientsAnalyticsPage = React.lazy(() => import('./views/admin/analytics/PatientsAnalyticsPage.jsx'));
 const EmployersAnalyticsPage = React.lazy(() => import('./views/admin/analytics/EmployersAnalyticsPage.jsx'));
@@ -215,6 +217,7 @@ export default function AppRoutes() {
 										<Route path="appointments" element={<PatientAppointmentsPage />} />
 										<Route path="prescriptions" element={<PatientPrescriptionsPage />} />
 										<Route path="messages" element={<PatientMessagesPage />} />
+										<Route path="insurance" element={<PatientInsuranceProfilePage />} />
 										<Route path="pharmacy" element={<PharmacyPage />} />
 										<Route path="telemedicine" element={<TelemedicinePage />} />
 										<Route path="health-goals" element={<HealthGoalsPage />} />
@@ -302,6 +305,14 @@ export default function AppRoutes() {
 						element={
 							<ProtectedRoleRoute requiredRole="insurance">
 								<InsuranceMembersOutcomesPage />
+							</ProtectedRoleRoute>
+						}
+					/>
+					<Route
+						path="/insurance/member-requests"
+						element={
+							<ProtectedRoleRoute requiredRole="insurance">
+								<InsuranceMemberRequestsPage />
 							</ProtectedRoleRoute>
 						}
 					/>

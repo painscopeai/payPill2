@@ -55,6 +55,7 @@ export default function ProviderPatientDetailPage() {
 	};
 
 	const d = patient?.patient_details || {};
+	const cov = patient?.coverage_summary;
 
 	return (
 		<div className="space-y-6 max-w-2xl">
@@ -73,6 +74,33 @@ export default function ProviderPatientDetailPage() {
 					<h1 className="text-3xl font-bold tracking-tight">
 						{[d.first_name, d.last_name].filter(Boolean).join(' ') || d.email || 'Patient'}
 					</h1>
+					{cov ? (
+						<Card className="border-primary/20 bg-muted/20">
+							<CardHeader className="py-3">
+								<CardTitle className="text-base">Patient coverage</CardTitle>
+							</CardHeader>
+							<CardContent className="text-sm space-y-1 pt-0">
+								<p>
+									<span className="text-muted-foreground">Type: </span>
+									{cov.coverage_type === 'employer' ? 'Employee' : 'Walk-in'}
+								</p>
+								<p>
+									<span className="text-muted-foreground">Age / sex: </span>
+									{cov.age_years != null ? `${cov.age_years} yr` : '—'}
+									{cov.sex_or_gender ? ` · ${cov.sex_or_gender}` : ''}
+								</p>
+								<p>
+									<span className="text-muted-foreground">Insurance: </span>
+									{cov.insurance_label || '—'}
+									{cov.member_id_display ? ` · Member ${cov.member_id_display}` : ''}
+								</p>
+								<p>
+									<span className="text-muted-foreground">Employer: </span>
+									{cov.coverage_type === 'employer' ? cov.employer_name || '—' : 'Walk-in'}
+								</p>
+							</CardContent>
+						</Card>
+					) : null}
 					<Card>
 						<CardHeader>
 							<CardTitle>Clinical note</CardTitle>

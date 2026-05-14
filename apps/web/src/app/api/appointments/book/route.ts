@@ -9,6 +9,7 @@ import {
 import { sendBookingConfirmationEmails } from '@/server/email/bookingConfirmationEmail';
 import { normalizeAppointmentTime } from '@/lib/appointmentDateTime';
 import { getPatientBookingSlotsForDate } from '@/server/provider/patientBookingDaySlots';
+import { resolvePatientCoverage } from '@/server/patient/resolvePatientCoverage';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -153,23 +154,11 @@ export async function POST(request: NextRequest) {
 
 	const sb = getSupabaseAdmin();
 
-	const { data: employeeCoverage } = await sb
-		.from('employer_employees')
-		.select('insurance_option_slug, status, updated_at')
-		.eq('user_id', uid)
-		.in('status', ['active', 'pending', 'draft'])
-		.not('insurance_option_slug', 'is', null)
-		.order('updated_at', { ascending: false })
-		.limit(1)
-		.maybeSingle();
-
-	const effectiveInsuranceOptionId =
-		String((employeeCoverage as { insurance_option_slug?: string | null } | null)?.insurance_option_slug || '')
-			.trim() || String(insuranceOptionId || '').trim();
-
-	if (!effectiveInsuranceOptionId) {
-		return NextResponse.json({ error: 'insuranceOptionId is required' }, { status: 400 });
+	const coverageRes = await resolvePatientCoverage(sb, uid, insuranceOptionId);
+	if (!coverageRes.ok) {
+		return NextResponse.json({ error: coverageRes.error }, { status: coverageRes.status });
 	}
+	const effectiveInsuranceOptionId = coverageRes.coverage.effectiveInsuranceKey;
 
 	const { data: provider, error: pErr } = await sb
 		.from('providers')
@@ -280,6 +269,13 @@ export async function POST(request: NextRequest) {
 		insuranceLabel = insuranceLabel || p.company_name || p.name || p.email || p.id;
 		// Keep FK null here because this id belongs to profiles (not insurance_options).
 		insuranceOptionFkId = null;
+	}
+
+	if (coverageRes.coverage.kind === 'walk_in' && coverageRes.coverage.insuranceMemberId) {
+		const mid = coverageRes.coverage.insuranceMemberId;
+		insuranceLabel = insuranceLabel.includes('Member ID')
+			? insuranceLabel
+			: `${insuranceLabel} · Member ID: ${mid}`;
 	}
 
 	// Contract foundation: all insurance options cover provider services fully (no co-pay).

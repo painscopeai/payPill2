@@ -39,6 +39,7 @@ export default function Header() {
       <Link to="/patient/records" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/records') ? 'text-primary' : 'text-muted-foreground'}`}>Records</Link>
       <Link to="/patient/appointments" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/appointments') ? 'text-primary' : 'text-muted-foreground'}`}>Appointments</Link>
       <Link to="/patient/prescriptions" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/prescriptions') ? 'text-primary' : 'text-muted-foreground'}`}>Prescriptions</Link>
+      <Link to="/patient/insurance" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/patient/insurance') ? 'text-primary' : 'text-muted-foreground'}`}>Insurance</Link>
       <Link to="/patient/ai-recommendations" className={`text-sm font-medium transition-colors hover:text-primary flex items-center gap-1 ${isActive('/patient/ai-recommendations') ? 'text-primary' : 'text-muted-foreground'}`}>
         <Sparkles className="h-3 w-3" /> Insights
       </Link>
@@ -63,6 +64,7 @@ export default function Header() {
   const InsuranceNav = () => (
     <>
       <Link to="/insurance/dashboard" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/dashboard') ? 'text-primary' : 'text-muted-foreground'}`}>Dashboard</Link>
+      <Link to="/insurance/member-requests" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/member-requests') ? 'text-primary' : 'text-muted-foreground'}`}>Coverage requests</Link>
       <Link to="/insurance/members" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/members') ? 'text-primary' : 'text-muted-foreground'}`}>Members</Link>
       <Link to="/insurance/contracts" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/contracts') ? 'text-primary' : 'text-muted-foreground'}`}>Claims</Link>
       <Link to="/insurance/analytics" className={`text-sm font-medium transition-colors hover:text-primary ${isActive('/insurance/analytics') ? 'text-primary' : 'text-muted-foreground'}`}>Analytics</Link>

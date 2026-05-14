@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Home, User, Sparkles, FileText, Calendar, MessageSquare, LogOut, Menu } from 'lucide-react';
+import { Home, User, Sparkles, FileText, Calendar, MessageSquare, LogOut, Menu, Shield } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import NotificationBell from '@/components/NotificationBell.jsx';
@@ -23,6 +23,7 @@ export default function PatientLayout({ children }) {
     { label: 'Messages', icon: MessageSquare, path: '/patient/messages' },
     { label: 'Records', icon: FileText, path: '/patient/records' },
     { label: 'Appointments', icon: Calendar, path: '/patient/appointments' },
+    { label: 'Insurance', icon: Shield, path: '/patient/insurance' },
     { label: 'Insights', icon: Sparkles, path: '/patient/ai-recommendations' },
     { label: 'Profile', icon: User, path: '/patient/onboarding' },
   ];
