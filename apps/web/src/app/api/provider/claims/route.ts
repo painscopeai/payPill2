@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { profileDisplayName } from '@/server/provider/profileDisplayName';
+import { buildPatientCoverageSummary } from '@/server/patient/buildPatientCoverageSummary';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,20 @@ function isClaimCandidate(metadata: unknown): boolean {
 	return Boolean(m.source || m.claim_ready === true);
 }
 
-/** GET /api/provider/claims — draft lines sourced from billing (payer integrations can extend this). */
+/** Service date for sorting/filtering: visit date when present, else invoice date. */
+function serviceDateIso(inv: {
+	created_at?: string | null;
+	metadata?: Meta;
+}): string {
+	const meta = (inv.metadata || {}) as Record<string, unknown>;
+	const apt = typeof meta.appointment_date === 'string' ? meta.appointment_date.trim() : '';
+	if (/^\d{4}-\d{2}-\d{2}/.test(apt)) return apt.slice(0, 10);
+	const cr = inv.created_at ? String(inv.created_at) : '';
+	if (/^\d{4}-\d{2}-\d{2}/.test(cr)) return cr.slice(0, 10);
+	return '';
+}
+
+/** GET /api/provider/claims — charges grouped-ready data with coverage / payer labels. */
 export async function GET(request: NextRequest) {
 	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
@@ -31,7 +45,7 @@ export async function GET(request: NextRequest) {
 		.eq('provider_user_id', ctx.userId)
 		.in('status', ['draft', 'sent', 'open', 'unpaid'])
 		.order('created_at', { ascending: false })
-		.limit(200);
+		.limit(500);
 
 	if (error) {
 		console.error('[api/provider/claims GET]', error.message);
@@ -54,6 +68,7 @@ export async function GET(request: NextRequest) {
 
 	const filtered = rows.filter((r) => isClaimCandidate(r.metadata));
 	const patientIds = [...new Set(filtered.map((r) => r.patient_user_id).filter(Boolean))] as string[];
+
 	let profileById = new Map<string, { first_name?: string | null; last_name?: string | null; email?: string | null }>();
 	if (patientIds.length) {
 		const { data: profs } = await sb.from('profiles').select('id, first_name, last_name, email').in('id', patientIds);
@@ -66,10 +81,31 @@ export async function GET(request: NextRequest) {
 		}
 	}
 
+	const coverageByPatient = new Map<string, Awaited<ReturnType<typeof buildPatientCoverageSummary>>>();
+	await Promise.all(
+		patientIds.map(async (pid) => {
+			try {
+				const cov = await buildPatientCoverageSummary(sb, pid);
+				coverageByPatient.set(pid, cov);
+			} catch (e) {
+				console.warn('[api/provider/claims] coverage', pid, e);
+				coverageByPatient.set(pid, null);
+			}
+		}),
+	);
+
+	const UNSPECIFIED = 'Unspecified payer';
+
 	const items = filtered.map((inv) => {
 		const meta = (inv.metadata || {}) as Record<string, unknown>;
 		const pid = inv.patient_user_id || '';
 		const prof = pid ? profileById.get(pid) : undefined;
+		const cov = pid ? coverageByPatient.get(pid) : undefined;
+		const insurancePlanLabel = cov?.insurance_label?.trim() || null;
+		const insurance_group = insurancePlanLabel || UNSPECIFIED;
+		const serviceLabel = typeof meta.service_label === 'string' ? meta.service_label : inv.description;
+		const dateIso = serviceDateIso(inv);
+
 		return {
 			invoice_id: inv.id,
 			patient_user_id: inv.patient_user_id,
@@ -78,10 +114,13 @@ export async function GET(request: NextRequest) {
 			currency: inv.currency || 'USD',
 			invoice_status: inv.status,
 			description: inv.description,
-			service_label: typeof meta.service_label === 'string' ? meta.service_label : inv.description,
+			service_name: (typeof serviceLabel === 'string' && serviceLabel.trim()) || inv.description || '—',
 			source: typeof meta.source === 'string' ? meta.source : null,
 			claim_status: typeof meta.claim_status === 'string' ? meta.claim_status : 'ready_to_file',
 			created_at: inv.created_at,
+			service_date: dateIso,
+			insurance_plan_label: insurancePlanLabel,
+			insurance_group,
 			encounter_id: inv.encounter_id,
 			appointment_id: inv.appointment_id,
 			provider_service_id: inv.provider_service_id,
@@ -92,7 +131,7 @@ export async function GET(request: NextRequest) {
 		items,
 		note:
 			items.length === 0
-				? 'When you finalize consultations or create draft invoices in Billing, eligible lines appear here for insurance filing.'
-				: 'These draft charges are linked from Billing. Connect a clearinghouse when you are ready to submit electronically.',
+				? 'When you finalize consultations or add charges in Billing, eligible lines appear here grouped by the patient’s insurance on file.'
+				: 'Charges are grouped by insurance plan. Use filters to narrow by date, patient, or payer. Connect a clearinghouse when you are ready to submit electronically.',
 	});
 }
