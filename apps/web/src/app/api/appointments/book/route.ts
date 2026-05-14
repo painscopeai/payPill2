@@ -188,8 +188,22 @@ export async function POST(request: NextRequest) {
 		verification_status: string | null;
 		scheduling_url: string | null;
 	};
-	if (prov.status !== 'active' || prov.verification_status !== 'verified') {
-		return NextResponse.json({ error: 'Provider is not available for booking' }, { status: 400 });
+
+	const { count: linkedCompletedCount, error: linkErr } = await sb
+		.from('profiles')
+		.select('id', { count: 'exact', head: true })
+		.eq('role', 'provider')
+		.eq('provider_org_id', providerId)
+		.eq('provider_onboarding_completed', true);
+	if (linkErr) {
+		console.error('[appointments/book] provider link check', linkErr.message);
+		return NextResponse.json({ error: 'Could not validate provider' }, { status: 500 });
+	}
+	if (!linkedCompletedCount || linkedCompletedCount < 1) {
+		return NextResponse.json(
+			{ error: 'Provider is not available for booking. Only registered provider practices can accept bookings.' },
+			{ status: 400 },
+		);
 	}
 
 	if (providerServiceId) {

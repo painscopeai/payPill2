@@ -82,7 +82,7 @@ export default function AuthIndividualPage() {
         setSignupStep('verify');
         return;
       }
-      navigate(postSignupProfilePath('individual'));
+      navigate(postSignupProfilePath('individual'), { replace: true });
     } catch (err) {
       setLocalError(err.message);
     }
@@ -92,7 +92,7 @@ export default function AuthIndividualPage() {
     setLocalError('');
     try {
       await verifySignupEmail(pendingVerifyEmail, token);
-      navigate(postSignupProfilePath('individual'));
+      navigate(postSignupProfilePath('individual'), { replace: true });
     } catch (err) {
       setLocalError(err?.message || 'Verification failed.');
     }

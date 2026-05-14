@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-/** Public read: visit types, insurance options, verified active providers (patient booking). */
+/** Public read: visit types, insurance options, copay matrix, provider practices linked to completed provider accounts. */
 export async function GET() {
 	try {
 		const catalog = await getAppointmentCatalog();

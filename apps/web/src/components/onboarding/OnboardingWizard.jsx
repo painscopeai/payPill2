@@ -32,7 +32,7 @@ export default function OnboardingWizard({ children, title, description, isValid
     }
     try {
       await saveProgress(true, currentUser.id);
-      navigate('/patient/dashboard');
+      navigate('/patient/dashboard', { replace: true });
     } catch (err) {
       console.error("[OnboardingWizard] Save and exit failed:", err);
     }
@@ -41,14 +41,14 @@ export default function OnboardingWizard({ children, title, description, isValid
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="mb-8 space-y-4">
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-end">
           <div>
             <p className="text-sm font-medium text-primary mb-1 tracking-wide uppercase">Step {currentStep} of {totalSteps}</p>
             <h1 className="text-3xl md:text-4xl font-bold text-balance">{title}</h1>
             {description && <p className="text-muted-foreground mt-2 text-lg max-w-prose">{description}</p>}
           </div>
-          <Button variant="ghost" onClick={handleSaveAndExit} className="hidden sm:flex" disabled={isLoading}>
-            <Save className="h-4 w-4 mr-2" /> Save & Exit
+          <Button variant="outline" onClick={handleSaveAndExit} className="shrink-0 w-full sm:w-auto" disabled={isLoading}>
+            <Save className="h-4 w-4 mr-2" /> Save & exit
           </Button>
         </div>
         <Progress value={progress} className="h-2 bg-muted" />

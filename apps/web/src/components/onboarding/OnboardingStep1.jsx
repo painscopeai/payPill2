@@ -19,7 +19,14 @@ const CATALOG_KEYS = [
 export default function OnboardingStep1() {
   const { formData, updateFormData } = useOnboarding();
   const { currentUser } = useAuth();
-  const data = formData.step1 || { email: currentUser?.email || '' };
+  const defaults = {
+    email: currentUser?.email || '',
+    first_name: currentUser?.first_name || '',
+    last_name: currentUser?.last_name || '',
+    phone: currentUser?.phone || '',
+  };
+  const saved = formData.step1 && typeof formData.step1 === 'object' ? formData.step1 : {};
+  const data = { ...defaults, ...saved };
   const { catalog, loading: catalogLoading } = useProfileOptionCatalog(CATALOG_KEYS);
 
   const handleChange = (field, value) => {

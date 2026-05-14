@@ -187,7 +187,7 @@ export default function BookingPage() {
                             <SelectValue
                               placeholder={
                                 providers.length === 0
-                                  ? 'No verified providers available'
+                                  ? 'No provider practices available yet'
                                   : 'Select provider'
                               }
                             />

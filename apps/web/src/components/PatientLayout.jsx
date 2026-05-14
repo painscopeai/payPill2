@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -60,15 +60,10 @@ export default function PatientLayout({ children }) {
     return String(unreadMessageCount);
   }, [unreadMessageCount]);
 
-  /** Health profile (onboarding) must be completed before other patient areas — sign-up → verify → profile → rest of app. */
-  const mustFinishProfile =
+  const showOnboardingReminder =
     currentUser?.role === 'individual' &&
     currentUser?.onboarding_completed !== true &&
     !location.pathname.startsWith('/patient/onboarding');
-
-  if (mustFinishProfile) {
-    return <Navigate to="/patient/onboarding" replace />;
-  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
@@ -154,6 +149,18 @@ export default function PatientLayout({ children }) {
           </div>
         </header>
         <div className="flex-1 p-4 sm:p-6 lg:p-8">
+          {showOnboardingReminder ? (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+              <span className="font-medium">Finish your health profile when you can.</span>{' '}
+              <Link to="/patient/onboarding" className="underline font-semibold">
+                Continue setup
+              </Link>
+              <span className="text-amber-800/90 dark:text-amber-200/90">
+                {' '}
+                — you can use the rest of the app; progress is saved as you go.
+              </span>
+            </div>
+          ) : null}
           {children}
         </div>
       </main>

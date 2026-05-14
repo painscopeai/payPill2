@@ -377,17 +377,43 @@ export async function getAppointmentCatalog(): Promise<{
 		services: ProviderCatalogService[];
 	}>;
 }> {
-	const [visitTypes, insuranceOptions, copayMatrix, providersRes] = await Promise.all([
+	const [visitTypes, insuranceOptions, copayMatrix, linkedOrgRes] = await Promise.all([
 		listVisitTypes(false),
 		listInsuranceOptions(false),
 		listCopayMatrixCatalog(),
 		sb()
+			.from('profiles')
+			.select('provider_org_id, specialty')
+			.eq('role', 'provider')
+			.eq('provider_onboarding_completed', true)
+			.not('provider_org_id', 'is', null),
+	]);
+	if (linkedOrgRes.error) throw linkedOrgRes.error;
+	const linkRows = (linkedOrgRes.data || []) as { provider_org_id: string | null; specialty: string | null }[];
+	const orgIds = [
+		...new Set(
+			linkRows.map((r) => r.provider_org_id).filter((id): id is string => Boolean(id)),
+		),
+	];
+	const specialtyByOrg = new Map<string, string>();
+	for (const r of linkRows) {
+		const oid = r.provider_org_id;
+		if (!oid) continue;
+		const s = (r.specialty || '').trim();
+		if (s && !specialtyByOrg.has(oid)) specialtyByOrg.set(oid, s);
+	}
+
+	let providersRes: { data: unknown[] | null; error: { message: string } | null };
+	if (orgIds.length === 0) {
+		providersRes = { data: [], error: null };
+	} else {
+		const res = await sb()
 			.from('providers')
 			.select('id, name, provider_name, type, specialty, email, address, scheduling_url')
-			.eq('status', 'active')
-			.eq('verification_status', 'verified')
-			.order('name', { ascending: true }),
-	]);
+			.in('id', orgIds)
+			.order('name', { ascending: true });
+		providersRes = res;
+	}
 	if (providersRes.error) throw providersRes.error;
 	type Prov = {
 		id: string;
@@ -451,9 +477,15 @@ export async function getAppointmentCatalog(): Promise<{
 		visitTypes,
 		insuranceOptions,
 		copayMatrix,
-		providers: baseProviders.map((p) => ({
-			...p,
-			services: servicesByProvider.get(p.id) || [],
-		})),
+		providers: baseProviders.map((p) => {
+			const specFromProfile = specialtyByOrg.get(p.id);
+			const specialty =
+				(p.specialty && String(p.specialty).trim()) || (specFromProfile && specFromProfile.trim()) || null;
+			return {
+				...p,
+				specialty,
+				services: servicesByProvider.get(p.id) || [],
+			};
+		}),
 	};
 }
