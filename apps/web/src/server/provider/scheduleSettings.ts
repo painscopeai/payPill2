@@ -115,6 +115,41 @@ export function getDayKeyForYmdInTimeZone(ymd: string, timeZone: string): DayKey
 	return DAY_KEYS[new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay()] ?? 'mon';
 }
 
+/** YYYY-MM-DD for `instant` in IANA `timeZone` (same calendar semantics as weekly hours). */
+export function formatYmdInTimeZone(instant: Date, timeZone: string): string {
+	let tz = timeZone?.trim() || 'UTC';
+	try {
+		new Intl.DateTimeFormat('en-US', { timeZone: tz }).format(0);
+	} catch {
+		tz = 'UTC';
+	}
+	return new Intl.DateTimeFormat('en-CA', {
+		timeZone: tz,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+	}).format(instant);
+}
+
+/** Minutes since local midnight in `timeZone` for `instant` (0–1439). */
+export function getWallClockMinutesFromMidnightInTimeZone(instant: Date, timeZone: string): number {
+	let tz = timeZone?.trim() || 'UTC';
+	try {
+		new Intl.DateTimeFormat('en-US', { timeZone: tz }).format(0);
+	} catch {
+		tz = 'UTC';
+	}
+	const parts = new Intl.DateTimeFormat('en-GB', {
+		timeZone: tz,
+		hour: 'numeric',
+		minute: 'numeric',
+		hourCycle: 'h23',
+	}).formatToParts(instant);
+	const hh = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10);
+	const mm = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0', 10);
+	return hh * 60 + mm;
+}
+
 export function intervalsToMinuteRanges(day: DayKey, weekly: WeeklyHours): { start: number; end: number }[] {
 	const intervals = weekly[day];
 	if (!intervals?.length) return [];
@@ -156,7 +191,15 @@ export function buildSlotSuggestions(
 	return out;
 }
 
-export type SlotGridEntry = { time: string; available: boolean; reason?: 'booked' };
+export type SlotGridEntry = { time: string; available: boolean; reason?: 'booked' | 'past' };
+
+export type BuildSlotGridOptions = {
+	/**
+	 * When the patient picks "today" in the provider timezone, minutes-of-day before this
+	 * threshold are treated as already passed (slot start must be >= now).
+	 */
+	nowCutoffStartMinutes?: number | null;
+};
 
 /** Every step-sized start in working windows, marked booked vs free (for patient booking UI). */
 export function buildSlotGridWithAvailability(
@@ -164,19 +207,26 @@ export function buildSlotGridWithAvailability(
 	durationMinutes: number,
 	bookedSlots: { start: number; end: number }[],
 	stepMinutes = 15,
+	opts?: BuildSlotGridOptions,
 ): SlotGridEntry[] {
+	const cutoff = opts?.nowCutoffStartMinutes;
 	const seen = new Set<string>();
 	const out: SlotGridEntry[] = [];
 	for (const w of windows.length ? windows : [DEFAULT_DAY_RANGE]) {
 		for (let slotStart = w.start; slotStart + durationMinutes <= w.end; slotStart += stepMinutes) {
 			const slotEnd = slotStart + durationMinutes;
 			const booked = bookedSlots.some((b) => slotStart < b.end && slotEnd > b.start);
+			const past = !booked && cutoff != null && slotStart < cutoff;
+			const available = !booked && !past;
+			let reason: SlotGridEntry['reason'];
+			if (booked) reason = 'booked';
+			else if (past) reason = 'past';
 			const h = Math.floor(slotStart / 60);
 			const m = slotStart % 60;
 			const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 			if (seen.has(timeStr)) continue;
 			seen.add(timeStr);
-			out.push({ time: timeStr, available: !booked, reason: booked ? 'booked' : undefined });
+			out.push({ time: timeStr, available, reason });
 		}
 	}
 	out.sort((a, b) => a.time.localeCompare(b.time));

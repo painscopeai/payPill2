@@ -8,6 +8,7 @@ import {
 } from '@/server/admin/appointmentReferenceService';
 import { sendBookingConfirmationEmails } from '@/server/email/bookingConfirmationEmail';
 import { normalizeAppointmentTime } from '@/lib/appointmentDateTime';
+import { getPatientBookingSlotsForDate } from '@/server/provider/patientBookingDaySlots';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -202,6 +203,23 @@ export async function POST(request: NextRequest) {
 	if (!linkedCompletedCount || linkedCompletedCount < 1) {
 		return NextResponse.json(
 			{ error: 'Provider is not available for booking. Only registered provider practices can accept bookings.' },
+			{ status: 400 },
+		);
+	}
+
+	const slotPack = await getPatientBookingSlotsForDate(sb, providerId, appointmentDate);
+	if (!slotPack.ok) {
+		return NextResponse.json(
+			{ error: slotPack.error, ...(slotPack.detail ? { detail: slotPack.detail } : {}) },
+			{ status: slotPack.status },
+		);
+	}
+	if (!slotPack.available_times.includes(appointmentTimeStored)) {
+		return NextResponse.json(
+			{
+				error:
+					'That start time is not open for this provider on this date. It may be outside clinic hours, already booked, or already past — choose another time from the list.',
+			},
 			{ status: 400 },
 		);
 	}

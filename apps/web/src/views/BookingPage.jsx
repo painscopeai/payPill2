@@ -392,8 +392,8 @@ export default function BookingPage() {
                               >
                                 <p className="text-xs font-medium text-foreground mb-1">Provider availability</p>
                                 <p className="text-xs leading-relaxed">
-                                  Only start times inside this clinic&apos;s working hours are shown. Slots labeled
-                                  booked are already reserved. Pick a free slot to continue.
+                                  Only start times inside this clinic&apos;s working hours are shown. Past times and
+                                  slots already reserved cannot be selected. Pick a free slot to continue.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
@@ -439,7 +439,13 @@ export default function BookingPage() {
                                         }`}
                                       >
                                         {s.time}
-                                        {!s.available ? ' taken' : ''}
+                                        {!s.available
+                                          ? s.reason === 'past'
+                                            ? ' past'
+                                            : s.reason === 'booked'
+                                              ? ' taken'
+                                              : ' unavailable'
+                                          : ''}
                                       </span>
                                     ))}
                                   </div>
@@ -481,7 +487,13 @@ export default function BookingPage() {
                                 {slotState.slots.map((s) => (
                                   <SelectItem key={s.time} value={s.time} disabled={!s.available}>
                                     {s.time}
-                                    {!s.available ? ' (booked)' : ''}
+                                    {!s.available
+                                      ? s.reason === 'past'
+                                        ? ' (past)'
+                                        : s.reason === 'booked'
+                                          ? ' (booked)'
+                                          : ' (unavailable)'
+                                      : ''}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
