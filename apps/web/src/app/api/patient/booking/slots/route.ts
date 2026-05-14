@@ -13,6 +13,12 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+type ProviderScheduleRow = {
+	timezone: string;
+	slot_duration_minutes: number;
+	weekly_hours: unknown;
+};
+
 /**
  * GET /api/patient/booking/slots?providerId=&date=YYYY-MM-DD&duration_minutes=
  * Slot grid for the selected date from provider weekly hours + existing appointments (patient booking UI).
@@ -59,11 +65,7 @@ export async function GET(request: NextRequest) {
 		.limit(20);
 
 	const teamIds = ((team || []) as { id: string }[]).map((r) => r.id).filter(Boolean);
-	let schedRow: {
-		timezone: string;
-		slot_duration_minutes: number;
-		weekly_hours: unknown;
-	} | null = null;
+	let schedRow: ProviderScheduleRow | null = null;
 
 	for (const tid of teamIds) {
 		const { data: row } = await sb
@@ -72,7 +74,7 @@ export async function GET(request: NextRequest) {
 			.eq('provider_user_id', tid)
 			.maybeSingle();
 		if (row) {
-			schedRow = row as typeof schedRow;
+			schedRow = row as ProviderScheduleRow;
 			break;
 		}
 	}
