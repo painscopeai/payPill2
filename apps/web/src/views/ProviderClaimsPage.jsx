@@ -17,7 +17,17 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
-import { ChevronDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from '@/components/ui/command';
+import { ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import apiServerClient from '@/lib/apiServerClient';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 
@@ -40,14 +50,40 @@ function normalize(s) {
 		.toLowerCase();
 }
 
+function patientRowLabel(row) {
+	const p = row.patient_details;
+	const cov = row.coverage_summary;
+	const n = [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim();
+	if (n) return n;
+	if (cov?.full_name) return String(cov.full_name);
+	return String(p?.email || row.patient_id || '').trim() || row.patient_id;
+}
+
+function matchesInsuranceSelection(row, insuranceValue) {
+	if (!insuranceValue) return true;
+	if (insuranceValue === '__UNSPECIFIED__') {
+		return (row.insurance_group || '') === 'Unspecified payer';
+	}
+	const sel = normalize(insuranceValue);
+	return normalize(row.insurance_group) === sel || normalize(row.insurance_plan_label || '') === sel;
+}
+
 export default function ProviderClaimsPage() {
 	const [items, setItems] = useState([]);
 	const [note, setNote] = useState('');
 	const [loading, setLoading] = useState(true);
 	const [dateFrom, setDateFrom] = useState('');
 	const [dateTo, setDateTo] = useState('');
-	const [patientQuery, setPatientQuery] = useState('');
-	const [insuranceQuery, setInsuranceQuery] = useState('');
+	const [patientUserId, setPatientUserId] = useState('');
+	const [insuranceValue, setInsuranceValue] = useState('');
+
+	const [patients, setPatients] = useState([]);
+	const [patientsLoading, setPatientsLoading] = useState(true);
+	const [insuranceItems, setInsuranceItems] = useState([]);
+	const [insuranceLoading, setInsuranceLoading] = useState(true);
+
+	const [patientOpen, setPatientOpen] = useState(false);
+	const [insuranceOpen, setInsuranceOpen] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -69,24 +105,72 @@ export default function ProviderClaimsPage() {
 		};
 	}, []);
 
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			setPatientsLoading(true);
+			try {
+				const res = await apiServerClient.fetch('/provider/patients');
+				const body = await res.json().catch(() => ({}));
+				if (!cancelled && res.ok && Array.isArray(body)) setPatients(body);
+			} finally {
+				if (!cancelled) setPatientsLoading(false);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			setInsuranceLoading(true);
+			try {
+				const res = await apiServerClient.fetch('/provider/insurance-directory');
+				const body = await res.json().catch(() => ({}));
+				if (!cancelled && res.ok) setInsuranceItems(Array.isArray(body.items) ? body.items : []);
+			} finally {
+				if (!cancelled) setInsuranceLoading(false);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	const insuranceComboChoices = useMemo(() => {
+		const rest = insuranceItems.filter((i) => i.value !== '__UNSPECIFIED__');
+		const unspec = insuranceItems.find((i) => i.value === '__UNSPECIFIED__');
+		const out = [{ value: '', label: 'All payers', subtitle: null }, ...rest];
+		if (unspec) out.push(unspec);
+		return out;
+	}, [insuranceItems]);
+
+	const patientDisplay = useMemo(() => {
+		if (!patientUserId) return 'All patients';
+		const row = patients.find((p) => p.patient_id === patientUserId);
+		return row ? patientRowLabel(row) : 'Selected patient';
+	}, [patientUserId, patients]);
+
+	const insuranceDisplay = useMemo(() => {
+		if (!insuranceValue) return 'All payers';
+		const hit = insuranceComboChoices.find((i) => i.value === insuranceValue);
+		return hit?.label || 'Selected payer';
+	}, [insuranceValue, insuranceComboChoices]);
+
 	const filteredItems = useMemo(() => {
-		const pq = normalize(patientQuery);
-		const iq = normalize(insuranceQuery);
 		return items.filter((row) => {
 			const sd = row.service_date || '';
 			if (dateFrom && sd && sd < dateFrom) return false;
 			if (dateTo && sd && sd > dateTo) return false;
 			if (dateFrom && !sd) return false;
 			if (dateTo && !sd) return false;
-			if (pq && !normalize(row.patient_display).includes(pq)) return false;
-			if (iq) {
-				const g = normalize(row.insurance_group);
-				const p = normalize(row.insurance_plan_label);
-				if (!g.includes(iq) && !p.includes(iq)) return false;
-			}
+			if (patientUserId && row.patient_user_id !== patientUserId) return false;
+			if (!matchesInsuranceSelection(row, insuranceValue)) return false;
 			return true;
 		});
-	}, [items, dateFrom, dateTo, patientQuery, insuranceQuery]);
+	}, [items, dateFrom, dateTo, patientUserId, insuranceValue]);
 
 	const groups = useMemo(() => {
 		const map = new Map();
@@ -113,11 +197,11 @@ export default function ProviderClaimsPage() {
 	const clearFilters = () => {
 		setDateFrom('');
 		setDateTo('');
-		setPatientQuery('');
-		setInsuranceQuery('');
+		setPatientUserId('');
+		setInsuranceValue('');
 	};
 
-	const filtersActive = Boolean(dateFrom || dateTo || patientQuery.trim() || insuranceQuery.trim());
+	const filtersActive = Boolean(dateFrom || dateTo || patientUserId || insuranceValue);
 
 	return (
 		<div className="space-y-6 max-w-7xl">
@@ -163,28 +247,103 @@ export default function ProviderClaimsPage() {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="claims-patient">Patient</Label>
-							<Input
-								id="claims-patient"
-								type="search"
-								placeholder="Name contains…"
-								value={patientQuery}
-								onChange={(e) => setPatientQuery(e.target.value)}
-								autoComplete="off"
-								aria-label="Filter by patient name"
-							/>
+							<Label id="claims-patient-label">Patient</Label>
+							<Popover open={patientOpen} onOpenChange={setPatientOpen}>
+								<PopoverTrigger asChild>
+									<Button
+										type="button"
+										variant="outline"
+										aria-labelledby="claims-patient-label"
+										aria-expanded={patientOpen}
+										disabled={patientsLoading}
+										className={cn('w-full justify-between font-normal', !patientUserId && 'text-muted-foreground')}
+									>
+										<span className="truncate text-left">{patientsLoading ? 'Loading patients…' : patientDisplay}</span>
+										<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent className="min-w-[var(--radix-popover-trigger-width)] w-[min(100vw-2rem,24rem)] p-0" align="start">
+									<Command>
+										<CommandInput placeholder="Search patients…" />
+										<CommandList>
+											<CommandEmpty>No patient found.</CommandEmpty>
+											<CommandGroup heading="Patients">
+												<CommandItem
+													value="all patients roster"
+													onSelect={() => {
+														setPatientUserId('');
+														setPatientOpen(false);
+													}}
+												>
+													All patients
+												</CommandItem>
+												{patients.map((row) => {
+													const label = patientRowLabel(row);
+													return (
+														<CommandItem
+															key={row.patient_id}
+															value={`${label} ${row.patient_id}`}
+															onSelect={() => {
+																setPatientUserId(row.patient_id);
+																setPatientOpen(false);
+															}}
+														>
+															<span className="truncate">{label}</span>
+														</CommandItem>
+													);
+												})}
+											</CommandGroup>
+										</CommandList>
+									</Command>
+								</PopoverContent>
+							</Popover>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="claims-insurance">Insurance</Label>
-							<Input
-								id="claims-insurance"
-								type="search"
-								placeholder="Plan or payer contains…"
-								value={insuranceQuery}
-								onChange={(e) => setInsuranceQuery(e.target.value)}
-								autoComplete="off"
-								aria-label="Filter by insurance plan or payer"
-							/>
+							<Label id="claims-insurance-label">Insurance</Label>
+							<Popover open={insuranceOpen} onOpenChange={setInsuranceOpen}>
+								<PopoverTrigger asChild>
+									<Button
+										type="button"
+										variant="outline"
+										aria-labelledby="claims-insurance-label"
+										aria-expanded={insuranceOpen}
+										disabled={insuranceLoading}
+										className={cn('w-full justify-between font-normal', !insuranceValue && 'text-muted-foreground')}
+									>
+										<span className="truncate text-left">
+											{insuranceLoading ? 'Loading payers…' : insuranceDisplay}
+										</span>
+										<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent className="min-w-[var(--radix-popover-trigger-width)] w-[min(100vw-2rem,24rem)] p-0" align="start">
+									<Command>
+										<CommandInput placeholder="Search insurance…" />
+										<CommandList>
+											<CommandEmpty>No payer found.</CommandEmpty>
+											<CommandGroup heading="Insurance">
+												{insuranceComboChoices.map((opt) => (
+													<CommandItem
+														key={opt.value === '' ? '__all__' : opt.value}
+														value={`${opt.label} ${opt.subtitle || ''} ${opt.value}`}
+														onSelect={() => {
+															setInsuranceValue(opt.value);
+															setInsuranceOpen(false);
+														}}
+													>
+														<div className="flex min-w-0 flex-col">
+															<span className="truncate">{opt.label}</span>
+															{opt.subtitle ? (
+																<span className="truncate text-xs text-muted-foreground">{opt.subtitle}</span>
+															) : null}
+														</div>
+													</CommandItem>
+												))}
+											</CommandGroup>
+										</CommandList>
+									</Command>
+								</PopoverContent>
+							</Popover>
 						</div>
 					</div>
 					{filtersActive ? (
