@@ -140,10 +140,8 @@ export default function ProviderClaimsPage() {
 	}, []);
 
 	const insuranceComboChoices = useMemo(() => {
-		const rest = insuranceItems.filter((i) => i.value !== '__UNSPECIFIED__');
-		const unspec = insuranceItems.find((i) => i.value === '__UNSPECIFIED__');
-		const out = [{ value: '', label: 'All payers', subtitle: null }, ...rest];
-		if (unspec) out.push(unspec);
+		const out = [{ value: '', label: 'All payers', subtitle: null }, ...insuranceItems];
+		out.push({ value: '__UNSPECIFIED__', label: 'Unspecified payer', subtitle: 'No plan on file' });
 		return out;
 	}, [insuranceItems]);
 
