@@ -900,10 +900,10 @@ export default function ProviderConsultationWorkspacePage() {
 									<Button type="button" disabled={saving} onClick={() => void save('finalized')}>
 										Finalize encounter
 									</Button>
-									<span className="text-xs text-muted-foreground self-center ml-auto">
+									<span className="text-xs text-muted-foreground self-center max-w-md text-right">
 										{encounterStatus === 'finalized'
-											? 'Marked finalized — you can still edit and save again if needed.'
-											: 'Draft — save before the patient leaves or finalize when complete.'}
+											? 'Marked finalized — the patient can open this visit under Consultations and complete lab or medication actions.'
+											: 'Draft — save before the patient leaves, or finalize when complete so the patient sees the visit and action plan.'}
 									</span>
 								</div>
 							</>

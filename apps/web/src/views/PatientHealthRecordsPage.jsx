@@ -32,6 +32,7 @@ import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 const TAB_TO_TYPE = {
   conditions: 'condition',
   labs: 'lab_result',
+  medications: 'medication',
   allergies: 'allergy',
   surgeries: 'surgery',
 };
@@ -39,6 +40,7 @@ const TAB_TO_TYPE = {
 const TYPE_LABELS = {
   condition: 'Condition',
   lab_result: 'Lab result',
+  medication: 'Medication',
   allergy: 'Allergy',
   surgery: 'Surgery',
 };
@@ -111,6 +113,13 @@ function getFieldHints(recordType) {
         date: 'Test date',
         status: 'Result summary (e.g. Normal, Review needed)',
         provider: 'Laboratory / facility',
+      };
+    case 'medication':
+      return {
+        title: 'Medication name',
+        date: 'Start or relevant date',
+        status: 'Status (e.g. Active, Completed)',
+        provider: 'Prescriber or clinic',
       };
     case 'allergy':
       return {
@@ -218,6 +227,11 @@ export default function PatientHealthRecordsPage() {
   const labRows = useMemo(
     () =>
       records.filter((r) => r.record_type === 'lab_result').filter((r) => matchesSearch(r, searchTerm)),
+    [records, searchTerm],
+  );
+  const medicationRows = useMemo(
+    () =>
+      records.filter((r) => r.record_type === 'medication').filter((r) => matchesSearch(r, searchTerm)),
     [records, searchTerm],
   );
   const allergyRows = useMemo(
@@ -449,6 +463,7 @@ export default function PatientHealthRecordsPage() {
                 {[
                   ['conditions', 'Conditions'],
                   ['labs', 'Lab Results'],
+                  ['medications', 'Medications'],
                   ['allergies', 'Allergies'],
                   ['surgeries', 'Surgeries'],
                 ].map(([value, label]) => (
@@ -561,6 +576,49 @@ export default function PatientHealthRecordsPage() {
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <Button variant="ghost" size="sm" onClick={() => openDetail(l)}>
+                                  Details
+                                </Button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="medications" className="p-0 m-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="text-xs text-muted-foreground uppercase bg-muted/10 border-b">
+                        <tr>
+                          <th className="px-6 py-4 font-medium">Medication</th>
+                          <th className="px-6 py-4 font-medium">Date</th>
+                          <th className="px-6 py-4 font-medium">Status</th>
+                          <th className="px-6 py-4 font-medium">Provider</th>
+                          <th className="px-6 py-4 font-medium text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {medicationRows.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
+                              No medications recorded yet. Items you mark complete from a consultation plan appear here.
+                            </td>
+                          </tr>
+                        ) : (
+                          medicationRows.map((m) => (
+                            <tr key={m.id} className="hover:bg-muted/5 transition-colors">
+                              <td className="px-6 py-4 font-medium text-foreground">{m.title}</td>
+                              <td className="px-6 py-4 text-muted-foreground">
+                                {formatDisplayDate(m.record_date)}
+                              </td>
+                              <td className="px-6 py-4 text-muted-foreground">{m.status || '—'}</td>
+                              <td className="px-6 py-4 text-muted-foreground">
+                                {m.provider_or_facility || '—'}
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <Button variant="ghost" size="sm" onClick={() => openDetail(m)}>
                                   Details
                                 </Button>
                               </td>

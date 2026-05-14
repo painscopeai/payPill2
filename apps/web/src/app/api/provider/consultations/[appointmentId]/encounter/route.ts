@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { isConsultationQueueVisit, visitSlugFromAppointmentRow } from '@/server/provider/consultationVisitSlugs';
+import { syncConsultationActionItemsOnFinalize } from '@/server/patient/syncConsultationActionItemsOnFinalize';
 
 function normalizeJsonArray(raw: unknown): unknown[] {
 	if (Array.isArray(raw)) return raw;
@@ -204,6 +205,24 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 		.single();
 	if (selErr || !encounter) {
 		return NextResponse.json({ error: 'Encounter saved but could not reload.' }, { status: 500 });
+	}
+
+	const enc = encounter as {
+		id: string;
+		appointment_id: string;
+		patient_user_id: string;
+		prescription_lines?: unknown;
+		lab_orders?: unknown;
+		status: string;
+	};
+	if (enc.status === 'finalized') {
+		await syncConsultationActionItemsOnFinalize(sb, {
+			id: enc.id,
+			appointment_id: enc.appointment_id,
+			patient_user_id: enc.patient_user_id,
+			prescription_lines: enc.prescription_lines,
+			lab_orders: enc.lab_orders,
+		});
 	}
 
 	return NextResponse.json({ encounter });

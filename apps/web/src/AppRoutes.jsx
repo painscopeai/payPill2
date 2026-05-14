@@ -33,6 +33,7 @@ const PatientAppointmentsPage = React.lazy(() => import('./views/PatientAppointm
 const PatientPrescriptionsPage = React.lazy(() => import('./views/PatientPrescriptionsPage.jsx'));
 const PatientMessagesPage = React.lazy(() => import('./views/PatientMessagesPage.jsx'));
 const PatientInsuranceProfilePage = React.lazy(() => import('./views/PatientInsuranceProfilePage.jsx'));
+const PatientConsultationsPage = React.lazy(() => import('./views/PatientConsultationsPage.jsx'));
 
 const PharmacyPage = React.lazy(() => import('./views/PharmacyPage.jsx'));
 const TelemedicinePage = React.lazy(() => import('./views/TelemedicinePage.jsx'));
@@ -212,6 +213,8 @@ export default function AppRoutes() {
 										<Route path="onboarding" element={<PatientOnboardingPage />} />
 										<Route path="dashboard" element={<PatientDashboardPage />} />
 										<Route path="records" element={<PatientHealthRecordsPage />} />
+										<Route path="consultations" element={<PatientConsultationsPage />} />
+										<Route path="consultations/:appointmentId" element={<PatientConsultationsPage />} />
 										<Route path="ai-recommendations" element={<AIRecommendationsPage />} />
 										<Route path="marketplace" element={<MarketplaceSearchPage />} />
 										<Route path="booking" element={<BookingPage />} />

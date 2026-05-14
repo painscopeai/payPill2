@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Home, User, Sparkles, FileText, Calendar, MessageSquare, LogOut, Menu, Shield } from 'lucide-react';
+import { Home, User, Sparkles, FileText, Calendar, MessageSquare, LogOut, Menu, Shield, Stethoscope } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import NotificationBell from '@/components/NotificationBell.jsx';
@@ -13,6 +13,7 @@ const ALL_PATIENT_NAV_ITEMS = [
   { label: 'Dashboard', icon: Home, path: '/patient/dashboard' },
   { label: 'Messages', icon: MessageSquare, path: '/patient/messages', module: 'messages' },
   { label: 'Records', icon: FileText, path: '/patient/records' },
+  { label: 'Consultations', icon: Stethoscope, path: '/patient/consultations' },
   { label: 'Appointments', icon: Calendar, path: '/patient/appointments' },
   { label: 'Insurance', icon: Shield, path: '/patient/insurance', module: 'insurance' },
   { label: 'Insights', icon: Sparkles, path: '/patient/ai-recommendations' },
@@ -39,7 +40,7 @@ export default function PatientLayout({ children }) {
     });
   }, [currentUser?.role, currentUser?.employee_patient]);
 
-  const isActive = (path) => location.pathname.startsWith(path);
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   useEffect(() => {
     if (currentUser?.role !== 'individual' || currentUser?.employee_patient !== true) {
