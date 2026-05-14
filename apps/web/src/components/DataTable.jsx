@@ -36,13 +36,13 @@ export default function DataTable({ columns, data, loading, emptyMessage = "No d
         <TableBody>
           {data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={columns.length} className="h-32 text-center text-muted-foreground">
+              <TableCell colSpan={columns.length} className="min-h-32 py-8 text-center text-muted-foreground align-top">
                 {emptyMessage}
               </TableCell>
             </TableRow>
           ) : (
             data.map((row, rowIndex) => (
-              <TableRow key={rowIndex} className="hover:bg-muted/30 transition-colors">
+              <TableRow key={String(row.id ?? row.patient_id ?? rowIndex)} className="hover:bg-muted/30 transition-colors">
                 {columns.map((col, colIndex) => (
                   <TableCell key={colIndex} className="py-4">
                     {col.cell ? col.cell(row) : row[col.accessorKey]}

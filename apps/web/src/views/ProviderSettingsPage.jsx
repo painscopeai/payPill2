@@ -47,6 +47,37 @@ export default function ProviderSettingsPage() {
 					</p>
 				</CardContent>
 			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Clinical catalogs & services</CardTitle>
+				</CardHeader>
+				<CardContent className="space-y-3 text-sm">
+					<p className="text-muted-foreground">
+						Manage drug and lab pick-lists for consultations, and bulk-import billable services. JSON bulk upload is supported on each page.
+					</p>
+					<ul className="list-disc pl-5 space-y-1.5">
+						<li>
+							<Link to="/provider/settings/catalog/drugs" className="text-teal-600 font-medium underline">
+								Drug formulary
+							</Link>{' '}
+							— medications available when prescribing during a visit.
+						</li>
+						<li>
+							<Link to="/provider/settings/catalog/labs" className="text-teal-600 font-medium underline">
+								Laboratory test catalog
+							</Link>{' '}
+							— common orders selectable from the consultation workspace.
+						</li>
+						<li>
+							<Link to="/provider/settings/catalog/services" className="text-teal-600 font-medium underline">
+								Services list
+							</Link>{' '}
+							— append services & pricing in bulk (existing rows are kept).
+						</li>
+					</ul>
+				</CardContent>
+			</Card>
 		</div>
 	);
 }

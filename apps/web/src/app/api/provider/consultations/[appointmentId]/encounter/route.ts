@@ -4,6 +4,19 @@ import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { isConsultationQueueVisit, visitSlugFromAppointmentRow } from '@/server/provider/consultationVisitSlugs';
 
+function normalizeJsonArray(raw: unknown): unknown[] {
+	if (Array.isArray(raw)) return raw;
+	if (raw && typeof raw === 'string') {
+		try {
+			const p = JSON.parse(raw) as unknown;
+			return Array.isArray(p) ? p : [];
+		} catch {
+			return [];
+		}
+	}
+	return [];
+}
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +36,7 @@ async function loadConsultationAppointment(
       id,
       user_id,
       provider_id,
+      provider_service_id,
       appointment_date,
       appointment_time,
       appointment_type,
@@ -37,7 +51,17 @@ async function loadConsultationAppointment(
 		.maybeSingle();
 	if (error || !apt) return { ok: false, error: 'Appointment not found', status: 404 };
 	const row = apt as Record<string, unknown>;
-	if (row.provider_id !== providerOrgId) {
+	let inPractice = row.provider_id === providerOrgId;
+	if (!inPractice && row.provider_service_id) {
+		const { data: svc } = await sb
+			.from('provider_services')
+			.select('id')
+			.eq('id', String(row.provider_service_id))
+			.eq('provider_id', providerOrgId)
+			.maybeSingle();
+		inPractice = Boolean(svc);
+	}
+	if (!inPractice) {
 		return { ok: false, error: 'Not part of your practice', status: 403 };
 	}
 	const slug = visitSlugFromAppointmentRow(row as never);
@@ -119,6 +143,8 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 		additional_notes?: string;
 		vitals?: Record<string, unknown>;
 		status?: string;
+		prescription_lines?: unknown;
+		lab_orders?: unknown;
 	};
 
 	const sb = getSupabaseAdmin();
@@ -129,6 +155,8 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 
 	const status = body.status === 'finalized' ? 'finalized' : 'draft';
 	const vitals = body.vitals && typeof body.vitals === 'object' ? body.vitals : {};
+	const prescription_lines = normalizeJsonArray(body.prescription_lines);
+	const lab_orders = normalizeJsonArray(body.lab_orders);
 
 	const payload = {
 		appointment_id: appointmentId,
@@ -140,6 +168,8 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 		plan: body.plan ?? null,
 		additional_notes: body.additional_notes ?? null,
 		vitals,
+		prescription_lines,
+		lab_orders,
 		status,
 		updated_at: new Date().toISOString(),
 	};

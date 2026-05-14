@@ -8,11 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import apiServerClient from '@/lib/apiServerClient';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { toast } from 'sonner';
-import { Calendar, ExternalLink, FileText, User } from 'lucide-react';
+import { Calendar, ExternalLink, FileText, User, Trash2, Plus, Pill, FlaskConical } from 'lucide-react';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
+import { useAuth } from '@/contexts/AuthContext';
 
 function formatDateShort(value) {
 	if (!value) return '—';
@@ -68,7 +70,52 @@ function parseVitalsForSave(form) {
 	return out;
 }
 
+function newId(prefix) {
+	if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+	return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function newRxLine(over = {}) {
+	return {
+		id: newId('rx'),
+		medication_name: '',
+		strength: '',
+		dose: '',
+		route: 'oral',
+		frequency: '',
+		duration_days: '',
+		quantity: '',
+		refills: '0',
+		sig: '',
+		catalog_id: null,
+		...over,
+	};
+}
+
+function newLabLine(over = {}) {
+	return {
+		id: newId('lab'),
+		test_name: '',
+		code: '',
+		indication: '',
+		priority: 'routine',
+		catalog_id: null,
+		...over,
+	};
+}
+
+function normalizeEncounterLines(raw, factory) {
+	if (!Array.isArray(raw)) return [];
+	return raw
+		.filter((x) => x && typeof x === 'object')
+		.map((x) => {
+			const base = factory();
+			return { ...base, ...x, id: x.id || base.id };
+		});
+}
+
 export default function ProviderConsultationWorkspacePage() {
+	const { currentUser } = useAuth();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const appointmentFromUrl = searchParams.get('appointment');
 
@@ -90,6 +137,11 @@ export default function ProviderConsultationWorkspacePage() {
 	const [additionalNotes, setAdditionalNotes] = useState('');
 	const [vitalsForm, setVitalsForm] = useState(emptyVitals);
 	const [encounterStatus, setEncounterStatus] = useState('draft');
+
+	const [drugCatalog, setDrugCatalog] = useState([]);
+	const [labCatalog, setLabCatalog] = useState([]);
+	const [prescriptionLines, setPrescriptionLines] = useState([]);
+	const [labOrders, setLabOrders] = useState([]);
 
 	const [saving, setSaving] = useState(false);
 
@@ -115,6 +167,28 @@ export default function ProviderConsultationWorkspacePage() {
 		void loadList();
 	}, [loadList]);
 
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			try {
+				const [dRes, lRes] = await Promise.all([
+					apiServerClient.fetch('/provider/catalog/drugs'),
+					apiServerClient.fetch('/provider/catalog/labs'),
+				]);
+				const dBody = await dRes.json().catch(() => ({}));
+				const lBody = await lRes.json().catch(() => ({}));
+				if (cancelled) return;
+				if (dRes.ok) setDrugCatalog(Array.isArray(dBody.items) ? dBody.items : []);
+				if (lRes.ok) setLabCatalog(Array.isArray(lBody.items) ? lBody.items : []);
+			} catch {
+				/* non-blocking */
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
 	const applyEncounterPayload = useCallback((enc) => {
 		if (!enc) {
 			setSubjective('');
@@ -123,6 +197,8 @@ export default function ProviderConsultationWorkspacePage() {
 			setPlan('');
 			setAdditionalNotes('');
 			setVitalsForm(emptyVitals());
+			setPrescriptionLines([]);
+			setLabOrders([]);
 			setEncounterStatus('draft');
 			return;
 		}
@@ -132,6 +208,8 @@ export default function ProviderConsultationWorkspacePage() {
 		setPlan(enc.plan || '');
 		setAdditionalNotes(enc.additional_notes || '');
 		setVitalsForm(vitalsFromEncounter(enc.vitals));
+		setPrescriptionLines(normalizeEncounterLines(enc.prescription_lines, () => newRxLine()));
+		setLabOrders(normalizeEncounterLines(enc.lab_orders, () => newLabLine()));
 		setEncounterStatus(enc.status === 'finalized' ? 'finalized' : 'draft');
 	}, []);
 
@@ -207,6 +285,53 @@ export default function ProviderConsultationWorkspacePage() {
 		);
 	}, [patient]);
 
+	const prescriberDisplay = useMemo(() => {
+		const n = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ').trim();
+		if (n) return n;
+		return String(currentUser?.email || '').trim() || 'Licensed prescriber';
+	}, [currentUser]);
+
+	const addRxFromCatalog = (drugId) => {
+		const d = drugCatalog.find((x) => x.id === drugId);
+		if (!d) return;
+		const sigParts = [d.default_frequency, d.default_strength, d.default_route].filter(Boolean);
+		setPrescriptionLines((prev) => [
+			...prev,
+			newRxLine({
+				medication_name: d.name,
+				strength: d.default_strength || '',
+				route: d.default_route || 'oral',
+				frequency: d.default_frequency || '',
+				duration_days: d.default_duration_days != null ? String(d.default_duration_days) : '',
+				quantity: d.default_quantity != null ? String(d.default_quantity) : '',
+				refills: d.default_refills != null ? String(d.default_refills) : '0',
+				sig: sigParts.join(' · '),
+				catalog_id: d.id,
+			}),
+		]);
+	};
+
+	const addLabFromCatalog = (labId) => {
+		const t = labCatalog.find((x) => x.id === labId);
+		if (!t) return;
+		setLabOrders((prev) => [
+			...prev,
+			newLabLine({
+				test_name: t.test_name,
+				code: t.code || '',
+				catalog_id: t.id,
+			}),
+		]);
+	};
+
+	const updateRxLine = (id, patch) => {
+		setPrescriptionLines((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+	};
+
+	const updateLabLine = (id, patch) => {
+		setLabOrders((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+	};
+
 	const save = async (status) => {
 		if (!selectedId) return;
 		setSaving(true);
@@ -223,6 +348,8 @@ export default function ProviderConsultationWorkspacePage() {
 						plan,
 						additional_notes: additionalNotes,
 						vitals: parseVitalsForSave(vitalsForm),
+						prescription_lines: prescriptionLines,
+						lab_orders: labOrders,
 						status: status === 'finalized' ? 'finalized' : 'draft',
 					}),
 				},
@@ -461,6 +588,252 @@ export default function ProviderConsultationWorkspacePage() {
 										</div>
 									</div>
 								</div>
+
+								<div className="space-y-3 rounded-lg border p-4">
+									<div className="flex items-center gap-2">
+										<Pill className="h-4 w-4 text-muted-foreground" />
+										<h3 className="text-sm font-semibold">Prescriptions</h3>
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Add medications for this visit. Saved with the encounter; configure your formulary under Settings → Drug formulary.
+									</p>
+									<div className="flex flex-wrap gap-2 items-end">
+										<div className="min-w-[200px] flex-1 space-y-1">
+											<Label className="text-xs">From formulary</Label>
+											<select
+												className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+												defaultValue=""
+												onChange={(e) => {
+													const v = e.target.value;
+													if (v) addRxFromCatalog(v);
+													e.target.value = '';
+												}}
+											>
+												<option value="">Select medication…</option>
+												{drugCatalog.map((d) => (
+													<option key={d.id} value={d.id}>
+														{d.name}
+													</option>
+												))}
+											</select>
+										</div>
+										<Button type="button" variant="outline" size="sm" onClick={() => setPrescriptionLines((p) => [...p, newRxLine()])}>
+											<Plus className="h-4 w-4 mr-1" />
+											Blank line
+										</Button>
+									</div>
+									{prescriptionLines.length === 0 ? (
+										<p className="text-sm text-muted-foreground">No medications added.</p>
+									) : (
+										<div className="space-y-3 overflow-x-auto">
+											{prescriptionLines.map((rx) => (
+												<div key={rx.id} className="rounded-md border bg-muted/20 p-3 space-y-2">
+													<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+														<div className="space-y-1">
+															<Label className="text-xs">Medication</Label>
+															<Input
+																value={rx.medication_name}
+																onChange={(e) => updateRxLine(rx.id, { medication_name: e.target.value })}
+															/>
+														</div>
+														<div className="space-y-1">
+															<Label className="text-xs">Strength</Label>
+															<Input value={rx.strength} onChange={(e) => updateRxLine(rx.id, { strength: e.target.value })} />
+														</div>
+														<div className="space-y-1">
+															<Label className="text-xs">Dose / form</Label>
+															<Input value={rx.dose} onChange={(e) => updateRxLine(rx.id, { dose: e.target.value })} />
+														</div>
+														<div className="space-y-1">
+															<Label className="text-xs">Route</Label>
+															<Input value={rx.route} onChange={(e) => updateRxLine(rx.id, { route: e.target.value })} />
+														</div>
+														<div className="space-y-1">
+															<Label className="text-xs">Frequency</Label>
+															<Input
+																value={rx.frequency}
+																onChange={(e) => updateRxLine(rx.id, { frequency: e.target.value })}
+															/>
+														</div>
+														<div className="space-y-1">
+															<Label className="text-xs">Duration (days)</Label>
+															<Input
+																inputMode="numeric"
+																value={rx.duration_days}
+																onChange={(e) => updateRxLine(rx.id, { duration_days: e.target.value })}
+															/>
+														</div>
+														<div className="space-y-1">
+															<Label className="text-xs">Quantity</Label>
+															<Input
+																inputMode="numeric"
+																value={rx.quantity}
+																onChange={(e) => updateRxLine(rx.id, { quantity: e.target.value })}
+															/>
+														</div>
+														<div className="space-y-1">
+															<Label className="text-xs">Refills</Label>
+															<Input
+																inputMode="numeric"
+																value={rx.refills}
+																onChange={(e) => updateRxLine(rx.id, { refills: e.target.value })}
+															/>
+														</div>
+													</div>
+													<div className="space-y-1">
+														<Label className="text-xs">Sig (patient directions)</Label>
+														<Textarea
+															rows={2}
+															className="resize-y text-sm"
+															value={rx.sig}
+															onChange={(e) => updateRxLine(rx.id, { sig: e.target.value })}
+														/>
+													</div>
+													<div className="flex justify-end">
+														<Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setPrescriptionLines((p) => p.filter((x) => x.id !== rx.id))}>
+															<Trash2 className="h-4 w-4 mr-1" />
+															Remove
+														</Button>
+													</div>
+												</div>
+											))}
+										</div>
+									)}
+								</div>
+
+								<div className="space-y-3 rounded-lg border p-4">
+									<div className="flex items-center gap-2">
+										<FlaskConical className="h-4 w-4 text-muted-foreground" />
+										<h3 className="text-sm font-semibold">Laboratory orders</h3>
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Select tests from your catalog or add custom orders. Saved with the encounter.
+									</p>
+									<div className="flex flex-wrap gap-2 items-end">
+										<div className="min-w-[200px] flex-1 space-y-1">
+											<Label className="text-xs">From catalog</Label>
+											<select
+												className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+												defaultValue=""
+												onChange={(e) => {
+													const v = e.target.value;
+													if (v) addLabFromCatalog(v);
+													e.target.value = '';
+												}}
+											>
+												<option value="">Select test…</option>
+												{labCatalog.map((t) => (
+													<option key={t.id} value={t.id}>
+														{t.test_name}
+														{t.code ? ` (${t.code})` : ''}
+													</option>
+												))}
+											</select>
+										</div>
+										<Button type="button" variant="outline" size="sm" onClick={() => setLabOrders((p) => [...p, newLabLine()])}>
+											<Plus className="h-4 w-4 mr-1" />
+											Custom test
+										</Button>
+									</div>
+									{labOrders.length === 0 ? (
+										<p className="text-sm text-muted-foreground">No lab orders.</p>
+									) : (
+										<div className="space-y-2">
+											{labOrders.map((lab) => (
+												<div key={lab.id} className="flex flex-col sm:flex-row gap-2 sm:items-end rounded-md border p-2">
+													<div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+														<div className="space-y-1">
+															<Label className="text-xs">Test name</Label>
+															<Input
+																value={lab.test_name}
+																onChange={(e) => updateLabLine(lab.id, { test_name: e.target.value })}
+															/>
+														</div>
+														<div className="space-y-1">
+															<Label className="text-xs">Code</Label>
+															<Input value={lab.code} onChange={(e) => updateLabLine(lab.id, { code: e.target.value })} />
+														</div>
+														<div className="space-y-1">
+															<Label className="text-xs">Priority</Label>
+															<select
+																className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+																value={lab.priority}
+																onChange={(e) => updateLabLine(lab.id, { priority: e.target.value })}
+															>
+																<option value="routine">Routine</option>
+																<option value="stat">STAT</option>
+															</select>
+														</div>
+													</div>
+													<div className="flex-1 space-y-1">
+														<Label className="text-xs">Clinical indication</Label>
+														<Input
+															value={lab.indication}
+															onChange={(e) => updateLabLine(lab.id, { indication: e.target.value })}
+														/>
+													</div>
+													<Button type="button" variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => setLabOrders((p) => p.filter((x) => x.id !== lab.id))}>
+														<Trash2 className="h-4 w-4" />
+													</Button>
+												</div>
+											))}
+										</div>
+									)}
+								</div>
+
+								<div className="rounded-lg border-2 border-slate-800 bg-white p-6 text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
+									<p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Prescription preview</p>
+									<div className="mt-4 font-serif text-sm leading-relaxed space-y-3">
+										<div className="flex justify-between gap-4 border-b border-slate-300 pb-2 dark:border-slate-600">
+											<div>
+												<p className="font-semibold text-base">{patientName}</p>
+												{patient?.date_of_birth ? <p className="text-xs">DOB: {formatDateShort(patient.date_of_birth)}</p> : null}
+												{patient?.phone ? <p className="text-xs">Tel: {patient.phone}</p> : null}
+											</div>
+											<div className="text-right text-xs">
+												<p>{formatDateShort(new Date().toISOString().slice(0, 10))}</p>
+												{appointment?.confirmation_number ? <p>Ref: {appointment.confirmation_number}</p> : null}
+											</div>
+										</div>
+										{prescriptionLines.filter((r) => String(r.medication_name || '').trim()).length === 0 ? (
+											<p className="text-sm text-slate-500 italic">No medications to display.</p>
+										) : (
+											<table className="w-full text-left text-sm border-collapse">
+												<thead>
+													<tr className="border-b border-slate-300 dark:border-slate-600">
+														<th className="py-2 pr-2 font-semibold">Medication</th>
+														<th className="py-2 pr-2 font-semibold">Sig</th>
+														<th className="py-2 pr-2 font-semibold w-16">Qty</th>
+														<th className="py-2 font-semibold w-14">RF</th>
+													</tr>
+												</thead>
+												<tbody>
+													{prescriptionLines
+														.filter((r) => String(r.medication_name || '').trim())
+														.map((rx) => (
+															<tr key={rx.id} className="border-b border-slate-200 dark:border-slate-800 align-top">
+																<td className="py-2 pr-2">
+																	<span className="font-medium">{rx.medication_name}</span>
+																	{rx.strength ? <span className="block text-xs text-slate-600 dark:text-slate-400">{rx.strength}</span> : null}
+																	{rx.dose ? <span className="block text-xs">{rx.dose}</span> : null}
+																</td>
+																<td className="py-2 pr-2 text-xs whitespace-pre-wrap">{rx.sig || `${rx.frequency || ''} ${rx.route ? `· ${rx.route}` : ''}`.trim() || '—'}</td>
+																<td className="py-2 pr-2 text-xs">{rx.quantity || '—'}</td>
+																<td className="py-2 text-xs">{rx.refills ?? '—'}</td>
+															</tr>
+														))}
+												</tbody>
+											</table>
+										)}
+										<div className="pt-4 border-t border-slate-300 text-xs dark:border-slate-600">
+											<p className="font-semibold">{prescriberDisplay}</p>
+											{currentUser?.npi ? <p>NPI: {currentUser.npi}</p> : null}
+											<p className="text-slate-500 mt-1 dark:text-slate-400">Electronic signature on file after finalize.</p>
+										</div>
+									</div>
+								</div>
+
+								<Separator />
 
 								<div className="space-y-4">
 									<div className="space-y-2">
