@@ -551,17 +551,6 @@ export default function BookingPage() {
                           </p>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Billing uses your employer plan if you are on a roster, otherwise your{' '}
-                        <button
-                          type="button"
-                          className="text-primary underline underline-offset-2"
-                          onClick={() => navigate('/patient/insurance')}
-                        >
-                          walk-in insurance profile
-                        </button>
-                        . Update it there if booking says coverage is missing.
-                      </p>
                     </>
                     </TooltipProvider>
                   )}
