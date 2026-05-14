@@ -27,6 +27,35 @@ function hasNonEmptyRxOrLab(prescription_lines: unknown, lab_orders: unknown): b
 	return rx.length > 0 || lab.length > 0;
 }
 
+/** Vitals are jsonb; tolerate stringified JSON or null. */
+function coerceVitals(raw: unknown): Record<string, unknown> {
+	if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+		return raw as Record<string, unknown>;
+	}
+	if (typeof raw === 'string') {
+		try {
+			const p = JSON.parse(raw) as unknown;
+			if (p && typeof p === 'object' && !Array.isArray(p)) return p as Record<string, unknown>;
+		} catch {
+			/* ignore */
+		}
+	}
+	return {};
+}
+
+type ActionRow = {
+	item_type: string;
+	line_index: number | null;
+	payload: unknown;
+};
+
+function linesFromActionItems(items: ActionRow[], type: 'prescription' | 'lab'): Record<string, unknown>[] {
+	return items
+		.filter((i) => i.item_type === type)
+		.sort((a, b) => (a.line_index ?? 0) - (b.line_index ?? 0))
+		.map((i) => (i.payload && typeof i.payload === 'object' ? (i.payload as Record<string, unknown>) : {}));
+}
+
 /** GET /api/patient/consultations/[appointmentId] — finalized visit, full encounter summary, action plan (with lazy backfill). */
 export async function GET(request: NextRequest, ctx: { params: Promise<{ appointmentId: string }> }) {
 	void request;
@@ -165,7 +194,17 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ appoint
 	const visitLabel =
 		(vt && !Array.isArray(vt) && vt.label) || (Array.isArray(vt) && vt[0]?.label) || slug || 'Visit';
 
-	const vitals = enc.vitals && typeof enc.vitals === 'object' ? enc.vitals : {};
+	const vitals = coerceVitals(enc.vitals);
+	let prescription_lines = coerceJsonArray(enc.prescription_lines);
+	let lab_orders = coerceJsonArray(enc.lab_orders);
+
+	const typedActions = (actionItems || []) as ActionRow[];
+	if (!prescription_lines.length) {
+		prescription_lines = linesFromActionItems(typedActions, 'prescription');
+	}
+	if (!lab_orders.length) {
+		lab_orders = linesFromActionItems(typedActions, 'lab');
+	}
 
 	return NextResponse.json({
 		appointment: {
@@ -187,8 +226,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ appoint
 			plan: enc.plan,
 			additional_notes: enc.additional_notes,
 			vitals,
-			prescription_lines: coerceJsonArray(enc.prescription_lines),
-			lab_orders: coerceJsonArray(enc.lab_orders),
+			prescription_lines,
+			lab_orders,
 		},
 		action_items: actionItems,
 		action_plan_message: actionPlanMessage,

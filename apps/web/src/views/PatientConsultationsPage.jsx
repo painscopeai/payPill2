@@ -10,6 +10,28 @@ import { toast } from 'sonner';
 import { ArrowLeft, Calendar, CheckCircle2, CircleDashed } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+/** Vitals may arrive as jsonb object or a JSON string (edge cases / proxies). */
+function normalizeVitals(raw) {
+	if (!raw) return null;
+	if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+	if (typeof raw === 'string') {
+		try {
+			const p = JSON.parse(raw);
+			if (p && typeof p === 'object' && !Array.isArray(p)) return p;
+		} catch {
+			/* ignore */
+		}
+	}
+	return null;
+}
+
+function linesFromActionItems(items, type) {
+	return (items || [])
+		.filter((a) => a.item_type === type)
+		.sort((a, b) => (a.line_index ?? 0) - (b.line_index ?? 0))
+		.map((a) => (a.payload && typeof a.payload === 'object' ? a.payload : {}));
+}
+
 function vitalsEntries(vitals) {
 	if (!vitals || typeof vitals !== 'object') return [];
 	const labels = {
@@ -154,11 +176,18 @@ export default function PatientConsultationsPage() {
 
 	if (appointmentId) {
 		const enc = detail?.encounter;
-		const rxList = Array.isArray(enc?.prescription_lines)
+		let rxList = Array.isArray(enc?.prescription_lines)
 			? enc.prescription_lines.filter((r) => r && String(r.medication_name || '').trim())
 			: [];
-		const labList = Array.isArray(enc?.lab_orders) ? enc.lab_orders.filter((r) => r && String(r.test_name || '').trim()) : [];
-		const vitalPairs = enc?.vitals ? vitalsEntries(enc.vitals) : [];
+		let labList = Array.isArray(enc?.lab_orders) ? enc.lab_orders.filter((r) => r && String(r.test_name || '').trim()) : [];
+		if (!rxList.length) {
+			rxList = linesFromActionItems(detail?.action_items, 'prescription').filter((r) => r && String(r.medication_name || '').trim());
+		}
+		if (!labList.length) {
+			labList = linesFromActionItems(detail?.action_items, 'lab').filter((r) => r && String(r.test_name || '').trim());
+		}
+		const vitalsObj = normalizeVitals(enc?.vitals);
+		const vitalPairs = vitalsObj ? vitalsEntries(vitalsObj) : [];
 
 		return (
 			<div className="space-y-6 max-w-4xl mx-auto">
