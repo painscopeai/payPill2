@@ -605,14 +605,6 @@ export default function BookingPage() {
                       <p className="font-medium">{visitTypeLabel(formData.appointmentType)}</p>
                     </div>
                   </div>
-                  {confirmation?.copayAmount != null ? (
-                    <div className="text-sm border-t pt-3">
-                      <span className="text-muted-foreground">Estimated copay (saved): </span>
-                      <span className="font-semibold">
-                        ${Number(confirmation.copayAmount).toFixed(2)}
-                      </span>
-                    </div>
-                  ) : null}
                   {selectedCatalogService ? (
                     <div className="text-sm border-t pt-3">
                       <span className="text-muted-foreground">Provider catalog line: </span>
