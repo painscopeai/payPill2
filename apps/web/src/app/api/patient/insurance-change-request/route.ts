@@ -7,8 +7,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET — current coverage + pending insurance change request (walk-in / individual).
- * POST — create pending change request (requires insurance admin approval).
+ * GET — current walk-in / individual insurance coverage (and any legacy pending request).
+ * POST — apply insurance change immediately on the patient profile (no insurer approval).
  */
 export async function GET(request: NextRequest) {
 	const uid = await getBearerUserId(request);
@@ -134,41 +134,48 @@ export async function POST(request: NextRequest) {
 		);
 	}
 
-	const { data: dup } = await sb
-		.from('patient_insurance_change_requests')
-		.select('id')
-		.eq('patient_user_id', uid)
-		.eq('status', 'pending')
-		.limit(1)
-		.maybeSingle();
-	if (dup) {
-		return NextResponse.json({ error: 'You already have a pending insurance change request.' }, { status: 409 });
-	}
-
-	const { data: prof } = await sb
+	const { data: org } = await sb
 		.from('profiles')
-		.select('primary_insurance_user_id, insurance_member_id')
-		.eq('id', uid)
+		.select('id, role, status')
+		.eq('id', reqIns)
 		.maybeSingle();
-	const cur = prof as { primary_insurance_user_id: string | null; insurance_member_id: string | null } | null;
-
-	const { data: inserted, error: insErr } = await sb
-		.from('patient_insurance_change_requests')
-		.insert({
-			patient_user_id: uid,
-			previous_insurance_user_id: cur?.primary_insurance_user_id ?? null,
-			previous_member_id: cur?.insurance_member_id ?? null,
-			requested_insurance_user_id: reqIns,
-			requested_member_id: reqMem,
-			status: 'pending',
-		})
-		.select('id')
-		.single();
-
-	if (insErr) {
-		console.error('[patient/insurance-change-request]', insErr.message);
-		return NextResponse.json({ error: insErr.message }, { status: 400 });
+	const orgRow = org as { id: string; role: string; status: string | null } | null;
+	if (
+		!orgRow ||
+		orgRow.role !== 'insurance' ||
+		String(orgRow.status || 'active').toLowerCase() === 'inactive'
+	) {
+		return NextResponse.json({ error: 'Invalid insurance organization' }, { status: 400 });
 	}
 
-	return NextResponse.json({ success: true, id: inserted?.id });
+	const { error: profErr } = await sb
+		.from('profiles')
+		.update({
+			primary_insurance_user_id: reqIns,
+			insurance_member_id: reqMem,
+			patient_coverage_source: 'walk_in',
+		})
+		.eq('id', uid);
+
+	if (profErr) {
+		console.error('[patient/insurance-change-request] profile update', profErr.message);
+		return NextResponse.json({ error: profErr.message }, { status: 500 });
+	}
+
+	const now = new Date().toISOString();
+	const { error: clearErr } = await sb
+		.from('patient_insurance_change_requests')
+		.update({
+			status: 'rejected',
+			reviewed_at: now,
+			reviewer_note: 'Superseded by patient self-service update',
+		})
+		.eq('patient_user_id', uid)
+		.eq('status', 'pending');
+
+	if (clearErr) {
+		console.warn('[patient/insurance-change-request] clear pending', clearErr.message);
+	}
+
+	return NextResponse.json({ success: true, applied: true });
 }

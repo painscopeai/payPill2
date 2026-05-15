@@ -43,8 +43,8 @@ export default function PatientInsuranceProfilePage() {
 				setOrgs(optBody.organizations || []);
 				setProfile(profBody);
 				setForm({
-					insuranceOrgId: profBody.pending_request?.requested_insurance_user_id || '',
-					memberId: profBody.pending_request?.requested_member_id || '',
+					insuranceOrgId: profBody.primary_insurance_user_id || profBody.insurance_org?.id || '',
+					memberId: '',
 				});
 			} catch (e) {
 				if (!c) toast.error(e.message || 'Failed to load');
@@ -57,14 +57,10 @@ export default function PatientInsuranceProfilePage() {
 		};
 	}, []);
 
-	const submitRequest = async (e) => {
+	const saveCoverage = async (e) => {
 		e.preventDefault();
 		if (profile?.is_employee) {
 			toast.error('Your insurance is assigned by your employer.');
-			return;
-		}
-		if (profile?.pending_request) {
-			toast.message('You already have a pending request.');
 			return;
 		}
 		if (!form.insuranceOrgId || !form.memberId.trim()) {
@@ -82,21 +78,26 @@ export default function PatientInsuranceProfilePage() {
 				}),
 			});
 			const body = await res.json().catch(() => ({}));
-			if (!res.ok) throw new Error(body.error || 'Request failed');
-			toast.success('Request submitted. Your insurer will review it in their portal.');
+			if (!res.ok) throw new Error(body.error || 'Update failed');
+			toast.success('Insurance coverage updated.');
 			await refreshProfile();
 			const profRes = await apiServerClient.fetch('/patient/insurance-change-request');
 			const profBody = await profRes.json().catch(() => ({}));
-			if (profRes.ok) setProfile(profBody);
+			if (profRes.ok) {
+				setProfile(profBody);
+				setForm({
+					insuranceOrgId: profBody.primary_insurance_user_id || profBody.insurance_org?.id || '',
+					memberId: '',
+				});
+			}
 		} catch (err) {
-			toast.error(err.message || 'Failed to submit');
+			toast.error(err.message || 'Failed to update');
 		} finally {
 			setSaving(false);
 		}
 	};
 
 	const currentOrgLabel = profile?.insurance_org?.display_name || '—';
-	const pending = profile?.pending_request;
 
 	return (
 		<div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
@@ -105,8 +106,7 @@ export default function PatientInsuranceProfilePage() {
 			</Helmet>
 			<h1 className="text-2xl font-bold tracking-tight">Insurance & coverage</h1>
 			<p className="text-muted-foreground text-sm">
-				Walk-in patients choose a registered insurer and member ID. Changes after signup require approval from
-				that insurer.
+				Walk-in patients choose a registered insurer and member ID. Updates take effect immediately.
 			</p>
 
 			{loading ? (
@@ -137,64 +137,53 @@ export default function PatientInsuranceProfilePage() {
 								<span className="text-muted-foreground">Member ID: </span>
 								{profile?.insurance_member_id ? '••••' + String(profile.insurance_member_id).slice(-4) : '—'}
 							</p>
-							{pending ? (
-								<p className="text-amber-700 dark:text-amber-400 pt-2 border-t">
-									Pending change to <strong>{pending.requested_insurance_display_name}</strong> (submitted{' '}
-									{pending.created_at ? new Date(pending.created_at).toLocaleString() : ''}).
-								</p>
-							) : null}
 						</CardContent>
 					</Card>
 
 					{!profile?.is_employee ? (
 						<Card>
 							<CardHeader>
-								<CardTitle>Request insurance change</CardTitle>
+								<CardTitle>Update coverage</CardTitle>
 								<CardDescription>
-									Submit a new insurer and member ID. It takes effect only after the insurer approves in
-									their admin portal.
+									Select your insurer and enter your member ID. Changes apply to your account right away.
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
-								{pending ? (
-									<p className="text-sm text-muted-foreground">Cancel is not available in-app; contact support if needed.</p>
-								) : (
-									<form onSubmit={submitRequest} className="space-y-4">
-										<div className="space-y-2">
-											<Label>Insurance company</Label>
-											<Select
-												value={form.insuranceOrgId || undefined}
-												onValueChange={(v) => setForm((f) => ({ ...f, insuranceOrgId: v }))}
-												required
-											>
-												<SelectTrigger>
-													<SelectValue placeholder="Select insurer" />
-												</SelectTrigger>
-												<SelectContent>
-													{orgs.map((o) => (
-														<SelectItem key={o.id} value={o.id}>
-															{o.display_name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="mid">Insurance / member ID</Label>
-											<Input
-												id="mid"
-												required
-												value={form.memberId}
-												onChange={(e) => setForm((f) => ({ ...f, memberId: e.target.value }))}
-												placeholder="Policy or member number"
-											/>
-										</div>
-										<Button type="submit" disabled={saving}>
-											{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-											Submit for approval
-										</Button>
-									</form>
-								)}
+								<form onSubmit={saveCoverage} className="space-y-4">
+									<div className="space-y-2">
+										<Label>Insurance company</Label>
+										<Select
+											value={form.insuranceOrgId || undefined}
+											onValueChange={(v) => setForm((f) => ({ ...f, insuranceOrgId: v }))}
+											required
+										>
+											<SelectTrigger>
+												<SelectValue placeholder="Select insurer" />
+											</SelectTrigger>
+											<SelectContent>
+												{orgs.map((o) => (
+													<SelectItem key={o.id} value={o.id}>
+														{o.display_name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="mid">Insurance / member ID</Label>
+										<Input
+											id="mid"
+											required
+											value={form.memberId}
+											onChange={(e) => setForm((f) => ({ ...f, memberId: e.target.value }))}
+											placeholder="Policy or member number"
+										/>
+									</div>
+									<Button type="submit" disabled={saving}>
+										{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+										Save coverage
+									</Button>
+								</form>
 							</CardContent>
 						</Card>
 					) : null}
