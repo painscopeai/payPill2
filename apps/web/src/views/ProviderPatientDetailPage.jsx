@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,6 +56,7 @@ export default function ProviderPatientDetailPage() {
 	const [loadError, setLoadError] = useState(null);
 	const [notes, setNotes] = useState('');
 	const [saving, setSaving] = useState(false);
+	const recordsRestoreKeyRef = useRef(null);
 
 	const loadRecord = useCallback(async () => {
 		if (!id) return;
@@ -63,6 +64,7 @@ export default function ProviderPatientDetailPage() {
 		setLoadError(null);
 		setRecordsUnlocked(false);
 		setActiveTab('profile');
+		recordsRestoreKeyRef.current = null;
 		try {
 			const res = await apiServerClient.fetch(
 				`/provider/patients/${encodeURIComponent(id)}?view=profile`,
@@ -132,25 +134,32 @@ export default function ProviderPatientDetailPage() {
 		void loadRecord();
 	}, [loadRecord]);
 
+	/** Restore 30-min records session once per patient (avoid re-fetch loop when record state updates). */
 	useEffect(() => {
-		if (!id || !providerId || loading || !record) return;
+		if (!id || !providerId || loading) return;
+		const restoreKey = `${providerId}:${id}`;
+		if (recordsRestoreKeyRef.current === restoreKey) return;
 		const stored = readStoredRecordsToken(providerId, id);
-		if (stored) {
-			void loadRecordsBundle(stored);
-		}
-	}, [id, providerId, loading, record, loadRecordsBundle]);
+		if (!stored) return;
+		recordsRestoreKeyRef.current = restoreKey;
+		void loadRecordsBundle(stored);
+	}, [id, providerId, loading, loadRecordsBundle]);
 
 	const handleTabChange = (value) => {
 		if (value === 'records') {
+			if (recordsLoading) {
+				setActiveTab('records');
+				return;
+			}
 			if (recordsUnlocked) {
 				setActiveTab('records');
 				return;
 			}
-			const stored = readStoredRecordsToken(providerId, id);
+			const stored = providerId ? readStoredRecordsToken(providerId, id) : null;
 			if (stored) {
+				setActiveTab('records');
 				void loadRecordsBundle(stored).then((ok) => {
-					if (ok) setActiveTab('records');
-					else setPasswordDialogOpen(true);
+					if (!ok) setPasswordDialogOpen(true);
 				});
 				return;
 			}

@@ -14,24 +14,48 @@ export async function GET(request: NextRequest) {
   const { data: profile } = await sb.from('profiles').select('role').eq('id', uid).maybeSingle();
   const role = String((profile as { role?: string } | null)?.role || '');
 
-  const { data: rows, error } = await sb
+  let rows: unknown[] | null = null;
+  let error: { message: string } | null = null;
+
+  const withRouting = await sb
     .from('notifications')
     .select('id,title,body,category,link,read_at,created_at')
     .eq('user_id', uid)
     .order('created_at', { ascending: false })
     .limit(20);
+
+  if (withRouting.error && /category|link/i.test(withRouting.error.message)) {
+    const legacy = await sb
+      .from('notifications')
+      .select('id,title,body,read_at,created_at')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    rows = legacy.data;
+    error = legacy.error;
+  } else {
+    rows = withRouting.data;
+    error = withRouting.error;
+  }
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const items = ((rows || []) as Array<{
     id: string;
     title: string | null;
     body: string | null;
-    category: string | null;
-    link: string | null;
+    category?: string | null;
+    link?: string | null;
     read_at: string | null;
     created_at: string;
   }>).map((r) => ({
-    ...r,
+    id: r.id,
+    title: r.title,
+    body: r.body,
+    category: r.category ?? null,
+    link: r.link ?? null,
+    read_at: r.read_at,
+    created_at: r.created_at,
     read: Boolean(r.read_at),
   }));
   const unread = items.filter((i) => !i.read).length;
