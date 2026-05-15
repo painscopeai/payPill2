@@ -44,6 +44,10 @@ export default function ProviderRecordsPasswordDialog({ open, onOpenChange, pati
 			if (!res.ok) {
 				throw new Error(body.error || 'Could not verify password');
 			}
+			// Password-only step-up: server returns success/verified, no JWT required.
+			if (body.success !== true && body.verified !== true) {
+				throw new Error(body.error || 'Could not verify password');
+			}
 			setPassword('');
 			onUnlocked();
 			handleOpenChange(false);

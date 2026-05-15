@@ -1,8 +1,20 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+function getSupabaseAuthVerifier() {
+	const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || process.env.SUPABASE_URL?.trim();
+	const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+	if (!url || !anon) {
+		throw new Error('Supabase auth is not configured');
+	}
+	return createClient(url.replace(/\/+$/, ''), anon, {
+		auth: { persistSession: false, autoRefreshToken: false },
+	});
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -66,13 +78,22 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
 		return NextResponse.json({ error: 'You do not have access to this patient' }, { status: 403 });
 	}
 
-	const { error: signInErr } = await sb.auth.signInWithPassword({ email, password });
+	let signInErr: { message: string } | null = null;
+	try {
+		const auth = getSupabaseAuthVerifier();
+		const { error } = await auth.auth.signInWithPassword({ email, password });
+		signInErr = error;
+	} catch (e) {
+		console.error('[records-access] password verify', e);
+		return NextResponse.json({ error: 'Could not verify password' }, { status: 500 });
+	}
 	if (signInErr) {
 		return NextResponse.json({ error: 'Incorrect password' }, { status: 401 });
 	}
 
 	return NextResponse.json({
 		success: true,
+		verified: true,
 		expires_in_seconds: 30 * 60,
 	});
 }
