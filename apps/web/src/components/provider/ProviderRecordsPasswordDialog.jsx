@@ -44,12 +44,8 @@ export default function ProviderRecordsPasswordDialog({ open, onOpenChange, pati
 			if (!res.ok) {
 				throw new Error(body.error || 'Could not verify password');
 			}
-			const token = body.records_access_token;
-			if (!token) {
-				throw new Error('No access token returned');
-			}
 			setPassword('');
-			onUnlocked(token);
+			onUnlocked();
 			handleOpenChange(false);
 		} catch (err) {
 			setError(err.message || 'Incorrect password');

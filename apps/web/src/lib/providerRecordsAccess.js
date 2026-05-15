@@ -1,50 +1,35 @@
-const STORAGE_PREFIX = 'paypill_provider_records_';
+const UNLOCK_MS = 30 * 60 * 1000; // 30 minutes
 
-export function recordsAccessStorageKey(providerId, patientId) {
-	return `${STORAGE_PREFIX}${providerId || 'unknown'}_${patientId}`;
+function unlockKey(providerId, patientId) {
+	return `paypill_records_unlock_${providerId || 'unknown'}_${patientId}`;
 }
 
-/** @returns {string | null} */
-export function readStoredRecordsToken(providerId, patientId) {
-	if (!patientId || !providerId || typeof sessionStorage === 'undefined') return null;
+/** Whether this provider unlocked Records for this patient within the last 30 minutes. */
+export function isRecordsUnlocked(providerId, patientId) {
+	if (!providerId || !patientId || typeof sessionStorage === 'undefined') return false;
 	try {
-		const token = sessionStorage.getItem(recordsAccessStorageKey(providerId, patientId));
-		if (!token) return null;
-		const payload = JSON.parse(atob(token.split('.')[1]));
-		if (payload?.providerId && payload.providerId !== providerId) {
-			sessionStorage.removeItem(recordsAccessStorageKey(providerId, patientId));
-			return null;
+		const raw = sessionStorage.getItem(unlockKey(providerId, patientId));
+		if (!raw) return false;
+		const { exp } = JSON.parse(raw);
+		if (!exp || exp <= Date.now()) {
+			sessionStorage.removeItem(unlockKey(providerId, patientId));
+			return false;
 		}
-		if (payload?.patientId && payload.patientId !== patientId) {
-			sessionStorage.removeItem(recordsAccessStorageKey(providerId, patientId));
-			return null;
-		}
-		if (!payload?.exp || payload.exp * 1000 <= Date.now()) {
-			sessionStorage.removeItem(recordsAccessStorageKey(providerId, patientId));
-			return null;
-		}
-		return token;
+		return true;
 	} catch {
-		return null;
+		return false;
 	}
 }
 
-export function storeRecordsToken(providerId, patientId, token) {
-	if (!patientId || !providerId || !token || typeof sessionStorage === 'undefined') return;
-	sessionStorage.setItem(recordsAccessStorageKey(providerId, patientId), token);
-}
-
-export function clearRecordsToken(providerId, patientId) {
-	if (!patientId || !providerId || typeof sessionStorage === 'undefined') return;
-	sessionStorage.removeItem(recordsAccessStorageKey(providerId, patientId));
-}
-
-/** Server marks successful records fetches with this flag. */
-export function isValidRecordsPayload(body) {
-	return Boolean(
-		body &&
-			body.records_access_granted === true &&
-			Array.isArray(body.health_records) &&
-			Array.isArray(body.onboarding_steps),
+export function storeRecordsUnlock(providerId, patientId) {
+	if (!providerId || !patientId || typeof sessionStorage === 'undefined') return;
+	sessionStorage.setItem(
+		unlockKey(providerId, patientId),
+		JSON.stringify({ exp: Date.now() + UNLOCK_MS }),
 	);
+}
+
+export function clearRecordsUnlock(providerId, patientId) {
+	if (!providerId || !patientId || typeof sessionStorage === 'undefined') return;
+	sessionStorage.removeItem(unlockKey(providerId, patientId));
 }

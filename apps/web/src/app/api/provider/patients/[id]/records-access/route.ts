@@ -2,7 +2,6 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
-import { signProviderRecordsAccessToken } from '@/server/auth/providerRecordsAccessToken';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
@@ -72,14 +71,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
 		return NextResponse.json({ error: 'Incorrect password' }, { status: 401 });
 	}
 
-	const records_access_token = signProviderRecordsAccessToken({
-		providerId: authCtx.userId,
-		patientId,
-	});
-
 	return NextResponse.json({
 		success: true,
-		records_access_token,
 		expires_in_seconds: 30 * 60,
 	});
 }

@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { buildPatientCoverageSummary } from '@/server/patient/buildPatientCoverageSummary';
-import { verifyProviderRecordsAccessToken } from '@/server/auth/providerRecordsAccessToken';
 import { loadProviderPatientRecordsBundle } from '@/server/provider/loadProviderPatientRecordsBundle';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -34,11 +33,7 @@ async function providerMayViewPatient(
 	return Boolean(apt);
 }
 
-/**
- * GET /api/provider/patients/:id
- * - Default (`view=profile`): demographics, coverage, practice appointments — no Records-tab PHI.
- * - `view=records` + header `X-Provider-Records-Token`: health records bundle after password step-up.
- */
+/** GET /api/provider/patients/:id — full chart for provider review (Profile + Records data). */
 export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
 	const authCtx = await requireProvider(request);
 	if (authCtx instanceof NextResponse) return authCtx;
@@ -48,35 +43,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 		return NextResponse.json({ error: 'Missing patient id' }, { status: 400 });
 	}
 
-	const view = request.nextUrl.searchParams.get('view') || 'profile';
-
 	const sb = getSupabaseAdmin();
 	const allowed = await providerMayViewPatient(sb, authCtx.userId, authCtx.providerOrgId, patientId);
 	if (!allowed) {
 		return NextResponse.json({ error: 'You do not have access to this patient' }, { status: 403 });
-	}
-
-	const recordsToken =
-		request.headers.get('x-provider-records-token') ||
-		request.nextUrl.searchParams.get('records_access_token');
-	const recordsAuthOk = verifyProviderRecordsAccessToken(recordsToken, {
-		providerId: authCtx.userId,
-		patientId,
-	});
-
-	if (view === 'records') {
-		if (!recordsAuthOk) {
-			return NextResponse.json(
-				{ error: 'Records access requires password verification', code: 'RECORDS_AUTH_REQUIRED' },
-				{ status: 403 },
-			);
-		}
-		const bundle = await loadProviderPatientRecordsBundle(sb, patientId);
-		return NextResponse.json({
-			patient_id: patientId,
-			records_access_granted: true,
-			...bundle,
-		});
 	}
 
 	const { data: profile, error: pErr } = await sb.from('profiles').select('*').eq('id', patientId).maybeSingle();
@@ -84,8 +54,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 		return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
 	}
 
-	const [coverage_summary, { data: appointments, error: aptErr }] = await Promise.all([
+	const [coverage_summary, recordsBundle, { data: appointments, error: aptErr }] = await Promise.all([
 		buildPatientCoverageSummary(sb, patientId).catch(() => null),
+		loadProviderPatientRecordsBundle(sb, patientId),
 		authCtx.providerOrgId
 			? sb
 					.from('appointments')
@@ -106,6 +77,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 		profile,
 		coverage_summary,
 		appointments: appointments || [],
+		...recordsBundle,
 	});
 }
 
