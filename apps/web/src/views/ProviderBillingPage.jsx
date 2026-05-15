@@ -195,15 +195,35 @@ export default function ProviderBillingPage() {
 									setLineMode(v);
 									setFormError('');
 								}}
-								className="flex flex-wrap gap-6"
+								className="grid gap-3 sm:grid-cols-2 max-w-2xl"
 							>
-								<label className="flex items-center gap-2 text-sm cursor-pointer">
-									<RadioGroupItem value="catalog" id="mode-catalog" disabled={catalogDisabled} />
-									<span>Practice service (catalog)</span>
+								<label
+									htmlFor="mode-catalog"
+									className={`flex gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+										lineMode === 'catalog' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border'
+									} ${catalogDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+								>
+									<RadioGroupItem value="catalog" id="mode-catalog" disabled={catalogDisabled} className="mt-0.5" />
+									<span className="space-y-0.5">
+										<span className="block text-sm font-medium">Services</span>
+										<span className="block text-xs text-muted-foreground leading-snug">
+											Choose from your practice catalog with preset prices.
+										</span>
+									</span>
 								</label>
-								<label className="flex items-center gap-2 text-sm cursor-pointer">
-									<RadioGroupItem value="open" id="mode-open" />
-									<span>Custom service &amp; price</span>
+								<label
+									htmlFor="mode-open"
+									className={`flex gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+										lineMode === 'open' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border'
+									}`}
+								>
+									<RadioGroupItem value="open" id="mode-open" className="mt-0.5" />
+									<span className="space-y-0.5">
+										<span className="block text-sm font-medium">Open</span>
+										<span className="block text-xs text-muted-foreground leading-snug">
+											Enter a custom description and amount for this line.
+										</span>
+									</span>
 								</label>
 							</RadioGroup>
 							{catalogDisabled && lineMode === 'catalog' ? (

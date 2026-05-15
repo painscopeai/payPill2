@@ -381,7 +381,7 @@ export default function PatientMessagesPage() {
 					) : null}
 					{messagableProviders.length > 0 ? (
 						<Button variant="outline" className="gap-2" onClick={() => setShowProviderComposer((v) => !v)}>
-							<PlusCircle className="h-4 w-4" /> Message provider
+							<PlusCircle className="h-4 w-4" /> Message a service provider
 						</Button>
 					) : null}
 				</div>
