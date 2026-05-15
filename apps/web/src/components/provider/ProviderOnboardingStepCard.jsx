@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { humanizeFieldKey, humanizeSlug, ONBOARDING_FIELD_LABELS } from '@/lib/providerPatientChartFormat';
 import { stepValidation } from '@/server/express-api/utils/validation.js';
+import { ChevronDown } from 'lucide-react';
 
 function formatScalar(value) {
 	if (value === null || value === undefined || value === '') return '—';
@@ -38,35 +40,49 @@ export default function ProviderOnboardingStepCard({ step, data, updatedLabel })
 	}, [raw]);
 
 	return (
-		<Card className="overflow-hidden border-border/80 shadow-sm">
-			<CardHeader className="bg-muted/40 border-b border-border/60 py-4">
-				<div className="flex flex-wrap items-start justify-between gap-2">
-					<div>
-						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Step {step}</p>
-						<CardTitle className="text-lg font-semibold tracking-tight mt-0.5">{title}</CardTitle>
-					</div>
-					{updatedLabel ? (
-						<CardDescription className="text-xs sm:text-right max-w-[14rem]">{updatedLabel}</CardDescription>
-					) : null}
-				</div>
-			</CardHeader>
-			<CardContent className="pt-4 pb-5">
-				{rows.length === 0 ? (
-					<p className="text-sm text-muted-foreground">No responses saved for this step.</p>
-				) : (
-					<dl className="grid gap-4 sm:grid-cols-2">
-						{rows.map(({ key, label, value }) => (
-							<div key={key} className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[minmax(10rem,14rem)_1fr] gap-x-4 gap-y-1 border-b border-border/50 pb-3 last:border-0 last:pb-0">
-								<dt className="text-sm font-medium text-muted-foreground">{label}</dt>
-								<dd className="text-sm text-foreground min-w-0">
-									<FieldValue value={value} fieldKey={key} />
-								</dd>
-							</div>
-						))}
-					</dl>
-				)}
-			</CardContent>
-		</Card>
+		<Collapsible defaultOpen className="group">
+			<Card className="overflow-hidden border-border/80 shadow-sm">
+				<CollapsibleTrigger asChild>
+					<CardHeader className="bg-muted/40 border-b border-border/60 py-4 cursor-pointer select-none hover:bg-muted/55 transition-colors flex flex-row items-start gap-3 space-y-0 rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+						<ChevronDown
+							className="mt-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90"
+							aria-hidden
+						/>
+						<div className="min-w-0 flex-1 text-left">
+							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Step {step}</p>
+							<CardTitle className="text-lg font-semibold tracking-tight mt-0.5">{title}</CardTitle>
+							<span className="sr-only">Press to expand or collapse questionnaire responses for this step.</span>
+						</div>
+						{updatedLabel ? (
+							<CardDescription className="text-xs sm:text-right max-w-[14rem] shrink-0 pt-0.5">
+								{updatedLabel}
+							</CardDescription>
+						) : null}
+					</CardHeader>
+				</CollapsibleTrigger>
+				<CollapsibleContent className="outline-none data-[state=closed]:overflow-hidden">
+					<CardContent className="pt-4 pb-5">
+						{rows.length === 0 ? (
+							<p className="text-sm text-muted-foreground">No responses saved for this step.</p>
+						) : (
+							<dl className="grid gap-4 sm:grid-cols-2">
+								{rows.map(({ key, label, value }) => (
+									<div
+										key={key}
+										className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[minmax(10rem,14rem)_1fr] gap-x-4 gap-y-1 border-b border-border/50 pb-3 last:border-0 last:pb-0"
+									>
+										<dt className="text-sm font-medium text-muted-foreground">{label}</dt>
+										<dd className="text-sm text-foreground min-w-0">
+											<FieldValue value={value} fieldKey={key} />
+										</dd>
+									</div>
+								))}
+							</dl>
+						)}
+					</CardContent>
+				</CollapsibleContent>
+			</Card>
+		</Collapsible>
 	);
 }
 

@@ -15,6 +15,8 @@ const VALID_FORM_TYPES = [
 	'condition_specific',
 	'provider_application',
 	'custom',
+	'consent',
+	'service_intake',
 ];
 
 /**

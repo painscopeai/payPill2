@@ -7,6 +7,10 @@ export const VALID_FORM_TYPES = [
 	'condition_specific',
 	'provider_application',
 	'custom',
+	/** Provider-portal consent documents (sign / acknowledge). */
+	'consent',
+	/** Provider-portal service-scoped intake questionnaires. */
+	'service_intake',
 ] as const;
 
 export type ValidFormType = (typeof VALID_FORM_TYPES)[number];

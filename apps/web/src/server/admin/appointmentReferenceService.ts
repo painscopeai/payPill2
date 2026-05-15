@@ -358,7 +358,46 @@ export type ProviderCatalogService = {
 	currency: string;
 	notes: string | null;
 	sort_order: number;
+	/** Published consent form linked to this catalog row (patient booking). */
+	consentForm?: { id: string; name: string } | null;
+	/** Published service-intake form linked to this catalog row. */
+	intakeForm?: { id: string; name: string } | null;
 };
+
+type FormMini = { id: string; name: string; status: string; form_type: string };
+
+async function publishedServiceFormsByServiceId(
+	serviceIds: string[],
+): Promise<Map<string, { consent: { id: string; name: string } | null; intake: { id: string; name: string } | null }>> {
+	const out = new Map<
+		string,
+		{ consent: { id: string; name: string } | null; intake: { id: string; name: string } | null }
+	>();
+	if (!serviceIds.length) return out;
+	for (const id of serviceIds) {
+		out.set(id, { consent: null, intake: null });
+	}
+	const { data: attRows, error } = await sb()
+		.from('provider_service_form_attachments')
+		.select('provider_service_id, attachment_kind, forms ( id, name, status, form_type )')
+		.in('provider_service_id', serviceIds);
+	if (error) throw error;
+	for (const raw of attRows || []) {
+		const row = raw as {
+			provider_service_id: string;
+			attachment_kind: string;
+			forms: FormMini | FormMini[] | null;
+		};
+		const f = Array.isArray(row.forms) ? row.forms[0] : row.forms;
+		if (!f || f.status !== 'published') continue;
+		const slot = out.get(row.provider_service_id);
+		if (!slot) continue;
+		const mini = { id: f.id, name: f.name };
+		if (row.attachment_kind === 'consent' && f.form_type === 'consent') slot.consent = mini;
+		if (row.attachment_kind === 'intake' && f.form_type === 'service_intake') slot.intake = mini;
+	}
+	return out;
+}
 
 /** Catalog for patient booking UI (server-side read). */
 export async function getAppointmentCatalog(): Promise<{
@@ -470,6 +509,16 @@ export async function getAppointmentCatalog(): Promise<{
 			const list = servicesByProvider.get(pid) || [];
 			list.push(row);
 			servicesByProvider.set(pid, list);
+		}
+
+		const allServiceIds = sorted.map((r) => r.id);
+		const publishedBySvc = await publishedServiceFormsByServiceId(allServiceIds);
+		for (const [, list] of servicesByProvider) {
+			for (const svc of list) {
+				const pub = publishedBySvc.get(svc.id);
+				svc.consentForm = pub?.consent ?? null;
+				svc.intakeForm = pub?.intake ?? null;
+			}
 		}
 	}
 

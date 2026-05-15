@@ -31,7 +31,19 @@ export const FORM_TEMPLATE_IDS = [
 	'insurance_claim',
 	'provider_feedback',
 	'provider_services_menu',
+	'consent_treatment_general',
+	'consent_hipaa_acknowledgment',
+	'consent_telehealth',
+	'service_intake_visit',
 ] as const;
+
+/** Templates providers may clone from the portal (subset of `FORM_TEMPLATE_CATALOG`). */
+export const PROVIDER_PORTAL_TEMPLATE_IDS: readonly string[] = [
+	'consent_treatment_general',
+	'consent_hipaa_acknowledgment',
+	'consent_telehealth',
+	'service_intake_visit',
+];
 
 const defaultPresentation = {
 	collect_email: true,
@@ -186,5 +198,141 @@ export const FORM_TEMPLATE_CATALOG: Record<string, FormTemplateDefinition> = {
 		settings: {},
 		questions: [],
 		infoOnly: true,
+	},
+	consent_treatment_general: {
+		id: 'consent_treatment_general',
+		name: 'General treatment consent',
+		description:
+			'Acknowledgment of risks, benefits, alternatives, and voluntary agreement to care. Duplicate and customize for your practice.',
+		form_type: 'consent',
+		category: 'Consent',
+		settings: { ...defaultPresentation, show_progress_bar: false, collect_email: true },
+		questions: [
+			{
+				sort_order: 0,
+				question_text:
+					'I have read (or had explained to me) the nature, benefits, and material risks of the proposed treatment or services.',
+				question_type: 'multiple_choice',
+				options_json: ['I agree', 'I do not agree — I will contact the office'],
+				required: true,
+			},
+			{
+				sort_order: 1,
+				question_text: 'I understand that no guarantee has been made regarding the outcome of treatment.',
+				question_type: 'multiple_choice',
+				options_json: ['I understand and agree', 'I have questions — I will contact the office'],
+				required: true,
+			},
+			{
+				sort_order: 2,
+				question_text: 'Printed name (as signature acknowledgment)',
+				question_type: 'short_text',
+				required: true,
+			},
+			{
+				sort_order: 3,
+				question_text: 'Today’s date',
+				question_type: 'date',
+				required: true,
+			},
+		],
+	},
+	consent_hipaa_acknowledgment: {
+		id: 'consent_hipaa_acknowledgment',
+		name: 'HIPAA Notice of Privacy Practices',
+		description: 'Patient acknowledgment of receipt of the Notice of Privacy Practices.',
+		form_type: 'consent',
+		category: 'Consent',
+		settings: { ...defaultPresentation, show_progress_bar: false },
+		questions: [
+			{
+				sort_order: 0,
+				question_text:
+					'I acknowledge that I have received a copy of (or access to) the Notice of Privacy Practices describing how my health information may be used and disclosed.',
+				question_type: 'multiple_choice',
+				options_json: ['I acknowledge', 'I need a copy sent to me'],
+				required: true,
+			},
+			{
+				sort_order: 1,
+				question_text: 'Optional: preferred method to receive privacy notices',
+				question_type: 'dropdown',
+				options_json: ['Portal / email', 'Postal mail', 'In person only'],
+				required: false,
+			},
+		],
+	},
+	consent_telehealth: {
+		id: 'consent_telehealth',
+		name: 'Telehealth consent',
+		description: 'Consent for virtual visits, technology limitations, and privacy in the patient’s environment.',
+		form_type: 'consent',
+		category: 'Consent',
+		settings: { ...defaultPresentation, show_progress_bar: true },
+		questions: [
+			{
+				sort_order: 0,
+				question_text:
+					'I understand telehealth involves electronic communication and may have limitations compared to in-person care.',
+				question_type: 'multiple_choice',
+				options_json: ['I understand', 'I have questions — I will contact the office'],
+				required: true,
+			},
+			{
+				sort_order: 1,
+				question_text:
+					'I agree not to record the session without the clinician’s consent, and I will use a private location when possible.',
+				question_type: 'checkboxes',
+				options_json: ['I agree'],
+				required: true,
+			},
+			{
+				sort_order: 2,
+				question_text: 'State / region where you will be located for the visit (if required by policy)',
+				question_type: 'short_text',
+				required: false,
+			},
+		],
+	},
+	service_intake_visit: {
+		id: 'service_intake_visit',
+		name: 'Service intake — visit reason & history',
+		description: 'Short questionnaire patients can complete before a visit when attached to a service.',
+		form_type: 'service_intake',
+		category: 'Intake',
+		settings: { ...defaultPresentation },
+		questions: [
+			{
+				sort_order: 0,
+				question_text: 'What is the main reason for this visit?',
+				question_type: 'short_text',
+				required: true,
+			},
+			{
+				sort_order: 1,
+				question_text: 'When did symptoms start (approximate)?',
+				question_type: 'short_text',
+				required: false,
+			},
+			{
+				sort_order: 2,
+				question_text: 'Current medications (or enter N/A)',
+				question_type: 'long_text',
+				required: true,
+			},
+			{
+				sort_order: 3,
+				question_text: 'Any new allergies since your last visit?',
+				question_type: 'multiple_choice',
+				options_json: ['No', 'Yes — details below'],
+				required: true,
+			},
+			{
+				sort_order: 4,
+				question_text: 'If you answered Yes above, describe the allergy/reaction.',
+				question_type: 'long_text',
+				required: false,
+			},
+		],
 	},
 };

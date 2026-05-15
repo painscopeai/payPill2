@@ -1,77 +1,41 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
-import { requireManageFormsAdmin } from '@/server/auth/requireManageFormsAdmin';
+import { requireProvider } from '@/server/auth/requireProvider';
 import { mergeSettingsIntoForm } from '@/server/forms/formSerialization';
-import { VALID_FORM_TYPES } from '@/lib/validFormTypes';
+import { isProviderPortalFormType } from '@/server/forms/assertProviderFormAccess';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-	const ctx = await requireManageFormsAdmin(request);
+	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
 
 	const url = new URL(request.url);
 	const pageNum = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1);
 	const pageLimit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
 	const status = url.searchParams.get('status') || undefined;
-	const form_type = url.searchParams.get('form_type') || undefined;
-	const includeResponseStats =
-		url.searchParams.get('include_response_stats') === '1' ||
-		url.searchParams.get('include_response_stats') === 'true';
-
-	if (form_type && !(VALID_FORM_TYPES as readonly string[]).includes(form_type)) {
-		return NextResponse.json(
-			{ error: `Invalid form_type: must be one of [${VALID_FORM_TYPES.join(', ')}]` },
-			{ status: 400 },
-		);
-	}
 
 	const sb = getSupabaseAdmin();
 	const from = (pageNum - 1) * pageLimit;
 	const to = from + pageLimit - 1;
 
 	try {
-		let q = sb.from('forms').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(from, to);
-		q = q.eq('owner_scope', 'admin');
-		if (status) q = q.eq('status', status as string);
-		if (form_type) q = q.eq('form_type', form_type);
+		let q = sb
+			.from('forms')
+			.select('*', { count: 'exact' })
+			.eq('owner_scope', 'provider')
+			.eq('owner_profile_id', ctx.userId)
+			.in('form_type', ['consent', 'service_intake'])
+			.order('updated_at', { ascending: false })
+			.range(from, to);
+		if (status) q = q.eq('status', status);
 		const { data: formRows, error: listErr, count } = await q;
 		if (listErr) throw listErr;
 		const total = count ?? 0;
-		const items = (formRows || []).map((row: Record<string, unknown>) =>
-			mergeSettingsIntoForm(row),
-		) as Record<string, unknown>[];
-
-		if (includeResponseStats) {
-			const { data: statsRows, error: statsErr } = await sb
-				.from('form_response_stats')
-				.select('form_id, response_count, last_submitted_at');
-			if (statsErr) throw statsErr;
-			const byFormId = new Map<
-				string,
-				{ response_count: number; last_submitted_at: string | null }
-			>();
-			for (const s of statsRows || []) {
-				const row = s as {
-					form_id: string;
-					response_count: number | string;
-					last_submitted_at: string | null;
-				};
-				byFormId.set(row.form_id, {
-					response_count: Number(row.response_count) || 0,
-					last_submitted_at: row.last_submitted_at,
-				});
-			}
-			for (const item of items) {
-				const id = item.id as string | undefined;
-				const st = id ? byFormId.get(id) : undefined;
-				item.response_count = st?.response_count ?? 0;
-				item.last_submitted_at = st?.last_submitted_at ?? null;
-			}
-		}
+		const items = (formRows || []).map((row: Record<string, unknown>) => mergeSettingsIntoForm(row));
 
 		return NextResponse.json({
 			items,
@@ -94,12 +58,8 @@ type CreateBody = {
 	settings?: Record<string, unknown>;
 };
 
-/**
- * POST /api/forms — create form (used by Forms Builder "Blank form").
- * Must be implemented here: the SPA calls same-origin `/api`, not the Express mount.
- */
 export async function POST(request: NextRequest) {
-	const ctx = await requireManageFormsAdmin(request);
+	const ctx = await requireProvider(request);
 	if (ctx instanceof NextResponse) return ctx;
 
 	let body: CreateBody;
@@ -114,12 +74,9 @@ export async function POST(request: NextRequest) {
 	if (!name) {
 		return NextResponse.json({ error: 'Missing required field: name' }, { status: 400 });
 	}
-	if (!form_type) {
-		return NextResponse.json({ error: 'Missing required field: form_type' }, { status: 400 });
-	}
-	if (!(VALID_FORM_TYPES as readonly string[]).includes(form_type)) {
+	if (!form_type || !isProviderPortalFormType(form_type)) {
 		return NextResponse.json(
-			{ error: `Invalid form_type: must be one of [${VALID_FORM_TYPES.join(', ')}]` },
+			{ error: 'form_type must be "consent" or "service_intake" for provider forms' },
 			{ status: 400 },
 		);
 	}
@@ -129,14 +86,11 @@ export async function POST(request: NextRequest) {
 		name,
 		form_type,
 		description: typeof body.description === 'string' ? body.description : '',
-		category:
-			body.category === undefined || body.category === null
-				? null
-				: String(body.category),
-		created_by: ctx.adminId,
+		category: body.category === undefined || body.category === null ? null : String(body.category),
+		created_by: ctx.userId,
 		status: 'draft',
-		owner_scope: 'admin',
-		owner_profile_id: null,
+		owner_scope: 'provider',
+		owner_profile_id: ctx.userId,
 	};
 	if (
 		body.settings !== undefined &&

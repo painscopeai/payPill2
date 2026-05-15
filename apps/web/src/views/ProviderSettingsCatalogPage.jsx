@@ -16,9 +16,17 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { ProviderDataTable } from '@/components/provider/ProviderDataTable.jsx';
+import ServiceFormLinks from '@/components/provider/ServiceFormLinks.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 import { ArrowLeft, Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
 
 function catalogKindFromPath(pathname) {
 	if (pathname.includes('/settings/catalog/labs')) return 'labs';
@@ -87,6 +95,13 @@ export default function ProviderSettingsCatalogPage() {
 	const [svcForm, setSvcForm] = useState(emptySvcForm);
 	const [savingForm, setSavingForm] = useState(false);
 
+	const [providerPortalForms, setProviderPortalForms] = useState([]);
+	const [formsAttachOpen, setFormsAttachOpen] = useState(false);
+	const [formsAttachRow, setFormsAttachRow] = useState(null);
+	const [attachConsentId, setAttachConsentId] = useState('__none__');
+	const [attachIntakeId, setAttachIntakeId] = useState('__none__');
+	const [savingAttachments, setSavingAttachments] = useState(false);
+
 	const apiPath = kind === 'labs' ? '/provider/catalog/labs' : kind === 'services' ? '/provider/catalog/services' : '/provider/catalog/drugs';
 
 	const title =
@@ -116,6 +131,55 @@ export default function ProviderSettingsCatalogPage() {
 	useEffect(() => {
 		void load();
 	}, [load]);
+
+	useEffect(() => {
+		if (kind !== 'services') return;
+		let cancelled = false;
+		(async () => {
+			try {
+				const res = await apiServerClient.fetch('/provider/forms?limit=200');
+				const body = await res.json().catch(() => ({}));
+				if (!res.ok || cancelled) return;
+				setProviderPortalForms(Array.isArray(body.items) ? body.items : []);
+			} catch {
+				if (!cancelled) setProviderPortalForms([]);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [kind]);
+
+	const openFormsAttach = (row) => {
+		setFormsAttachRow(row);
+		setAttachConsentId(row.consentForm?.id || '__none__');
+		setAttachIntakeId(row.intakeForm?.id || '__none__');
+		setFormsAttachOpen(true);
+	};
+
+	const saveFormsAttach = async () => {
+		if (!formsAttachRow?.id) return;
+		setSavingAttachments(true);
+		try {
+			const consentFormId = attachConsentId === '__none__' ? null : attachConsentId;
+			const intakeFormId = attachIntakeId === '__none__' ? null : attachIntakeId;
+			const res = await apiServerClient.fetch(`/provider/catalog/services/${encodeURIComponent(formsAttachRow.id)}/forms`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ consentFormId, intakeFormId }),
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'Save failed');
+			toast.success('Service forms updated.');
+			setFormsAttachOpen(false);
+			setFormsAttachRow(null);
+			await load();
+		} catch (e) {
+			toast.error(e.message || 'Save failed');
+		} finally {
+			setSavingAttachments(false);
+		}
+	};
 
 	const openCreate = () => {
 		setEditingId(null);
@@ -325,6 +389,20 @@ export default function ProviderSettingsCatalogPage() {
 					label: 'Price',
 					sortable: true,
 					render: (row) => (row.price != null ? `$${Number(row.price).toFixed(2)}` : '—'),
+				},
+				{
+					key: 'patientForms',
+					label: 'Patient forms',
+					sortable: false,
+					className: 'min-w-[11rem]',
+					render: (row) => (
+						<div className="space-y-2 py-1">
+							<ServiceFormLinks serviceId={row.id} />
+							<Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={() => openFormsAttach(row)}>
+								Assign forms…
+							</Button>
+						</div>
+					),
 				},
 				{
 					key: 'notes',
@@ -582,6 +660,74 @@ export default function ProviderSettingsCatalogPage() {
 						</Button>
 						<Button type="button" disabled={savingForm} onClick={() => void saveForm()}>
 							{savingForm ? 'Saving…' : 'Save'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={formsAttachOpen} onOpenChange={setFormsAttachOpen}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>Assign forms to service</DialogTitle>
+						<DialogDescription>
+							{formsAttachRow
+								? `“${formsAttachRow.name}” — only published forms are shown to patients when they pick this line in booking.`
+								: null}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 py-2">
+						<div className="space-y-2">
+							<Label>Consent form</Label>
+							<Select value={attachConsentId} onValueChange={setAttachConsentId}>
+								<SelectTrigger>
+									<SelectValue placeholder="None" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="__none__">None</SelectItem>
+									{providerPortalForms
+										.filter((f) => f.form_type === 'consent')
+										.map((f) => (
+											<SelectItem key={f.id} value={f.id}>
+												{f.name}
+												{f.status === 'published' ? '' : ' (draft)'}
+											</SelectItem>
+										))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="space-y-2">
+							<Label>Intake form (questionnaire)</Label>
+							<Select value={attachIntakeId} onValueChange={setAttachIntakeId}>
+								<SelectTrigger>
+									<SelectValue placeholder="None" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="__none__">None</SelectItem>
+									{providerPortalForms
+										.filter((f) => f.form_type === 'service_intake')
+										.map((f) => (
+											<SelectItem key={f.id} value={f.id}>
+												{f.name}
+												{f.status === 'published' ? '' : ' (draft)'}
+											</SelectItem>
+										))}
+								</SelectContent>
+							</Select>
+						</div>
+						<p className="text-xs text-muted-foreground">
+							Create and publish forms under{' '}
+							<Link to="/provider/forms" className="text-primary underline-offset-4 hover:underline">
+								Provider → Forms
+							</Link>
+							, then attach them here.
+						</p>
+					</div>
+					<DialogFooter>
+						<Button type="button" variant="outline" onClick={() => setFormsAttachOpen(false)}>
+							Cancel
+						</Button>
+						<Button type="button" disabled={savingAttachments} onClick={() => void saveFormsAttach()}>
+							{savingAttachments ? 'Saving…' : 'Save'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

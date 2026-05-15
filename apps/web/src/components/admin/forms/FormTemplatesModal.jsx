@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Activity, HeartPulse, ListOrdered, ShieldCheck, Stethoscope } from 'lucide-react';
+import { Activity, ClipboardList, FileText, HeartPulse, ListOrdered, ShieldCheck, Stethoscope, Video } from 'lucide-react';
 import { FORM_TEMPLATE_CATALOG } from '@/lib/formTemplateCatalog';
 
 const ICONS = {
@@ -13,22 +13,46 @@ const ICONS = {
 	insurance_claim: ShieldCheck,
 	provider_feedback: Stethoscope,
 	provider_services_menu: ListOrdered,
+	consent_treatment_general: FileText,
+	consent_hipaa_acknowledgment: ShieldCheck,
+	consent_telehealth: Video,
+	service_intake_visit: ClipboardList,
 };
 
-export function FormTemplatesModal({ isOpen, onClose, onSelectTemplate, isCreating }) {
+export function FormTemplatesModal({
+	isOpen,
+	onClose,
+	onSelectTemplate,
+	isCreating,
+	/** When set, only these template ids are listed (e.g. provider portal). */
+	filterTemplateIds = null,
+	title = 'Form Templates',
+	description = null,
+}) {
 	const navigate = useNavigate();
-	const templates = Object.values(FORM_TEMPLATE_CATALOG);
+	const templates = React.useMemo(() => {
+		const all = Object.values(FORM_TEMPLATE_CATALOG);
+		if (Array.isArray(filterTemplateIds) && filterTemplateIds.length > 0) {
+			const allow = new Set(filterTemplateIds);
+			return all.filter((t) => allow.has(t.id));
+		}
+		return all;
+	}, [filterTemplateIds]);
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
 			<DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
 				<DialogHeader>
-					<DialogTitle>Form Templates</DialogTitle>
+					<DialogTitle>{title}</DialogTitle>
 					<DialogDescription>
-						Choose a starter template. Most options create a new draft form you can edit and publish.
-						<strong className="font-medium text-foreground"> Provider services &amp; pricing</strong> is a
-						guide to onboarding—pricing is captured on the screen after questionnaire submit (not inside the
-						form editor).
+						{description || (
+							<>
+								Choose a starter template. Most options create a new draft form you can edit and publish.
+								<strong className="font-medium text-foreground"> Provider services &amp; pricing</strong> is a
+								guide to onboarding—pricing is captured on the screen after questionnaire submit (not inside the
+								form editor).
+							</>
+						)}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">

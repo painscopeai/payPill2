@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { decorateProviderServiceRows, PROVIDER_SERVICE_LIST_SELECT } from '@/server/provider/providerServiceCatalogShape';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
 	const sb = getSupabaseAdmin();
 	const { data, error } = await sb
 		.from('provider_services')
-		.select('id, name, category, unit, price, currency, notes, is_active, sort_order')
+		.select(PROVIDER_SERVICE_LIST_SELECT)
 		.eq('provider_id', ctx.providerOrgId)
 		.order('sort_order', { ascending: true })
 		.order('name', { ascending: true })
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json({ error: 'Failed to load services' }, { status: 500 });
 	}
 
-	return NextResponse.json({ items: data || [] });
+	return NextResponse.json({ items: decorateProviderServiceRows(data || []) });
 }
 
 /** POST — single `{ item }` or bulk `{ items[] }` (append). */
@@ -73,12 +74,16 @@ export async function POST(request: NextRequest) {
 		if (!row.name) {
 			return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 		}
-		const { data, error } = await sb.from('provider_services').insert(row).select().single();
+		const { data, error } = await sb
+			.from('provider_services')
+			.insert(row)
+			.select(PROVIDER_SERVICE_LIST_SELECT)
+			.single();
 		if (error) {
 			console.error('[api/provider/catalog/services POST single]', error.message);
 			return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
 		}
-		return NextResponse.json({ ok: true, item: data });
+		return NextResponse.json({ ok: true, item: decorateProviderServiceRows([data])[0] });
 	}
 
 	const rawItems = Array.isArray(body.items) ? body.items : [];
@@ -94,13 +99,17 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Failed to import services' }, { status: 500 });
 	}
 
-	const { data: refreshed } = await sb
+	const { data: refreshed, error: refErr } = await sb
 		.from('provider_services')
-		.select('id, name, category, unit, price, currency, notes, is_active, sort_order')
+		.select(PROVIDER_SERVICE_LIST_SELECT)
 		.eq('provider_id', orgId)
 		.order('sort_order', { ascending: true })
 		.order('name', { ascending: true })
 		.limit(5000);
+	if (refErr) {
+		console.error('[api/provider/catalog/services POST refresh]', refErr.message);
+		return NextResponse.json({ ok: true, imported: items.length, items: [] });
+	}
 
-	return NextResponse.json({ ok: true, imported: items.length, items: refreshed || [] });
+	return NextResponse.json({ ok: true, imported: items.length, items: decorateProviderServiceRows(refreshed || []) });
 }

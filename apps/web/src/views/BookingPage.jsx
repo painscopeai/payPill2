@@ -17,8 +17,9 @@ import {
 } from '@/components/ui/tooltip.jsx';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.jsx';
 import { toast } from 'sonner';
-import { Calendar, MapPin, CheckCircle2, Loader2, ExternalLink, Info, CalendarClock } from 'lucide-react';
+import { Calendar, MapPin, CheckCircle2, Loader2, ExternalLink, Info, CalendarClock, FileText } from 'lucide-react';
 import { normalizeAppointmentTime } from '@/lib/appointmentDateTime';
+import { publicFormUrl } from '@/lib/publicFormUrl';
 
 function todayYmdLocal() {
   const t = new Date();
@@ -331,6 +332,42 @@ export default function BookingPage() {
                             From this provider&apos;s published price list (your plan copay below is still the main
                             estimate).
                           </p>
+                          {selectedCatalogService &&
+                          (selectedCatalogService.consentForm || selectedCatalogService.intakeForm) ? (
+                            <div className="rounded-lg border border-primary/25 bg-primary/5 p-4 space-y-2">
+                              <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                                <FileText className="h-4 w-4 shrink-0 text-primary" />
+                                Forms for this service
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Complete these before your visit if your provider requires them. Links open in a new tab.
+                              </p>
+                              <div className="flex flex-wrap gap-3">
+                                {selectedCatalogService.consentForm ? (
+                                  <a
+                                    href={publicFormUrl(selectedCatalogService.consentForm.id)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                  >
+                                    View consent form
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                ) : null}
+                                {selectedCatalogService.intakeForm ? (
+                                  <a
+                                    href={publicFormUrl(selectedCatalogService.intakeForm.id)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                  >
+                                    Complete intake (assessment)
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
 

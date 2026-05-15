@@ -111,6 +111,7 @@ const ProviderCommunicationsPage = React.lazy(() => import('./views/ProviderComm
 const ProviderPrescriptionsPage = React.lazy(() => import('./views/ProviderPrescriptionsPage.jsx'));
 const ProviderReferralsPage = React.lazy(() => import('./views/ProviderReferralsPage.jsx'));
 const ProviderFormsPage = React.lazy(() => import('./views/ProviderFormsPage.jsx'));
+const ProviderFormBuilderPage = React.lazy(() => import('./views/ProviderFormBuilderPage.jsx'));
 const ProviderTelemedicinePage = React.lazy(() => import('./views/ProviderTelemedicinePage.jsx'));
 const ProviderInsuranceProvidersPage = React.lazy(() => import('./views/ProviderInsuranceProvidersPage.jsx'));
 const ProviderConsultationWorkspacePage = React.lazy(() => import('./views/ProviderConsultationWorkspacePage.jsx'));
@@ -396,6 +397,7 @@ export default function AppRoutes() {
 											<Route path="prescriptions" element={<ProviderPrescriptionsPage />} />
 											<Route path="referrals" element={<ProviderReferralsPage />} />
 											<Route path="forms" element={<ProviderFormsPage />} />
+											<Route path="forms/builder/:formId" element={<ProviderFormBuilderPage />} />
 											<Route path="telemedicine" element={<ProviderTelemedicinePage />} />
 											<Route path="insurance-payers" element={<ProviderInsuranceProvidersPage />} />
 											<Route path="integrations" element={<ProviderIntegrationsPage />} />
