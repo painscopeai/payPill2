@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,7 @@ import ProviderOnboardingStepCard from '@/components/provider/ProviderOnboarding
 import ProviderRecordsPasswordDialog from '@/components/provider/ProviderRecordsPasswordDialog.jsx';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
 import { useAuth } from '@/contexts/AuthContext';
-import { isRecordsUnlocked, storeRecordsUnlock } from '@/lib/providerRecordsAccess';
+import { useProviderRecordsUnlock } from '@/hooks/useProviderRecordsUnlock';
 
 function formatDate(value) {
 	if (!value) return '—';
@@ -35,9 +35,10 @@ export default function ProviderPatientDetailPage() {
 	const { currentUser } = useAuth();
 	const providerId = currentUser?.id;
 	const [record, setRecord] = useState(null);
-	const [recordsUnlocked, setRecordsUnlocked] = useState(false);
+	const { isUnlocked: recordsUnlocked, unlock: unlockRecords, lock: lockRecords } = useProviderRecordsUnlock(id);
 	const [activeTab, setActiveTab] = useState('profile');
 	const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+	const wasRecordsUnlockedRef = useRef(false);
 	const [loading, setLoading] = useState(true);
 	const [loadError, setLoadError] = useState(null);
 	const [notes, setNotes] = useState('');
@@ -53,28 +54,31 @@ export default function ProviderPatientDetailPage() {
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(body.error || 'Failed to load patient');
 			setRecord(body);
-			if (providerId && isRecordsUnlocked(providerId, id)) {
-				setRecordsUnlocked(true);
-			} else {
-				setRecordsUnlocked(false);
-			}
 		} catch (e) {
 			setLoadError(e.message || 'Failed to load');
 			setRecord(null);
-			setRecordsUnlocked(false);
+			lockRecords();
 		} finally {
 			setLoading(false);
 		}
-	}, [id, providerId]);
+	}, [id, providerId, lockRecords]);
 
 	useEffect(() => {
 		void loadRecord();
 	}, [loadRecord]);
 
+	/** After 30 minutes on chart, return to Profile and prompt for password again. */
+	useEffect(() => {
+		if (wasRecordsUnlockedRef.current && !recordsUnlocked && activeTab === 'records') {
+			setActiveTab('profile');
+			setPasswordDialogOpen(true);
+		}
+		wasRecordsUnlockedRef.current = recordsUnlocked;
+	}, [recordsUnlocked, activeTab]);
+
 	const handleTabChange = (value) => {
 		if (value === 'records') {
-			if (recordsUnlocked || (providerId && isRecordsUnlocked(providerId, id))) {
-				if (providerId) setRecordsUnlocked(true);
+			if (recordsUnlocked) {
 				setActiveTab('records');
 				return;
 			}
@@ -85,10 +89,8 @@ export default function ProviderPatientDetailPage() {
 	};
 
 	const handleRecordsUnlocked = () => {
-		if (providerId && id) storeRecordsUnlock(providerId, id);
-		setRecordsUnlocked(true);
+		unlockRecords();
 		setActiveTab('records');
-		toast.success('Records unlocked for 30 minutes.');
 	};
 
 	/** Breadcrumb in `ProviderLayout` reads this when the route is `/provider/patients/:id`. */
@@ -170,7 +172,7 @@ export default function ProviderPatientDetailPage() {
 						<p className="text-sm text-muted-foreground mt-2 max-w-2xl leading-relaxed">
 							Chart review: demographics and coverage on <span className="font-medium text-foreground">Profile</span>; patient-reported
 							history, vitals, medications, labs, and notes on <span className="font-medium text-foreground">Records</span> (password
-							required). Add encounter notes below—everything else is read-only.
+							required; re-verify after 30 minutes or when you leave this chart). Add encounter notes below—everything else is read-only.
 						</p>
 					</div>
 
