@@ -207,7 +207,7 @@ export default function ProviderBillingPage() {
 									<span className="space-y-0.5">
 										<span className="block text-sm font-medium">Services</span>
 										<span className="block text-xs text-muted-foreground leading-snug">
-											Choose from your practice catalog with preset prices.
+											Choose from the list of services.
 										</span>
 									</span>
 								</label>
@@ -219,7 +219,7 @@ export default function ProviderBillingPage() {
 								>
 									<RadioGroupItem value="open" id="mode-open" className="mt-0.5" />
 									<span className="space-y-0.5">
-										<span className="block text-sm font-medium">Open</span>
+										<span className="block text-sm font-medium">Open Services</span>
 										<span className="block text-xs text-muted-foreground leading-snug">
 											Enter a custom description and amount for this line.
 										</span>
