@@ -14,8 +14,10 @@ import { Calendar, FileText, Pill, FlaskConical, StickyNote, ClipboardList } fro
 import ProviderOnboardingStepCard from '@/components/provider/ProviderOnboardingStepCard.jsx';
 import ProviderRecordsPasswordDialog from '@/components/provider/ProviderRecordsPasswordDialog.jsx';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
+import { useAuth } from '@/contexts/AuthContext';
 import {
 	clearRecordsToken,
+	isValidRecordsPayload,
 	readStoredRecordsToken,
 	storeRecordsToken,
 } from '@/lib/providerRecordsAccess';
@@ -32,11 +34,21 @@ function formatDateShort(value) {
 	return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString();
 }
 
+const EMPTY_RECORDS = {
+	health_records: [],
+	onboarding_steps: [],
+	prescriptions: [],
+	lab_results: [],
+	clinical_notes: [],
+};
+
 export default function ProviderPatientDetailPage() {
 	const { id } = useParams();
 	const navigate = useNavigate();
+	const { currentUser } = useAuth();
+	const providerId = currentUser?.id;
 	const [record, setRecord] = useState(null);
-	const [recordsBundle, setRecordsBundle] = useState(null);
+	const [recordsUnlocked, setRecordsUnlocked] = useState(false);
 	const [activeTab, setActiveTab] = useState('profile');
 	const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 	const [recordsLoading, setRecordsLoading] = useState(false);
@@ -49,7 +61,7 @@ export default function ProviderPatientDetailPage() {
 		if (!id) return;
 		setLoading(true);
 		setLoadError(null);
-		setRecordsBundle(null);
+		setRecordsUnlocked(false);
 		setActiveTab('profile');
 		try {
 			const res = await apiServerClient.fetch(
@@ -66,34 +78,54 @@ export default function ProviderPatientDetailPage() {
 		}
 	}, [id]);
 
+	const applyRecordsPayload = useCallback((body) => {
+		setRecord((prev) => ({
+			...(prev || {}),
+			health_records: body.health_records || [],
+			onboarding_steps: body.onboarding_steps || [],
+			prescriptions: body.prescriptions || [],
+			lab_results: body.lab_results || [],
+			clinical_notes: body.clinical_notes || [],
+			records_access_granted: true,
+		}));
+		setRecordsUnlocked(true);
+	}, []);
+
 	const loadRecordsBundle = useCallback(
 		async (token) => {
-			if (!id || !token) return false;
+			if (!id || !providerId || !token) return false;
 			setRecordsLoading(true);
 			try {
+				const q = new URLSearchParams({
+					view: 'records',
+					records_access_token: token,
+				});
 				const res = await apiServerClient.fetch(
-					`/provider/patients/${encodeURIComponent(id)}?view=records`,
+					`/provider/patients/${encodeURIComponent(id)}?${q.toString()}`,
 					{ headers: { 'X-Provider-Records-Token': token } },
 				);
 				const body = await res.json().catch(() => ({}));
 				if (!res.ok) {
 					if (body.code === 'RECORDS_AUTH_REQUIRED') {
-						clearRecordsToken(id);
+						clearRecordsToken(providerId, id);
 					}
 					throw new Error(body.error || 'Failed to load records');
 				}
-				setRecordsBundle(body);
-				storeRecordsToken(id, token);
+				if (!isValidRecordsPayload(body)) {
+					throw new Error('Records could not be loaded. Please try again.');
+				}
+				applyRecordsPayload(body);
+				storeRecordsToken(providerId, id, token);
 				return true;
 			} catch (e) {
 				toast.error(e.message || 'Failed to load records');
-				setRecordsBundle(null);
+				setRecordsUnlocked(false);
 				return false;
 			} finally {
 				setRecordsLoading(false);
 			}
 		},
-		[id],
+		[id, providerId, applyRecordsPayload],
 	);
 
 	useEffect(() => {
@@ -101,20 +133,20 @@ export default function ProviderPatientDetailPage() {
 	}, [loadRecord]);
 
 	useEffect(() => {
-		if (!id || loading || !record) return;
-		const stored = readStoredRecordsToken(id);
+		if (!id || !providerId || loading || !record) return;
+		const stored = readStoredRecordsToken(providerId, id);
 		if (stored) {
 			void loadRecordsBundle(stored);
 		}
-	}, [id, loading, record, loadRecordsBundle]);
+	}, [id, providerId, loading, record, loadRecordsBundle]);
 
 	const handleTabChange = (value) => {
 		if (value === 'records') {
-			if (recordsBundle) {
+			if (recordsUnlocked) {
 				setActiveTab('records');
 				return;
 			}
-			const stored = readStoredRecordsToken(id);
+			const stored = readStoredRecordsToken(providerId, id);
 			if (stored) {
 				void loadRecordsBundle(stored).then((ok) => {
 					if (ok) setActiveTab('records');
@@ -167,7 +199,7 @@ export default function ProviderPatientDetailPage() {
 			toast.success('Clinical note saved.');
 			setNotes('');
 			await loadRecord();
-			const stored = readStoredRecordsToken(id);
+			const stored = providerId ? readStoredRecordsToken(providerId, id) : null;
 			if (stored) await loadRecordsBundle(stored);
 		} catch (err) {
 			toast.error(err.message || 'Failed to save');
@@ -178,13 +210,15 @@ export default function ProviderPatientDetailPage() {
 
 	const p = record?.profile || {};
 	const cov = record?.coverage_summary;
-	const chartRecords = recordsBundle || {
-		health_records: [],
-		onboarding_steps: [],
-		prescriptions: [],
-		lab_results: [],
-		clinical_notes: [],
-	};
+	const chartRecords = recordsUnlocked
+		? {
+				health_records: record?.health_records || [],
+				onboarding_steps: record?.onboarding_steps || [],
+				prescriptions: record?.prescriptions || [],
+				lab_results: record?.lab_results || [],
+				clinical_notes: record?.clinical_notes || [],
+			}
+		: EMPTY_RECORDS;
 	const displayName = formatPersonDisplayName(
 		[p.first_name, p.last_name].filter(Boolean).join(' ').trim() ||
 			String(p.name || '').trim() ||
@@ -332,7 +366,7 @@ export default function ProviderPatientDetailPage() {
 								<div className="flex justify-center py-16">
 									<LoadingSpinner />
 								</div>
-							) : !recordsBundle ? (
+							) : !recordsUnlocked ? (
 								<Card className="border-dashed shadow-sm">
 									<CardContent className="py-10 text-center text-sm text-muted-foreground space-y-4">
 										<p>Enter your account password to view this patient&apos;s health records.</p>

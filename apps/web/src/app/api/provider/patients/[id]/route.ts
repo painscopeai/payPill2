@@ -56,20 +56,27 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 		return NextResponse.json({ error: 'You do not have access to this patient' }, { status: 403 });
 	}
 
+	const recordsToken =
+		request.headers.get('x-provider-records-token') ||
+		request.nextUrl.searchParams.get('records_access_token');
+	const recordsAuthOk = verifyProviderRecordsAccessToken(recordsToken, {
+		providerId: authCtx.userId,
+		patientId,
+	});
+
 	if (view === 'records') {
-		const token = request.headers.get('x-provider-records-token');
-		const ok = verifyProviderRecordsAccessToken(token, {
-			providerId: authCtx.userId,
-			patientId,
-		});
-		if (!ok) {
+		if (!recordsAuthOk) {
 			return NextResponse.json(
 				{ error: 'Records access requires password verification', code: 'RECORDS_AUTH_REQUIRED' },
 				{ status: 403 },
 			);
 		}
 		const bundle = await loadProviderPatientRecordsBundle(sb, patientId);
-		return NextResponse.json({ patient_id: patientId, ...bundle });
+		return NextResponse.json({
+			patient_id: patientId,
+			records_access_granted: true,
+			...bundle,
+		});
 	}
 
 	const { data: profile, error: pErr } = await sb.from('profiles').select('*').eq('id', patientId).maybeSingle();
