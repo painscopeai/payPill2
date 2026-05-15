@@ -12,7 +12,13 @@ import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { toast } from 'sonner';
 import { Calendar, FileText, Pill, FlaskConical, StickyNote, ClipboardList } from 'lucide-react';
 import ProviderOnboardingStepCard from '@/components/provider/ProviderOnboardingStepCard.jsx';
+import ProviderRecordsPasswordDialog from '@/components/provider/ProviderRecordsPasswordDialog.jsx';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
+import {
+	clearRecordsToken,
+	readStoredRecordsToken,
+	storeRecordsToken,
+} from '@/lib/providerRecordsAccess';
 
 function formatDate(value) {
 	if (!value) return '—';
@@ -30,6 +36,10 @@ export default function ProviderPatientDetailPage() {
 	const { id } = useParams();
 	const navigate = useNavigate();
 	const [record, setRecord] = useState(null);
+	const [recordsBundle, setRecordsBundle] = useState(null);
+	const [activeTab, setActiveTab] = useState('profile');
+	const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+	const [recordsLoading, setRecordsLoading] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [loadError, setLoadError] = useState(null);
 	const [notes, setNotes] = useState('');
@@ -39,8 +49,12 @@ export default function ProviderPatientDetailPage() {
 		if (!id) return;
 		setLoading(true);
 		setLoadError(null);
+		setRecordsBundle(null);
+		setActiveTab('profile');
 		try {
-			const res = await apiServerClient.fetch(`/provider/patients/${encodeURIComponent(id)}`);
+			const res = await apiServerClient.fetch(
+				`/provider/patients/${encodeURIComponent(id)}?view=profile`,
+			);
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(body.error || 'Failed to load patient');
 			setRecord(body);
@@ -52,9 +66,72 @@ export default function ProviderPatientDetailPage() {
 		}
 	}, [id]);
 
+	const loadRecordsBundle = useCallback(
+		async (token) => {
+			if (!id || !token) return false;
+			setRecordsLoading(true);
+			try {
+				const res = await apiServerClient.fetch(
+					`/provider/patients/${encodeURIComponent(id)}?view=records`,
+					{ headers: { 'X-Provider-Records-Token': token } },
+				);
+				const body = await res.json().catch(() => ({}));
+				if (!res.ok) {
+					if (body.code === 'RECORDS_AUTH_REQUIRED') {
+						clearRecordsToken(id);
+					}
+					throw new Error(body.error || 'Failed to load records');
+				}
+				setRecordsBundle(body);
+				storeRecordsToken(id, token);
+				return true;
+			} catch (e) {
+				toast.error(e.message || 'Failed to load records');
+				setRecordsBundle(null);
+				return false;
+			} finally {
+				setRecordsLoading(false);
+			}
+		},
+		[id],
+	);
+
 	useEffect(() => {
 		void loadRecord();
 	}, [loadRecord]);
+
+	useEffect(() => {
+		if (!id || loading || !record) return;
+		const stored = readStoredRecordsToken(id);
+		if (stored) {
+			void loadRecordsBundle(stored);
+		}
+	}, [id, loading, record, loadRecordsBundle]);
+
+	const handleTabChange = (value) => {
+		if (value === 'records') {
+			if (recordsBundle) {
+				setActiveTab('records');
+				return;
+			}
+			const stored = readStoredRecordsToken(id);
+			if (stored) {
+				void loadRecordsBundle(stored).then((ok) => {
+					if (ok) setActiveTab('records');
+					else setPasswordDialogOpen(true);
+				});
+				return;
+			}
+			setPasswordDialogOpen(true);
+			return;
+		}
+		setActiveTab(value);
+	};
+
+	const handleRecordsUnlocked = async (token) => {
+		const ok = await loadRecordsBundle(token);
+		if (ok) setActiveTab('records');
+	};
 
 	/** Breadcrumb in `ProviderLayout` reads this when the route is `/provider/patients/:id`. */
 	useEffect(() => {
@@ -90,6 +167,8 @@ export default function ProviderPatientDetailPage() {
 			toast.success('Clinical note saved.');
 			setNotes('');
 			await loadRecord();
+			const stored = readStoredRecordsToken(id);
+			if (stored) await loadRecordsBundle(stored);
 		} catch (err) {
 			toast.error(err.message || 'Failed to save');
 		} finally {
@@ -99,6 +178,13 @@ export default function ProviderPatientDetailPage() {
 
 	const p = record?.profile || {};
 	const cov = record?.coverage_summary;
+	const chartRecords = recordsBundle || {
+		health_records: [],
+		onboarding_steps: [],
+		prescriptions: [],
+		lab_results: [],
+		clinical_notes: [],
+	};
 	const displayName = formatPersonDisplayName(
 		[p.first_name, p.last_name].filter(Boolean).join(' ').trim() ||
 			String(p.name || '').trim() ||
@@ -127,12 +213,19 @@ export default function ProviderPatientDetailPage() {
 						<h1 className="text-3xl font-semibold tracking-tight text-balance">{displayName}</h1>
 						<p className="text-sm text-muted-foreground mt-2 max-w-2xl leading-relaxed">
 							Chart review: demographics and coverage on <span className="font-medium text-foreground">Profile</span>; patient-reported
-							history, vitals, medications, labs, and notes on <span className="font-medium text-foreground">Records</span>. Add encounter
-							notes below—everything else is read-only.
+							history, vitals, medications, labs, and notes on <span className="font-medium text-foreground">Records</span> (password
+							required). Add encounter notes below—everything else is read-only.
 						</p>
 					</div>
 
-					<Tabs defaultValue="profile" className="w-full">
+					<ProviderRecordsPasswordDialog
+						open={passwordDialogOpen}
+						onOpenChange={setPasswordDialogOpen}
+						patientId={id}
+						onUnlocked={handleRecordsUnlocked}
+					/>
+
+					<Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
 						<TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full sm:w-auto">
 							<TabsTrigger value="profile" className="min-w-[8rem]">
 								Profile
@@ -235,6 +328,25 @@ export default function ProviderPatientDetailPage() {
 						</TabsContent>
 
 						<TabsContent value="records" className="space-y-10 mt-4">
+							{recordsLoading ? (
+								<div className="flex justify-center py-16">
+									<LoadingSpinner />
+								</div>
+							) : !recordsBundle ? (
+								<Card className="border-dashed shadow-sm">
+									<CardContent className="py-10 text-center text-sm text-muted-foreground space-y-4">
+										<p>Enter your account password to view this patient&apos;s health records.</p>
+										<Button
+											type="button"
+											className="bg-teal-600 hover:bg-teal-700 text-white"
+											onClick={() => setPasswordDialogOpen(true)}
+										>
+											Unlock Records
+										</Button>
+									</CardContent>
+								</Card>
+							) : (
+							<>
 							<section className="space-y-3">
 								<div>
 									<h2 className="text-lg font-semibold flex items-center gap-2">
@@ -247,7 +359,7 @@ export default function ProviderPatientDetailPage() {
 								</div>
 								<Card className="shadow-sm overflow-hidden">
 									<CardContent className="p-0">
-										{(record.health_records || []).length === 0 ? (
+										{(chartRecords.health_records || []).length === 0 ? (
 											<p className="text-sm text-muted-foreground p-6">No structured health records submitted.</p>
 										) : (
 											<div className="overflow-x-auto">
@@ -262,7 +374,7 @@ export default function ProviderPatientDetailPage() {
 														</tr>
 													</thead>
 													<tbody>
-														{record.health_records.map((r) => (
+														{chartRecords.health_records.map((r) => (
 															<tr key={r.id} className="border-b border-border/50 align-top odd:bg-muted/20 hover:bg-muted/40 transition-colors">
 																<td className="px-4 py-3 align-middle">
 																	<Badge variant="outline" className="capitalize font-normal">
@@ -294,14 +406,14 @@ export default function ProviderPatientDetailPage() {
 									</p>
 								</div>
 								<div className="space-y-4">
-									{(record.onboarding_steps || []).length === 0 ? (
+									{(chartRecords.onboarding_steps || []).length === 0 ? (
 										<Card className="shadow-sm">
 											<CardContent className="py-8 text-sm text-muted-foreground text-center">
 												No onboarding responses stored.
 											</CardContent>
 										</Card>
 									) : (
-										record.onboarding_steps.map((s) => (
+										chartRecords.onboarding_steps.map((s) => (
 											<ProviderOnboardingStepCard
 												key={s.step}
 												step={s.step}
@@ -320,11 +432,11 @@ export default function ProviderPatientDetailPage() {
 								</h2>
 								<Card className="shadow-sm">
 									<CardContent className="p-0">
-										{(record.prescriptions || []).length === 0 ? (
+										{(chartRecords.prescriptions || []).length === 0 ? (
 											<p className="text-sm text-muted-foreground p-6">No prescriptions on file.</p>
 										) : (
 											<ul className="divide-y rounded-lg border border-border/80">
-												{record.prescriptions.map((rx) => (
+												{chartRecords.prescriptions.map((rx) => (
 													<li key={rx.id} className="px-4 py-3 text-sm hover:bg-muted/30 transition-colors">
 														<p className="font-semibold text-foreground">{rx.medication_name}</p>
 														<p className="text-muted-foreground mt-0.5">
@@ -348,7 +460,7 @@ export default function ProviderPatientDetailPage() {
 								</h2>
 								<Card className="shadow-sm overflow-hidden">
 									<CardContent className="p-0">
-										{(record.lab_results || []).length === 0 ? (
+										{(chartRecords.lab_results || []).length === 0 ? (
 											<p className="text-sm text-muted-foreground p-6">No lab results on file.</p>
 										) : (
 											<div className="overflow-x-auto">
@@ -361,7 +473,7 @@ export default function ProviderPatientDetailPage() {
 														</tr>
 													</thead>
 													<tbody>
-														{record.lab_results.map((lab) => (
+														{chartRecords.lab_results.map((lab) => (
 															<tr key={lab.id} className="border-b border-border/50 odd:bg-muted/20 hover:bg-muted/40 transition-colors">
 																<td className="px-4 py-3 font-medium">{lab.test_name}</td>
 																<td className="px-4 py-3">
@@ -386,11 +498,11 @@ export default function ProviderPatientDetailPage() {
 								</h2>
 								<Card className="shadow-sm">
 									<CardContent className="p-0">
-										{(record.clinical_notes || []).length === 0 ? (
+										{(chartRecords.clinical_notes || []).length === 0 ? (
 											<p className="text-sm text-muted-foreground p-6">No clinical notes yet.</p>
 										) : (
 											<ul className="divide-y rounded-lg border border-border/80">
-												{record.clinical_notes.map((n) => (
+												{chartRecords.clinical_notes.map((n) => (
 													<li key={n.id} className="px-4 py-4 hover:bg-muted/25 transition-colors">
 														<div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground">
 															<span className="font-semibold text-foreground">{n.author_label}</span>
@@ -406,6 +518,8 @@ export default function ProviderPatientDetailPage() {
 									</CardContent>
 								</Card>
 							</section>
+							</>
+							)}
 						</TabsContent>
 					</Tabs>
 
