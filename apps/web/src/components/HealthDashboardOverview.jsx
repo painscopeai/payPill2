@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -6,6 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Activity, HeartPulse, Pill, Calendar, AlertCircle, ArrowRight } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import apiServerClient from '@/lib/apiServerClient';
+import pb from '@/lib/supabaseMappedCollections';
+import { useAuth } from '@/contexts/AuthContext';
+import { computePreventiveCareGaps } from '@/lib/preventiveCareGaps';
+import {
+	appointmentHeadline,
+	formatAppointmentSubtitle,
+	normalizeAppointmentList,
+	selectUpcomingAppointments,
+} from '@/lib/patientAppointmentUtils';
 
 const keyToMetricMap = {
   systolic: /systolic|bp systolic|blood pressure systolic/i,
@@ -111,21 +121,84 @@ function computeAnalytics(overview) {
 }
 
 export default function HealthDashboardOverview() {
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [overview, setOverview] = useState(null);
+  const [labResults, setLabResults] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [sidePanelLoading, setSidePanelLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
+      if (!currentUser?.id) {
+        if (!cancelled) {
+          setOverview(null);
+          setLabResults([]);
+          setRecommendations([]);
+          setAppointments([]);
+          setSidePanelLoading(false);
+        }
+        return;
+      }
+
+      setSidePanelLoading(true);
+
       try {
-        const res = await apiServerClient.fetch('/patient-health-overview');
-        const body = await res.json().catch(() => ({}));
-        if (res.ok) setOverview(body);
+        const [overviewRes, recRes, aptRes, labs] = await Promise.all([
+          apiServerClient.fetch('/patient-health-overview?includeRaw=1'),
+          apiServerClient.fetch('/ai-recommendations'),
+          apiServerClient.fetch(`/appointments?user_id=${encodeURIComponent(currentUser.id)}`),
+          pb.collection('lab_results').getFullList({
+            filter: `userId="${currentUser.id}"`,
+            sort: '-date_tested',
+            $autoCancel: false,
+          }),
+        ]);
+
+        if (cancelled) return;
+
+        const overviewBody = overviewRes.ok ? await overviewRes.json().catch(() => ({})) : null;
+        setOverview(overviewBody);
+
+        if (recRes.ok) {
+          const recBody = await recRes.json().catch(() => []);
+          setRecommendations(Array.isArray(recBody) ? recBody : []);
+        } else {
+          setRecommendations([]);
+        }
+
+        if (aptRes.ok) {
+          const aptBody = await aptRes.json().catch(() => []);
+          setAppointments(selectUpcomingAppointments(normalizeAppointmentList(aptBody), 2));
+        } else {
+          setAppointments([]);
+        }
+
+        setLabResults(Array.isArray(labs) ? labs : []);
       } catch {
-        // Keep UI functional when endpoint is unavailable.
+        if (!cancelled) {
+          setLabResults([]);
+          setRecommendations([]);
+          setAppointments([]);
+        }
+      } finally {
+        if (!cancelled) setSidePanelLoading(false);
       }
     })();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
 
   const analytics = useMemo(() => computeAnalytics(overview), [overview]);
+  const preventiveGaps = useMemo(
+    () => computePreventiveCareGaps({ overview, labResults, recommendations }),
+    [overview, labResults, recommendations],
+  );
   return (
     <div className="space-y-8">
       {/* Top Metrics */}
@@ -215,15 +288,29 @@ export default function HealthDashboardOverview() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-foreground">Annual Flu Vaccine</span>
-                <Badge variant="outline" className="text-accent border-accent">Due</Badge>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-foreground">Lipid Panel</span>
-                <Badge variant="outline" className="text-accent border-accent">Overdue</Badge>
-              </div>
-              <Button variant="link" className="w-full text-primary p-0 h-auto justify-start mt-2">
+              {sidePanelLoading ? (
+                <>
+                  <div className="h-5 bg-muted animate-pulse rounded" />
+                  <div className="h-5 bg-muted animate-pulse rounded" />
+                </>
+              ) : preventiveGaps.length > 0 ? (
+                preventiveGaps.map((gap) => (
+                  <div key={gap.label} className="flex justify-between items-center gap-3">
+                    <span className="text-sm text-foreground">{gap.label}</span>
+                    <Badge variant="outline" className="text-accent border-accent shrink-0">
+                      {gap.status}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No preventive care gaps identified. Great job!</p>
+              )}
+              <Button
+                type="button"
+                variant="link"
+                className="w-full text-primary p-0 h-auto justify-start mt-2"
+                onClick={() => navigate('/patient/booking')}
+              >
                 Schedule Screenings <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </CardContent>
@@ -236,14 +323,31 @@ export default function HealthDashboardOverview() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">Dr. Sarah Williams (Cardiology)</span>
-                <span className="text-xs text-muted-foreground">Oct 12, 2026 • 10:00 AM</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">LabCorp (Blood Draw)</span>
-                <span className="text-xs text-muted-foreground">Oct 15, 2026 • 08:30 AM</span>
-              </div>
+              {sidePanelLoading ? (
+                <>
+                  <div className="h-10 bg-muted animate-pulse rounded" />
+                  <div className="h-10 bg-muted animate-pulse rounded" />
+                </>
+              ) : appointments.length > 0 ? (
+                appointments.map((apt) => (
+                  <div key={apt.id} className="flex flex-col">
+                    <span className="text-sm font-medium text-foreground">{appointmentHeadline(apt)}</span>
+                    <span className="text-xs text-muted-foreground">{formatAppointmentSubtitle(apt)}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No upcoming appointments scheduled.</p>
+              )}
+              {!sidePanelLoading && appointments.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="link"
+                  className="w-full text-primary p-0 h-auto justify-start"
+                  onClick={() => navigate('/patient/appointments')}
+                >
+                  View all appointments <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
         </div>
