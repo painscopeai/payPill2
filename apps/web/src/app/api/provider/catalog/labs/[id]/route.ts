@@ -37,6 +37,13 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
 	if (typeof body.sort_order === 'number' && Number.isFinite(body.sort_order)) patch.sort_order = Math.floor(body.sort_order);
 	if (typeof body.is_active === 'boolean') patch.is_active = body.is_active;
 
+	if (typeof body.list_price === 'number' && Number.isFinite(body.list_price)) {
+		patch.list_price = Math.max(0, body.list_price);
+	}
+	if (typeof body.currency === 'string' && body.currency.trim()) {
+		patch.currency = body.currency.trim().toUpperCase();
+	}
+
 	if (Object.keys(patch).length === 0) {
 		return NextResponse.json({ error: 'No updatable fields' }, { status: 400 });
 	}

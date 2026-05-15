@@ -36,6 +36,7 @@ const PatientInsuranceProfilePage = React.lazy(() => import('./views/PatientInsu
 const PatientConsultationsPage = React.lazy(() => import('./views/PatientConsultationsPage.jsx'));
 
 const PharmacyPage = React.lazy(() => import('./views/PharmacyPage.jsx'));
+const PharmacyShopPage = React.lazy(() => import('./views/PharmacyShopPage.jsx'));
 const TelemedicinePage = React.lazy(() => import('./views/TelemedicinePage.jsx'));
 const HealthGoalsPage = React.lazy(() => import('./views/HealthGoalsPage.jsx'));
 
@@ -224,6 +225,7 @@ export default function AppRoutes() {
 										<Route path="messages" element={<PatientMessagesPage />} />
 										<Route path="insurance" element={<PatientInsuranceProfilePage />} />
 										<Route path="pharmacy" element={<PharmacyPage />} />
+										<Route path="pharmacy/shop" element={<PharmacyShopPage />} />
 										<Route path="telemedicine" element={<TelemedicinePage />} />
 										<Route path="health-goals" element={<HealthGoalsPage />} />
 									</Routes>

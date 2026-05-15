@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { notifyLowStockIfNeeded } from '@/server/provider/inventoryLowStock';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,22 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
 	if (typeof body.sort_order === 'number' && Number.isFinite(body.sort_order)) patch.sort_order = Math.floor(body.sort_order);
 	if (typeof body.is_active === 'boolean') patch.is_active = body.is_active;
 
+	if (typeof body.quantity_on_hand === 'number' && Number.isFinite(body.quantity_on_hand)) {
+		patch.quantity_on_hand = Math.max(0, Math.floor(body.quantity_on_hand));
+	}
+	if (body.low_stock_threshold !== undefined) {
+		patch.low_stock_threshold =
+			body.low_stock_threshold == null
+				? null
+				: Math.max(0, Math.floor(Number(body.low_stock_threshold)));
+	}
+	if (typeof body.unit_price === 'number' && Number.isFinite(body.unit_price)) {
+		patch.unit_price = Math.max(0, body.unit_price);
+	}
+	if (typeof body.currency === 'string' && body.currency.trim()) {
+		patch.currency = body.currency.trim().toUpperCase();
+	}
+
 	if (Object.keys(patch).length === 0) {
 		return NextResponse.json({ error: 'No updatable fields' }, { status: 400 });
 	}
@@ -58,6 +75,14 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
 		console.error('[api/provider/catalog/drugs/:id PATCH]', error.message);
 		return NextResponse.json({ error: 'Update failed' }, { status: 500 });
 	}
+
+	if (
+		patch.quantity_on_hand !== undefined ||
+		patch.low_stock_threshold !== undefined
+	) {
+		await notifyLowStockIfNeeded(sb, auth.providerOrgId, [id]);
+	}
+
 	return NextResponse.json({ item: data });
 }
 

@@ -6,6 +6,8 @@ export const BULK_TEMPLATE_KINDS = [
 	'visit_types',
 	'insurance_options',
 	'provider_services',
+	'provider_lab_catalog',
+	'provider_pharmacy_catalog',
 	'employer_contracts',
 ] as const;
 
@@ -33,6 +35,20 @@ export const BULK_HEADERS: Record<BulkTemplateKind, readonly string[]> = {
 	visit_types: ['slug', 'label', 'sort_order', 'active'],
 	insurance_options: ['slug', 'label', 'sort_order', 'active', 'copay_estimate'],
 	provider_services: ['name', 'category', 'unit', 'price', 'currency', 'notes', 'is_active', 'sort_order'],
+	provider_lab_catalog: ['test_name', 'list_price', 'currency', 'code', 'category', 'notes', 'sort_order', 'is_active'],
+	provider_pharmacy_catalog: [
+		'name',
+		'unit_price',
+		'quantity_on_hand',
+		'low_stock_threshold',
+		'currency',
+		'default_strength',
+		'default_route',
+		'default_frequency',
+		'notes',
+		'sort_order',
+		'is_active',
+	],
 	employer_contracts: ['name', 'effective_date', 'status', 'notes'],
 };
 
@@ -49,6 +65,8 @@ export const BULK_TEMPLATE_FILENAMES: Record<BulkTemplateKind, string> = {
 	visit_types: 'paypill-bulk-visit-types-template.csv',
 	insurance_options: 'paypill-bulk-insurance-options-template.csv',
 	provider_services: 'paypill-bulk-provider-services-template.csv',
+	provider_lab_catalog: 'paypill-bulk-provider-lab-catalog-template.csv',
+	provider_pharmacy_catalog: 'paypill-bulk-provider-pharmacy-catalog-template.csv',
 	employer_contracts: 'paypill-bulk-employer-contracts-template.csv',
 };
 
@@ -79,6 +97,10 @@ export function buildTemplateCsv(kind: BulkTemplateKind): string {
 		insurance_options: [['cigna', 'Cigna', '15', 'true', '30.00']],
 		provider_services: [
 			['Office visit', 'service', 'per_visit', '150.00', 'USD', '', 'true', '0'],
+		],
+		provider_lab_catalog: [['CBC', '45.00', 'USD', '85025', 'Hematology', '', '0', 'true']],
+		provider_pharmacy_catalog: [
+			['Amoxicillin 500mg', '12.50', '100', '20', 'USD', '500 mg', 'oral', 'three times daily', '', '0', 'true'],
 		],
 		employer_contracts: [
 			['2025 Health Plan', '2025-01-01', 'active', 'Renewal notes optional'],

@@ -12,9 +12,14 @@ type LabItem = {
 	category?: string | null;
 	notes?: string | null;
 	sort_order?: number | null;
+	list_price?: number | null;
+	currency?: string | null;
+	is_active?: boolean | null;
 };
 
 function mapLabInsert(orgId: string, it: LabItem) {
+	const price =
+		typeof it.list_price === 'number' && Number.isFinite(it.list_price) ? Math.max(0, it.list_price) : 0;
 	return {
 		provider_org_id: orgId,
 		test_name: String(it.test_name || '').trim(),
@@ -22,7 +27,9 @@ function mapLabInsert(orgId: string, it: LabItem) {
 		category: it.category != null ? String(it.category).trim() || null : null,
 		notes: it.notes != null ? String(it.notes).trim() || null : null,
 		sort_order: typeof it.sort_order === 'number' && Number.isFinite(it.sort_order) ? Math.floor(it.sort_order) : 0,
-		is_active: true,
+		is_active: typeof it.is_active === 'boolean' ? it.is_active : true,
+		list_price: price,
+		currency: it.currency != null && String(it.currency).trim() ? String(it.currency).trim().toUpperCase() : 'USD',
 	};
 }
 
