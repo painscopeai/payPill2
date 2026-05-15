@@ -40,7 +40,7 @@ export default function ProviderOnboardingStepCard({ step, data, updatedLabel })
 	}, [raw]);
 
 	return (
-		<Collapsible defaultOpen className="group">
+		<Collapsible defaultOpen={false} className="group">
 			<Card className="overflow-hidden border-border/80 shadow-sm">
 				<CollapsibleTrigger asChild>
 					<CardHeader className="bg-muted/40 border-b border-border/60 py-4 cursor-pointer select-none hover:bg-muted/55 transition-colors flex flex-row items-start gap-3 space-y-0 rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
