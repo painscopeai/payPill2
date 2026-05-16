@@ -175,6 +175,8 @@ export default function ProviderConsultationWorkspacePage() {
 	const [queueFilter, setQueueFilter] = useState('all');
 	const [viewMode, setViewMode] = useState('queue');
 	const queueInitRef = useRef(false);
+	/** Prevents URL-sync effect from fighting row clicks (re-selecting the previous appointment). */
+	const lastSyncedAppointmentRef = useRef(null);
 
 	const loadList = useCallback(async () => {
 		setListLoading(true);
@@ -277,45 +279,80 @@ export default function ProviderConsultationWorkspacePage() {
 		(row, { openEncounter = false } = {}) => {
 			const id = row?.appointment_id;
 			if (!id) return;
+			lastSyncedAppointmentRef.current = id;
 			setSelectedId(id);
-			const next = new URLSearchParams(searchParams);
-			next.set('appointment', id);
-			if (openEncounter) next.set('view', 'encounter');
-			else next.delete('view');
-			setSearchParams(next, { replace: true });
 			setViewMode(openEncounter ? 'encounter' : 'queue');
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					next.set('appointment', id);
+					if (openEncounter) next.set('view', 'encounter');
+					else next.delete('view');
+					return next;
+				},
+				{ replace: true },
+			);
 			void loadDetail(id);
 		},
-		[loadDetail, searchParams, setSearchParams],
+		[loadDetail, setSearchParams],
 	);
 
 	const openEncounterForSelected = useCallback(() => {
 		if (!selectedId) return;
-		const next = new URLSearchParams(searchParams);
-		next.set('appointment', selectedId);
-		next.set('view', 'encounter');
-		setSearchParams(next, { replace: true });
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				next.set('appointment', selectedId);
+				next.set('view', 'encounter');
+				return next;
+			},
+			{ replace: true },
+		);
 		setViewMode('encounter');
-	}, [selectedId, searchParams, setSearchParams]);
+	}, [selectedId, setSearchParams]);
 
 	const backToQueue = useCallback(() => {
-		const next = new URLSearchParams(searchParams);
-		next.delete('view');
-		setSearchParams(next, { replace: true });
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				next.delete('view');
+				return next;
+			},
+			{ replace: true },
+		);
 		setViewMode('queue');
-	}, [searchParams, setSearchParams]);
+	}, [setSearchParams]);
 
 	const clearQueueSelection = useCallback(() => {
+		lastSyncedAppointmentRef.current = null;
 		setSelectedId(null);
 		setAppointment(null);
 		setPatient(null);
 		applyEncounterPayload(null);
-		const next = new URLSearchParams(searchParams);
-		next.delete('appointment');
-		next.delete('view');
-		setSearchParams(next, { replace: true });
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				next.delete('appointment');
+				next.delete('view');
+				return next;
+			},
+			{ replace: true },
+		);
 		setViewMode('queue');
-	}, [applyEncounterPayload, searchParams, setSearchParams]);
+	}, [applyEncounterPayload, setSearchParams]);
+
+	const handleQueueRowClick = useCallback(
+		(row) => {
+			const id = row?.appointment_id;
+			if (!id) return;
+			if (String(selectedId) === String(id)) {
+				clearQueueSelection();
+				return;
+			}
+			selectQueueRow(row);
+		},
+		[selectedId, selectQueueRow, clearQueueSelection],
+	);
 
 	/** On first load without ?appointment=, start with a full-width table and no row selected. */
 	useEffect(() => {
@@ -328,36 +365,50 @@ export default function ProviderConsultationWorkspacePage() {
 		applyEncounterPayload(null);
 	}, [listLoading, appointmentFromUrl, applyEncounterPayload]);
 
-	/** Deep-link only: honor ?appointment= in URL, but never auto-select the first row on load. */
+	/** Sync selection from URL only when the URL changes externally (back/forward, shared link)—not on row clicks. */
 	useEffect(() => {
 		if (listLoading) return;
 
 		if (appointmentFromUrl && !items.some((i) => i.appointment_id === appointmentFromUrl)) {
-			const next = new URLSearchParams(searchParams);
-			next.delete('appointment');
-			next.delete('view');
-			setSearchParams(next, { replace: true });
+			lastSyncedAppointmentRef.current = null;
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					next.delete('appointment');
+					next.delete('view');
+					return next;
+				},
+				{ replace: true },
+			);
+			setSelectedId(null);
+			setAppointment(null);
+			setPatient(null);
+			applyEncounterPayload(null);
 			return;
 		}
 
-		if (!appointmentFromUrl) return;
-
-		const urlViewEncounter = searchParams.get('view') === 'encounter';
-		if (items.some((i) => i.appointment_id === appointmentFromUrl) && selectedId !== appointmentFromUrl) {
-			const row = items.find((i) => i.appointment_id === appointmentFromUrl);
-			if (row) selectQueueRow(row, { openEncounter: urlViewEncounter });
-		} else if (urlViewEncounter && viewMode !== 'encounter') {
-			setViewMode('encounter');
+		if (!appointmentFromUrl) {
+			if (lastSyncedAppointmentRef.current) {
+				lastSyncedAppointmentRef.current = null;
+			}
+			return;
 		}
+
+		if (appointmentFromUrl === lastSyncedAppointmentRef.current) return;
+
+		lastSyncedAppointmentRef.current = appointmentFromUrl;
+		const urlViewEncounter = searchParams.get('view') === 'encounter';
+		setSelectedId(appointmentFromUrl);
+		setViewMode(urlViewEncounter ? 'encounter' : 'queue');
+		void loadDetail(appointmentFromUrl);
 	}, [
 		appointmentFromUrl,
 		items,
 		listLoading,
-		selectedId,
-		selectQueueRow,
 		searchParams,
 		setSearchParams,
-		viewMode,
+		loadDetail,
+		applyEncounterPayload,
 	]);
 
 	const patientName = useMemo(() => {
@@ -644,7 +695,7 @@ export default function ProviderConsultationWorkspacePage() {
 									className="h-full border-0 rounded-lg"
 									getRowId={(row) => row.appointment_id}
 									selectedRowId={selectedId}
-									onRowClick={(row) => selectQueueRow(row)}
+									onRowClick={handleQueueRowClick}
 									emptyMessage={
 										items.length === 0
 											? 'No consultation or follow-up bookings yet. When patients book those visit types, they appear here automatically.'
