@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Activity, HeartPulse, Pill, Calendar, AlertCircle, ArrowRight } from 'lucide-react';
+import { Activity, HeartPulse, Pill, Calendar, FlaskConical, ArrowRight } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import apiServerClient from '@/lib/apiServerClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -122,7 +122,7 @@ export default function HealthDashboardOverview() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [overview, setOverview] = useState(null);
-  const [preventiveGaps, setPreventiveGaps] = useState([]);
+  const [labInvestigations, setLabInvestigations] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [sidePanelLoading, setSidePanelLoading] = useState(true);
 
@@ -133,7 +133,7 @@ export default function HealthDashboardOverview() {
       if (!currentUser?.id) {
         if (!cancelled) {
           setOverview(null);
-          setPreventiveGaps([]);
+          setLabInvestigations([]);
           setAppointments([]);
           setSidePanelLoading(false);
         }
@@ -143,9 +143,9 @@ export default function HealthDashboardOverview() {
       setSidePanelLoading(true);
 
       try {
-        const [overviewRes, gapsRes, aptRes] = await Promise.all([
+        const [overviewRes, labRes, aptRes] = await Promise.all([
           apiServerClient.fetch('/patient-health-overview?includeRaw=1'),
-          apiServerClient.fetch('/patient/preventive-care-gaps'),
+          apiServerClient.fetch('/patient/upcoming-laboratory-investigations'),
           apiServerClient.fetch(`/appointments?user_id=${encodeURIComponent(currentUser.id)}`),
         ]);
 
@@ -154,11 +154,11 @@ export default function HealthDashboardOverview() {
         const overviewBody = overviewRes.ok ? await overviewRes.json().catch(() => ({})) : null;
         setOverview(overviewBody);
 
-        if (gapsRes.ok) {
-          const gapsBody = await gapsRes.json().catch(() => ({}));
-          setPreventiveGaps(Array.isArray(gapsBody.items) ? gapsBody.items : []);
+        if (labRes.ok) {
+          const labBody = await labRes.json().catch(() => ({}));
+          setLabInvestigations(Array.isArray(labBody.items) ? labBody.items : []);
         } else {
-          setPreventiveGaps([]);
+          setLabInvestigations([]);
         }
 
         if (aptRes.ok) {
@@ -170,7 +170,7 @@ export default function HealthDashboardOverview() {
 
       } catch {
         if (!cancelled) {
-          setPreventiveGaps([]);
+          setLabInvestigations([]);
           setAppointments([]);
         }
       } finally {
@@ -269,7 +269,7 @@ export default function HealthDashboardOverview() {
           <Card className="shadow-sm border-border">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-foreground flex items-center">
-                <AlertCircle className="w-4 h-4 mr-2 text-accent" /> Preventive Care Gaps
+                <FlaskConical className="w-4 h-4 mr-2 text-info" /> Upcoming Laboratory Investigation
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -278,17 +278,17 @@ export default function HealthDashboardOverview() {
                   <div className="h-5 bg-muted animate-pulse rounded" />
                   <div className="h-5 bg-muted animate-pulse rounded" />
                 </>
-              ) : preventiveGaps.length > 0 ? (
-                preventiveGaps.map((gap) => (
-                  <div key={gap.label} className="flex justify-between items-center gap-3">
-                    <span className="text-sm text-foreground">{gap.label}</span>
-                    <Badge variant="outline" className="text-accent border-accent shrink-0">
-                      {gap.status}
+              ) : labInvestigations.length > 0 ? (
+                labInvestigations.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center gap-3">
+                    <span className="text-sm text-foreground">{item.label}</span>
+                    <Badge variant="outline" className="text-info border-info shrink-0">
+                      {item.status}
                     </Badge>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">No preventive care gaps identified. Great job!</p>
+                <p className="text-sm text-muted-foreground">No upcoming laboratory investigations.</p>
               )}
               <Button
                 type="button"
@@ -296,15 +296,15 @@ export default function HealthDashboardOverview() {
                 className="w-full text-primary p-0 h-auto justify-start mt-2"
                 onClick={() =>
                   navigate(
-                    preventiveGaps.some((g) => /complete lab|fill prescription|action needed/i.test(g.label))
+                    labInvestigations.some((i) => i.status === 'Due')
                       ? '/patient/consultations'
                       : '/patient/booking',
                   )
                 }
               >
-                {preventiveGaps.some((g) => /complete lab|fill prescription/i.test(g.label))
-                  ? 'View care plan'
-                  : 'Schedule Screenings'}{' '}
+                {labInvestigations.some((i) => i.status === 'Due')
+                  ? 'View lab orders'
+                  : 'Book laboratory appointment'}{' '}
                 <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </CardContent>
