@@ -50,7 +50,7 @@ function formatActionDateTime(iso) {
 }
 
 function pendingActionSelectLabel(item) {
-  const when = formatActionDateTime(item.created_at);
+  const when = formatActionDateTime(item.ordered_at);
   const base = `${item.summary} — ${item.plan_label}`;
   return when ? `${base} · ${when}` : base;
 }

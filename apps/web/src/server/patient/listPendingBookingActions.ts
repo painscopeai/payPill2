@@ -15,9 +15,10 @@ export type PendingBookingAction = {
 	item_type: 'prescription' | 'lab';
 	summary: string;
 	subtitle: string | null;
-	/** Consultation visit context for the dropdown label */
+	/** Consultation visit context (visit type · provider) */
 	plan_label: string;
-	created_at: string;
+	/** ISO datetime for display — consultation appointment date/time */
+	ordered_at: string;
 	encounter_id: string;
 	/** True when patient must pick a pharmacy/lab on booking to route the order */
 	needs_fulfillment_assign: boolean;
@@ -55,16 +56,21 @@ function formatProviderName(p: { first_name?: string | null; last_name?: string 
 	return n || p.email || 'Provider';
 }
 
-function formatVisitDate(d: string | null | undefined, t: string | null | undefined): string {
-	if (!d) return '';
-	try {
-		const date = new Date(`${d}T12:00:00`);
-		const dateStr = Number.isNaN(date.getTime()) ? String(d) : date.toLocaleDateString();
-		const timeStr = t ? String(t).slice(0, 5) : '';
-		return timeStr ? `${dateStr} · ${timeStr}` : dateStr;
-	} catch {
-		return String(d);
+function appointmentDateTimeIso(
+	date: string | null | undefined,
+	time: string | null | undefined,
+): string | null {
+	if (!date) return null;
+	const raw = String(time || '').trim();
+	let timePart = '12:00:00';
+	if (raw) {
+		const parts = raw.split(':');
+		const h = parts[0]?.padStart(2, '0') ?? '12';
+		const m = (parts[1] ?? '00').padStart(2, '0');
+		const s = (parts[2] ?? '00').padStart(2, '0');
+		timePart = `${h}:${m}:${s}`;
 	}
+	return `${date}T${timePart}`;
 }
 
 function visitLabelFromAppointment(apt: Record<string, unknown>): string {
@@ -181,11 +187,12 @@ export async function listPendingBookingActions(
 		const apt = aptById.get(a.appointment_id);
 		const providerName = enc ? profById.get(enc.provider_user_id) || 'Provider' : 'Provider';
 		const visitLabel = apt ? visitLabelFromAppointment(apt) : 'Consultation';
-		const visitWhen = apt
-			? formatVisitDate(apt.appointment_date as string, apt.appointment_time as string)
-			: '';
-		const planParts = [visitLabel, providerName, visitWhen].filter(Boolean);
+		const planParts = [visitLabel, providerName].filter(Boolean);
 		const queue = queueByLine.get(`${a.encounter_id}:${a.source_line_id}`);
+		const orderedAt =
+			(apt && appointmentDateTimeIso(apt.appointment_date as string, apt.appointment_time as string)) ||
+			enc?.updated_at ||
+			a.created_at;
 
 		return {
 			action_item_id: a.id,
@@ -194,7 +201,7 @@ export async function listPendingBookingActions(
 			summary: actionSummary(a.item_type, payload),
 			subtitle: actionSubtitle(a.item_type, payload),
 			plan_label: planParts.join(' · '),
-			created_at: enc?.updated_at || a.created_at,
+			ordered_at: orderedAt,
 			encounter_id: a.encounter_id,
 			needs_fulfillment_assign: queue?.needs_assign ?? false,
 		};
