@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
 
 	return NextResponse.json({
 		provider_org_id: ctx.providerOrgId,
+		practice_org_name: access.practiceOrgName,
+		practice_org_address: access.practiceOrgAddress,
 		practice_role_slug: access.practiceRoleSlug,
 		operations_profile: access.operationsProfile,
 		provider_type_slug: access.providerTypeSlug,

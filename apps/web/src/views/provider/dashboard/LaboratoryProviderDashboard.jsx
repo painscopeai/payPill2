@@ -9,10 +9,12 @@ import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import { ProviderDashboardShell, ProviderKpiCard } from '@/components/provider/ProviderDashboardShell.jsx';
 import { getProviderBranding } from '@/lib/providerPortalConfig.js';
+import { useProviderPracticeContext } from '@/hooks/useProviderPracticeContext';
 
 export default function LaboratoryProviderDashboard() {
 	const { patients, loading } = usePatients();
 	const navigate = useNavigate();
+	const { practiceOrgName } = useProviderPracticeContext();
 	const [summary, setSummary] = useState(null);
 	const brand = getProviderBranding('laboratory');
 	const lab = summary?.laboratory || {};
@@ -39,7 +41,7 @@ export default function LaboratoryProviderDashboard() {
 				<title>Laboratory Dashboard - PayPill</title>
 			</Helmet>
 			<ProviderDashboardShell
-				title="Laboratory dashboard"
+				title={practiceOrgName || 'Laboratory dashboard'}
 				subtitle="Specimen orders, result entry, and panel coordination"
 				accentButtonClass={brand.buttonClass}
 				primaryAction={{ label: 'Lab order queue', onClick: () => navigate('/provider/lab-orders') }}

@@ -19,7 +19,8 @@ import { cn } from '@/lib/utils';
 export default function ProviderLayout({ children }) {
 	const { currentUser, logout } = useAuth();
 	const location = useLocation();
-	const { portalProfile, loading: practiceLoading, providerTypeLabel } = useProviderPracticeContext();
+	const { portalProfile, loading: practiceLoading, providerTypeLabel, practiceOrgName, practiceOrgAddress } =
+		useProviderPracticeContext();
 	const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 	const [breadcrumbTick, setBreadcrumbTick] = useState(0);
 
@@ -134,17 +135,34 @@ export default function ProviderLayout({ children }) {
 		</Link>
 	);
 
+	const userDisplayName =
+		[currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ').trim() ||
+		currentUser?.name?.trim() ||
+		currentUser?.email ||
+		'Provider';
+
 	const profileSidebar = (
-		<div className="flex items-center gap-2 mb-1">
-			<div className={cn('h-9 w-9 rounded-lg flex items-center justify-center', brand.chipClass)}>
+		<div className="flex items-start gap-2 mb-1">
+			<div className={cn('h-9 w-9 rounded-lg flex items-center justify-center shrink-0', brand.chipClass)}>
 				<PortalIcon className={cn('h-5 w-5', brand.accentClass)} />
 			</div>
-			<div className="min-w-0">
-				<p className="font-medium truncate text-sm">
-					{currentUser?.first_name} {currentUser?.last_name}
+			<div className="min-w-0 flex-1">
+				{practiceOrgName ? (
+					<p className="font-bold text-sm leading-snug text-foreground truncate" title={practiceOrgName}>
+						{practiceOrgName}
+					</p>
+				) : (
+					<p className="font-bold text-sm leading-snug text-foreground truncate">{brand.portalName}</p>
+				)}
+				<p className="text-xs font-medium text-muted-foreground truncate mt-0.5" title={userDisplayName}>
+					{userDisplayName}
 				</p>
-				<p className="text-xs text-muted-foreground truncate">{brand.title}</p>
-				{providerTypeLabel ? (
+				<p className="text-[10px] text-muted-foreground truncate">{brand.title}</p>
+				{practiceOrgAddress ? (
+					<p className="text-[10px] text-muted-foreground truncate mt-0.5" title={practiceOrgAddress}>
+						{practiceOrgAddress}
+					</p>
+				) : providerTypeLabel ? (
 					<p className="text-[10px] text-muted-foreground truncate">{providerTypeLabel}</p>
 				) : null}
 			</div>
@@ -181,9 +199,15 @@ export default function ProviderLayout({ children }) {
 
 			<aside className="hidden md:flex flex-col w-64 border-r bg-card min-h-screen sticky top-0 overflow-y-auto">
 				<div className="h-16 flex items-center px-6 border-b shrink-0">
-					<Link to="/provider/dashboard" className="flex flex-col gap-0.5">
+					<Link to="/provider/dashboard" className="flex flex-col gap-0.5 min-w-0">
 						<PayPillLogo className="h-8 max-h-9 w-auto" />
-						<span className="text-[10px] font-medium text-muted-foreground tracking-wide">{brand.portalName}</span>
+						{practiceOrgName ? (
+							<span className="text-xs font-bold text-foreground truncate leading-tight" title={practiceOrgName}>
+								{practiceOrgName}
+							</span>
+						) : (
+							<span className="text-[10px] font-medium text-muted-foreground tracking-wide">{brand.portalName}</span>
+						)}
 					</Link>
 				</div>
 				<div className="p-4 border-b shrink-0">

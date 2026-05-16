@@ -37,6 +37,8 @@ export type PharmacyAccessContext = {
 	operationsProfile: string | null;
 	providerTypeSlug: string | null;
 	providerTypeLabel: string | null;
+	practiceOrgName: string | null;
+	practiceOrgAddress: string | null;
 	isPharmacy: boolean;
 	isLaboratory: boolean;
 };
@@ -51,6 +53,8 @@ export async function getPharmacyAccessForOrg(
 		operationsProfile: null,
 		providerTypeSlug: null,
 		providerTypeLabel: null,
+		practiceOrgName: null,
+		practiceOrgAddress: null,
 		isPharmacy: false,
 		isLaboratory: false,
 	};
@@ -62,7 +66,18 @@ export async function getPharmacyAccessForOrg(
 	let providerTypeLabel: string | null = null;
 	let operationsProfile: string | null = practiceRoleSlug;
 
-	const { data: org } = await sb.from('providers').select('type').eq('id', providerOrgId).maybeSingle();
+	const { data: org } = await sb
+		.from('providers')
+		.select('type, name, provider_name, address')
+		.eq('id', providerOrgId)
+		.maybeSingle();
+	const practiceOrgName =
+		org && (org.provider_name || org.name)
+			? String(org.provider_name || org.name).trim() || null
+			: null;
+	const practiceOrgAddress =
+		org?.address && String(org.address).trim() ? String(org.address).trim() : null;
+
 	if (org?.type) {
 		providerTypeSlug = String(org.type).trim().toLowerCase();
 		const { data: typeRow } = await sb
@@ -99,6 +114,8 @@ export async function getPharmacyAccessForOrg(
 		operationsProfile,
 		providerTypeSlug,
 		providerTypeLabel,
+		practiceOrgName,
+		practiceOrgAddress,
 		isPharmacy,
 		isLaboratory,
 	};

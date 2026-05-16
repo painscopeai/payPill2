@@ -22,6 +22,8 @@ export function useProviderPracticeContext() {
 		operationsProfile: null,
 		providerTypeSlug: null,
 		providerTypeLabel: null,
+		practiceOrgName: null,
+		practiceOrgAddress: null,
 		portalProfile: 'doctor',
 		isPharmacy: false,
 		isLaboratory: false,
@@ -47,6 +49,8 @@ export function useProviderPracticeContext() {
 			setState({
 				loading: false,
 				providerOrgId: body.provider_org_id || null,
+				practiceOrgName: body.practice_org_name || null,
+				practiceOrgAddress: body.practice_org_address || null,
 				practiceRoleSlug,
 				operationsProfile,
 				providerTypeSlug,
@@ -62,6 +66,8 @@ export function useProviderPracticeContext() {
 			setState({
 				loading: false,
 				providerOrgId: user?.provider_org_id || null,
+				practiceOrgName: null,
+				practiceOrgAddress: null,
 				practiceRoleSlug: null,
 				operationsProfile: null,
 				providerTypeSlug: null,

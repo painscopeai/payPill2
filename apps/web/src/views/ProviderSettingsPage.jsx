@@ -8,6 +8,8 @@ import apiServerClient from '@/lib/apiServerClient';
 export default function ProviderSettingsPage() {
 	const { currentUser } = useAuth();
 	const [practiceSpecialtyLabel, setPracticeSpecialtyLabel] = useState(null);
+	const [practiceOrgName, setPracticeOrgName] = useState(null);
+	const [practiceOrgAddress, setPracticeOrgAddress] = useState(null);
 	const [isPharmacy, setIsPharmacy] = useState(false);
 
 	useEffect(() => {
@@ -18,6 +20,8 @@ export default function ProviderSettingsPage() {
 				const body = await res.json().catch(() => ({}));
 				if (!cancelled && res.ok) {
 					setPracticeSpecialtyLabel(body.provider_type_label || body.provider_type_slug || null);
+					setPracticeOrgName(body.practice_org_name || null);
+					setPracticeOrgAddress(body.practice_org_address || null);
 					setIsPharmacy(body.is_pharmacy === true);
 				}
 			} catch {
@@ -43,7 +47,22 @@ export default function ProviderSettingsPage() {
 				<CardHeader>
 					<CardTitle>Profile</CardTitle>
 				</CardHeader>
-				<CardContent className="space-y-2 text-sm">
+				<CardContent className="space-y-3 text-sm">
+					{practiceOrgName ? (
+						<div>
+							<p className="text-muted-foreground text-xs uppercase tracking-wide">Practice name</p>
+							<p className="text-lg font-bold text-foreground mt-0.5">{practiceOrgName}</p>
+							{practiceOrgAddress ? (
+								<p className="text-sm text-muted-foreground mt-1">{practiceOrgAddress}</p>
+							) : null}
+						</div>
+					) : null}
+					<p>
+						<span className="text-muted-foreground">Your name:</span>{' '}
+						<span className="font-medium">
+							{[currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ') || '—'}
+						</span>
+					</p>
 					<p>
 						<span className="text-muted-foreground">Email:</span> {currentUser?.email}
 					</p>
@@ -54,14 +73,13 @@ export default function ProviderSettingsPage() {
 					<p>
 						<span className="text-muted-foreground">NPI:</span> {currentUser?.npi || '—'}
 					</p>
-					<p>
-						<span className="text-muted-foreground">Linked practice org:</span>{' '}
-						{currentUser?.provider_org_id ? (
-							<code className="text-xs rounded bg-muted px-1 py-0.5">{currentUser.provider_org_id}</code>
-						) : (
-							<span className="text-amber-700 dark:text-amber-300">Not linked</span>
-						)}
-					</p>
+					{currentUser?.provider_org_id ? (
+						<p className="text-xs text-muted-foreground">
+							Org ID: <code className="rounded bg-muted px-1 py-0.5">{currentUser.provider_org_id}</code>
+						</p>
+					) : (
+						<p className="text-amber-700 dark:text-amber-300">Practice not linked — complete onboarding.</p>
+					)}
 					<p className="pt-2">
 						<Link to="/provider/onboarding?edit=1" className="text-teal-600 underline font-medium">
 							Edit practice & availability

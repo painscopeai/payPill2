@@ -9,10 +9,12 @@ import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import { ProviderDashboardShell, ProviderKpiCard } from '@/components/provider/ProviderDashboardShell.jsx';
 import { getProviderBranding } from '@/lib/providerPortalConfig.js';
+import { useProviderPracticeContext } from '@/hooks/useProviderPracticeContext';
 
 export default function PharmacyProviderDashboard() {
 	const { patients, loading } = usePatients();
 	const navigate = useNavigate();
+	const { practiceOrgName } = useProviderPracticeContext();
 	const [summary, setSummary] = useState(null);
 	const brand = getProviderBranding('pharmacist');
 	const pharmacy = summary?.pharmacy || {};
@@ -39,7 +41,7 @@ export default function PharmacyProviderDashboard() {
 				<title>Pharmacy Dashboard - PayPill</title>
 			</Helmet>
 			<ProviderDashboardShell
-				title="Pharmacy dashboard"
+				title={practiceOrgName || 'Pharmacy dashboard'}
 				subtitle="Inventory, dispensing, and patient pickup coordination"
 				accentButtonClass={brand.buttonClass}
 				primaryAction={{ label: 'Manage inventory', onClick: () => navigate('/provider/inventory') }}
