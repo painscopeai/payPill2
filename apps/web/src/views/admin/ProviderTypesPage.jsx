@@ -213,8 +213,8 @@ export default function ProviderTypesPage() {
         <CardHeader className="pb-2">
           <CardTitle>All specialties</CardTitle>
           <CardDescription>
-            <Link to="/admin/provider-onboarding" className="text-primary underline-offset-4 hover:underline">
-              Back to provider onboarding
+            <Link to="/admin/providers" className="text-primary underline-offset-4 hover:underline">
+              Back to provider directory
             </Link>
           </CardDescription>
         </CardHeader>

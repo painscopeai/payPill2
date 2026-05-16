@@ -105,7 +105,6 @@ export async function POST(request: NextRequest) {
 
 		const { error: insErr } = await sb.from('provider_services').insert({
 			provider_id: providerId,
-			provider_application_id: null,
 			name: name.slice(0, 500),
 			category,
 			unit,

@@ -5,15 +5,11 @@ import {
   LayoutDashboard, Users, Building2, ShieldCheck, 
   FileText, Brain,
   LogOut, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, BookOpen, FileSpreadsheet,
-  TrendingUp, BarChart3, LineChart, Tags, CalendarClock, Library, ListChecks
+  TrendingUp, BarChart3, LineChart, Tags, CalendarClock, ListChecks
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import apiServerClient from '@/lib/apiServerClient';
-import { PROVIDER_PENDING_QUEUE_CHANGED_EVENT } from '@/lib/providerApplicationPendingQueue.js';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { cn } from '@/lib/utils';
-
-const PROVIDERS_MANAGEMENT_PATH = '/admin/providers';
 
 const sections = [
   {
@@ -36,7 +32,6 @@ const sections = [
     title: 'Provider Management',
     items: [
       { title: 'Provider Directory', path: '/admin/providers', icon: Building2 },
-      { title: 'Credentialing Queue', path: '/admin/provider-onboarding', icon: FileText },
       { title: 'Provider Specialties', path: '/admin/provider-types', icon: Tags },
       { title: 'Appointment Types', path: '/admin/appointment-options', icon: CalendarClock },
       { title: 'Service Catalog', path: '/admin/provider-services', icon: ListChecks },
@@ -47,7 +42,7 @@ const sections = [
     items: [
       { title: 'Form Builder', path: '/admin/forms', icon: FileText },
       { title: 'Form Submissions', path: '/admin/form-responses', icon: ClipboardList },
-      { title: 'Profile Reference Data', path: '/admin/profile-reference-data', icon: Library },
+      { title: 'Profile Reference Data', path: '/admin/profile-reference-data', icon: BookOpen },
       { title: 'Knowledge Base', path: '/admin/knowledge-base', icon: BookOpen },
       { title: 'AI Activity Logs', path: '/admin/ai-logs', icon: Brain },
     ]
@@ -80,15 +75,9 @@ function sectionContainsActivePath(section, pathname) {
   );
 }
 
-/**
- * Module-level nav so React keeps the same component type across route changes.
- * Defining this inside AdminSidebar recreated the component every render, which
- * remounted the scrollable list and reset scroll to the top on each click.
- */
 function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
   const location = useLocation();
   const { logout } = useAuth();
-  const [pendingProviderApplications, setPendingProviderApplications] = useState(0);
   const [expandedBySection, setExpandedBySection] = useState(() => {
     const initial = {};
     for (const s of sections) {
@@ -99,7 +88,6 @@ function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
     return initial;
   });
 
-  /** Keep the active route visible: auto-expand its section while sidebar is expanded. */
   useEffect(() => {
     const path = location.pathname;
     setExpandedBySection((prev) => {
@@ -122,37 +110,6 @@ function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
       [title]: !prev[title],
     }));
   }, []);
-
-  const fetchPendingProviderApplications = useCallback(async () => {
-    try {
-      const res = await apiServerClient.fetch('/admin/provider-applications?status=submitted&limit=1');
-      if (!res.ok) return;
-      const data = await res.json();
-      const total = typeof data.total === 'number' ? data.total : (data.items || []).length;
-      setPendingProviderApplications(total);
-    } catch {
-      /* ignore — sidebar should still work */
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchPendingProviderApplications();
-  }, [location.pathname, fetchPendingProviderApplications]);
-
-  useEffect(() => {
-    const t = window.setInterval(() => void fetchPendingProviderApplications(), 45_000);
-    const onVis = () => {
-      if (document.visibilityState === 'visible') void fetchPendingProviderApplications();
-    };
-    const onPendingEvent = () => void fetchPendingProviderApplications();
-    document.addEventListener('visibilitychange', onVis);
-    window.addEventListener(PROVIDER_PENDING_QUEUE_CHANGED_EVENT, onPendingEvent);
-    return () => {
-      window.clearInterval(t);
-      document.removeEventListener('visibilitychange', onVis);
-      window.removeEventListener(PROVIDER_PENDING_QUEUE_CHANGED_EVENT, onPendingEvent);
-    };
-  }, [fetchPendingProviderApplications]);
 
   return (
     <div className="flex flex-col h-full bg-[hsl(var(--admin-sidebar-bg))] text-[hsl(var(--admin-sidebar-fg))]">
@@ -215,19 +172,12 @@ function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
                 section.items.map((item) => {
                   const isActive =
                     location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
-                  const showMgmtDot =
-                    item.path === PROVIDERS_MANAGEMENT_PATH && pendingProviderApplications > 0;
                   return (
                     <Link
                       key={item.path}
                       to={item.path}
                       onClick={() => setIsMobileOpen(false)}
                       title={isCollapsed ? item.title : undefined}
-                      aria-label={
-                        showMgmtDot
-                          ? `${item.title}, ${pendingProviderApplications} pending application(s)`
-                          : item.title
-                      }
                       className={cn(
                         'relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 group',
                         isActive
@@ -235,34 +185,15 @@ function AdminSidebarNav({ isCollapsed, setIsMobileOpen }) {
                           : 'text-[hsl(var(--admin-sidebar-fg))]/75 hover:bg-[hsl(var(--admin-sidebar-hover))] hover:text-[hsl(var(--admin-sidebar-fg))]',
                       )}
                     >
-                      <span className="relative inline-flex shrink-0">
-                        <item.icon
-                          className={cn(
-                            'h-4 w-4',
-                            isActive
-                              ? 'text-[hsl(var(--admin-sidebar-fg))]'
-                              : 'text-[hsl(var(--admin-sidebar-fg))]/75 group-hover:text-[hsl(var(--admin-sidebar-fg))]',
-                          )}
-                        />
-                        {isCollapsed && showMgmtDot ? (
-                          <span
-                            className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[hsl(var(--admin-sidebar-bg))]"
-                            aria-hidden
-                          />
-                        ) : null}
-                      </span>
-                      {!isCollapsed && (
-                        <>
-                          <span className="flex-1 truncate">{item.title}</span>
-                          {showMgmtDot ? (
-                            <span
-                              className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-[hsl(var(--admin-sidebar-bg))]"
-                              title={`${pendingProviderApplications} pending`}
-                              aria-hidden
-                            />
-                          ) : null}
-                        </>
-                      )}
+                      <item.icon
+                        className={cn(
+                          'h-4 w-4 shrink-0',
+                          isActive
+                            ? 'text-[hsl(var(--admin-sidebar-fg))]'
+                            : 'text-[hsl(var(--admin-sidebar-fg))]/75 group-hover:text-[hsl(var(--admin-sidebar-fg))]',
+                        )}
+                      />
+                      {!isCollapsed && <span className="flex-1 truncate">{item.title}</span>}
                     </Link>
                   );
                 })}

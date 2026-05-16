@@ -57,13 +57,9 @@ export default function ProviderSettingsPage() {
 							<span className="text-amber-700 dark:text-amber-300">Not linked</span>
 						)}
 					</p>
-					<p className="pt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+					<p className="pt-2">
 						<Link to="/provider/onboarding?edit=1" className="text-teal-600 underline font-medium">
 							Edit practice & availability
-						</Link>
-						<span className="hidden sm:inline text-muted-foreground">·</span>
-						<Link to="/provider-onboarding/services" className="text-muted-foreground underline text-sm">
-							Legacy application token intake
 						</Link>
 					</p>
 				</CardContent>

@@ -20,50 +20,24 @@ export async function GET(request: NextRequest) {
 
 	const url = new URL(request.url);
 	const providerId = url.searchParams.get('providerId')?.trim() || '';
-	const applicationId = url.searchParams.get('providerApplicationId')?.trim() || '';
 
-	if ((providerId && applicationId) || (!providerId && !applicationId)) {
-		return NextResponse.json(
-			{ error: 'Provide exactly one of providerId or providerApplicationId' },
-			{ status: 400 },
-		);
+	if (!providerId) {
+		return NextResponse.json({ error: 'providerId is required' }, { status: 400 });
 	}
-	if (providerId && !UUID_RE.test(providerId)) {
+	if (!UUID_RE.test(providerId)) {
 		return NextResponse.json({ error: 'Invalid providerId' }, { status: 400 });
-	}
-	if (applicationId && !UUID_RE.test(applicationId)) {
-		return NextResponse.json({ error: 'Invalid providerApplicationId' }, { status: 400 });
 	}
 
 	const sb = getSupabaseAdmin();
-	let q = sb
+	const { data, error } = await sb
 		.from('provider_services')
 		.select(
-			'id,name,category,unit,price,currency,notes,is_active,sort_order,provider_application_id,provider_id,created_at,updated_at',
+			'id,name,category,unit,price,currency,notes,is_active,sort_order,provider_id,created_at,updated_at',
 		)
+		.eq('provider_id', providerId)
 		.order('sort_order', { ascending: true })
 		.order('created_at', { ascending: true });
 
-	if (providerId) {
-		const { data: apps, error: appErr } = await sb
-			.from('provider_applications')
-			.select('id')
-			.eq('provider_id', providerId);
-		if (appErr) {
-			console.error('[admin/provider-services GET] applications', appErr.message);
-			return NextResponse.json({ error: 'Failed to load services' }, { status: 500 });
-		}
-		const appIds = (apps || []).map((a: { id: string }) => a.id).filter(Boolean);
-		if (appIds.length > 0) {
-			q = q.or(`provider_id.eq.${providerId},provider_application_id.in.(${appIds.join(',')})`);
-		} else {
-			q = q.eq('provider_id', providerId);
-		}
-	} else {
-		q = q.eq('provider_application_id', applicationId);
-	}
-
-	const { data, error } = await q;
 	if (error) {
 		console.error('[admin/provider-services GET]', error.message);
 		return NextResponse.json({ error: 'Failed to load services' }, { status: 500 });
@@ -134,7 +108,6 @@ export async function POST(request: NextRequest) {
 
 	const row = {
 		provider_id,
-		provider_application_id: null as string | null,
 		name: name.slice(0, 500),
 		category,
 		unit,

@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,31 +13,8 @@ import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 
-/** Decode JWT payload (browser only; signature verified on submit server-side). */
-function readInviteEmailFromToken(token) {
-  if (!token || typeof token !== 'string') return '';
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return '';
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-    const payload = JSON.parse(atob(padded));
-    return typeof payload.applicantEmail === 'string' ? payload.applicantEmail.trim() : '';
-  } catch {
-    return '';
-  }
-}
-
 export default function FormSubmissionPage() {
   const { formId } = useParams();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const applicationToken = searchParams.get('application_token')?.trim() || '';
-
-  const inviteEmailHint = useMemo(
-    () => readInviteEmailFromToken(applicationToken),
-    [applicationToken],
-  );
 
   const [form, setForm] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -60,17 +37,14 @@ export default function FormSubmissionPage() {
         const data = await res.json();
         setForm(data);
         setQuestions(data.questions || []);
-        if (inviteEmailHint && data.collect_email !== false) {
-          setEmail(inviteEmailHint);
-        }
-      } catch (err) {
+      } catch {
         toast.error('Form not found or unavailable');
       } finally {
         setIsLoading(false);
       }
     };
     if (formId) fetchForm();
-  }, [formId, inviteEmailHint]);
+  }, [formId]);
 
   const handleAnswerChange = (questionId, value) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -89,19 +63,11 @@ export default function FormSubmissionPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const effectiveEmail =
-      applicationToken && inviteEmailHint
-        ? inviteEmailHint
-        : email || 'anonymous';
 
-    // Basic validation
-    if (form.collect_email !== false && !applicationToken && !email?.trim()) {
+    const effectiveEmail = email?.trim() || 'anonymous';
+
+    if (form.collect_email !== false && !email?.trim()) {
       toast.error('Email is required');
-      return;
-    }
-    if (applicationToken && !inviteEmailHint) {
-      toast.error('Invalid invitation link');
       return;
     }
 
@@ -119,13 +85,10 @@ export default function FormSubmissionPage() {
     try {
       const completionTime = Math.round((Date.now() - startTime) / 1000);
       const body = {
-        respondent_email: effectiveEmail.trim(),
+        respondent_email: effectiveEmail,
         responses_json: answers,
         completion_time_seconds: completionTime,
       };
-      if (applicationToken) {
-        body.provider_application_token = applicationToken;
-      }
       const base = getApiBaseUrl().replace(/\/$/, '');
       const res = await fetch(`${base}/forms/${formId}/responses`, {
         method: 'POST',
@@ -136,13 +99,6 @@ export default function FormSubmissionPage() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || res.statusText || 'Submit failed');
-      }
-      if (applicationToken) {
-        navigate(
-          `/provider-onboarding/services?application_token=${encodeURIComponent(applicationToken)}`,
-          { replace: true },
-        );
-        return;
       }
       setIsSubmitted(true);
     } catch (err) {
@@ -208,12 +164,7 @@ export default function FormSubmissionPage() {
                 onChange={(e) => setEmail(e.target.value)} 
                 placeholder="Your email" 
                 className="max-w-md"
-                readOnly={Boolean(applicationToken)}
-                title={applicationToken ? 'Email is fixed for this invitation' : undefined}
               />
-              {applicationToken ? (
-                <p className="text-xs text-muted-foreground">This questionnaire was sent to your invited email address.</p>
-              ) : null}
             </div>
           )}
 
@@ -326,3 +277,4 @@ export default function FormSubmissionPage() {
     </div>
   );
 }
+

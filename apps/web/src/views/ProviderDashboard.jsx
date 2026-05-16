@@ -100,8 +100,8 @@ export default function ProviderDashboard() {
 				<Card className="border-amber-500/40 bg-amber-500/5">
 					<CardContent className="p-4 text-sm text-amber-950 dark:text-amber-100">
 						Link your practice organization to see bookings in this dashboard. Complete{' '}
-						<button type="button" className="underline font-semibold" onClick={() => navigate('/provider-onboarding/services')}>
-							services onboarding
+						<button type="button" className="underline font-semibold" onClick={() => navigate('/provider/onboarding')}>
+							practice onboarding
 						</button>
 						.
 					</CardContent>

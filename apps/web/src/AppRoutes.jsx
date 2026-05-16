@@ -15,7 +15,6 @@ import AuthAdminPage from './views/AuthAdminPage.jsx';
 import AuthProviderPage from './views/AuthProviderPage.jsx';
 import NotFoundPage from './views/NotFoundPage.jsx';
 import FormSubmissionPage from './views/FormSubmissionPage.jsx';
-import ProviderServicesIntakePage from './views/ProviderServicesIntakePage.jsx';
 import ProtectedAdminRoute from './components/admin/ProtectedAdminRoute.jsx';
 import AdminLayout from './components/admin/AdminLayout.jsx';
 import AdminLandingPage from './views/admin/AdminLandingPage.jsx';
@@ -74,7 +73,6 @@ const SubscriptionAssignmentPage = React.lazy(() => import('./views/admin/Subscr
 const SubscriptionMonitoringPage = React.lazy(() => import('./views/admin/SubscriptionMonitoringPage.jsx'));
 const SubscriptionLogsPage = React.lazy(() => import('./views/admin/SubscriptionLogsPage.jsx'));
 const ProvidersManagementPage = React.lazy(() => import('./views/admin/ProvidersManagementPage.jsx'));
-const ProviderOnboardingPage = React.lazy(() => import('./views/admin/ProviderOnboardingPage.jsx'));
 const ProviderTypesPage = React.lazy(() => import('./views/admin/ProviderTypesPage.jsx'));
 const AppointmentOptionsPage = React.lazy(() => import('./views/admin/AppointmentOptionsPage.jsx'));
 const ProfileReferenceDataPage = React.lazy(() => import('./views/admin/ProfileReferenceDataPage.jsx'));
@@ -82,9 +80,6 @@ const BulkProviderUploadPage = React.lazy(() => import('./views/admin/BulkProvid
 const BulkImportsHubPage = React.lazy(() => import('./views/admin/BulkImportsHubPage.jsx'));
 const EmployerEmployeeRosterPage = React.lazy(() => import('./views/admin/EmployerEmployeeRosterPage.jsx'));
 const ProviderServicesPage = React.lazy(() => import('./views/admin/ProviderServicesPage.jsx'));
-const ProviderServicesIntakePreviewPage = React.lazy(() =>
-	import('./views/admin/ProviderServicesIntakePreviewPage.jsx')
-);
 const FormBuilderPage = React.lazy(() => import('./views/admin/FormBuilderPage.jsx'));
 const FormResponsesPage = React.lazy(() => import('./views/admin/FormResponsesPage.jsx'));
 const FormResponsesHubPage = React.lazy(() => import('./views/admin/FormResponsesHubPage.jsx'));
@@ -140,7 +135,6 @@ export default function AppRoutes() {
 					<Route path="/admin" element={<AdminLandingPage />} />
 					<Route path="/admin/login" element={<AdminLoginPage />} />
 					<Route path="/forms/:formId" element={<FormSubmissionPage />} />
-					<Route path="/provider-onboarding/services" element={<ProviderServicesIntakePage />} />
 
 					<Route
 						path="/admin/*"
@@ -172,7 +166,10 @@ export default function AppRoutes() {
 											<Route path="subscription-monitoring" element={<SubscriptionMonitoringPage />} />
 											<Route path="subscription-logs" element={<SubscriptionLogsPage />} />
 											<Route path="providers" element={<ProvidersManagementPage />} />
-											<Route path="provider-onboarding" element={<ProviderOnboardingPage />} />
+											<Route
+												path="provider-onboarding"
+												element={<Navigate to="/admin/providers" replace />}
+											/>
 											<Route path="provider-types" element={<ProviderTypesPage />} />
 											<Route path="appointment-options" element={<AppointmentOptionsPage />} />
 											<Route path="profile-reference-data" element={<ProfileReferenceDataPage />} />
@@ -184,10 +181,6 @@ export default function AppRoutes() {
 											/>
 											<Route path="bulk-provider-upload" element={<BulkProviderUploadPage />} />
 											<Route path="provider-services" element={<ProviderServicesPage />} />
-											<Route
-												path="preview/provider-services-intake"
-												element={<ProviderServicesIntakePreviewPage />}
-											/>
 											<Route path="form-responses" element={<FormResponsesHubPage />} />
 											<Route path="forms" element={<FormBuilderPage />} />
 											<Route path="forms/:formId/responses" element={<FormResponsesPage />} />

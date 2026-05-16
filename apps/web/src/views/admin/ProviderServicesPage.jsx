@@ -44,8 +44,8 @@ const UNIT_LABEL = {
 };
 
 export default function ProviderServicesPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const applicationIdFromUrl = searchParams.get('providerApplicationId')?.trim() || '';
+  const [searchParams] = useSearchParams();
+  const providerIdFromUrl = searchParams.get('providerId')?.trim() || '';
 
   const authHeaders = async () => {
     const {
@@ -99,26 +99,15 @@ export default function ProviderServicesPage() {
     };
   }, [providerSearch]);
 
-  const loadServices = useCallback(async () => {
-    if (applicationIdFromUrl) {
-      setServicesLoading(true);
-      try {
-        const res = await apiServerClient.fetch(
-          `/admin/provider-services?providerApplicationId=${encodeURIComponent(applicationIdFromUrl)}`,
-          { headers: await authHeaders() },
-        );
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error || 'Failed to load services');
-        setServices(Array.isArray(data.items) ? data.items : []);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Failed to load services');
-        setServices([]);
-      } finally {
-        setServicesLoading(false);
-      }
-      return;
+  useEffect(() => {
+    if (!providerIdFromUrl || !providerRows.length) return;
+    const match = providerRows.find((r) => r.id === providerIdFromUrl);
+    if (match && selectedProvider?.id !== match.id) {
+      setSelectedProvider(match);
     }
+  }, [providerIdFromUrl, providerRows, selectedProvider?.id]);
 
+  const loadServices = useCallback(async () => {
     if (!selectedProvider?.id) {
       setServices([]);
       return;
@@ -138,7 +127,7 @@ export default function ProviderServicesPage() {
     } finally {
       setServicesLoading(false);
     }
-  }, [selectedProvider, applicationIdFromUrl]);
+  }, [selectedProvider]);
 
   useEffect(() => {
     void loadServices();
@@ -305,37 +294,14 @@ export default function ProviderServicesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-bold tracking-tight">Provider service list</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">Service catalog</h1>
         <p className="mt-1 text-muted-foreground">
-          Manage services and drug pricing per provider. Rows created during onboarding appear here after approval.
+          Manage billable services and pricing per practice. Providers can also add rows during self-serve onboarding.
         </p>
         <Button variant="link" className="h-auto px-0 pt-2" asChild>
-          <Link to="/admin/preview/provider-services-intake">Applicant onboarding form (preview)</Link>
+          <Link to="/admin/providers">Back to provider directory</Link>
         </Button>
       </div>
-
-      {applicationIdFromUrl ? (
-        <div className="rounded-lg border border-primary/25 bg-primary/5 px-4 py-3 text-sm">
-          <span className="font-medium">Onboarding application filter.</span>{' '}
-          Showing catalog rows saved under application ID{' '}
-          <code className="rounded bg-muted px-1 text-xs">{applicationIdFromUrl}</code>. After you approve the
-          application, the same rows are linked to the provider and appear when you select them below.{' '}
-          <Button
-            type="button"
-            variant="link"
-            className="h-auto p-0"
-            onClick={() => {
-              setSearchParams((prev) => {
-                const next = new URLSearchParams(prev);
-                next.delete('providerApplicationId');
-                return next;
-              });
-            }}
-          >
-            Clear filter
-          </Button>
-        </div>
-      ) : null}
 
       <Card className="border-[hsl(var(--admin-border))] bg-[hsl(var(--admin-card))] shadow-sm">
         <CardHeader>
@@ -376,16 +342,7 @@ export default function ProviderServicesPage() {
                 : 'Select a provider above to view or edit rows.'}
             </CardDescription>
           </div>
-          <Button
-            type="button"
-            onClick={openCreate}
-            disabled={!selectedProvider || Boolean(applicationIdFromUrl)}
-            title={
-              applicationIdFromUrl
-                ? 'Clear the onboarding application filter to add rows against a selected provider.'
-                : undefined
-            }
-          >
+          <Button type="button" onClick={openCreate} disabled={!selectedProvider}>
             <Plus className="mr-2 h-4 w-4" /> Add service
           </Button>
         </CardHeader>

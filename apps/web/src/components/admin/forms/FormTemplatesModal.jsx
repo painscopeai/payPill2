@@ -83,10 +83,10 @@ export function FormTemplatesModal({
 												className="w-full gap-2"
 												onClick={() => {
 													onClose();
-													navigate('/admin/provider-onboarding');
+													navigate('/admin/providers');
 												}}
 											>
-												Provider onboarding (invites)
+												Provider directory
 											</Button>
 											<Button
 												variant="outline"
