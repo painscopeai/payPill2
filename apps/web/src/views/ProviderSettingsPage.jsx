@@ -111,15 +111,15 @@ export default function ProviderSettingsPage() {
 				<CardContent className="space-y-3 text-sm">
 					<p className="text-muted-foreground">
 						{isPharmacy
-							? 'Manage medications, prescription templates, and billable services for your practice.'
-							: 'Manage medications, lab tests, and billable services. Add or edit rows manually, or use bulk import on the Prescriptions page.'}
+							? 'Manage your medication formulary and billable services for consultations.'
+							: 'Manage medications, lab tests, and billable services. Add or edit rows manually, or use bulk import on the drug catalog page.'}
 					</p>
 					<ul className="list-disc pl-5 space-y-1.5">
 						<li>
-							<Link to="/provider/prescriptions" className="text-teal-600 font-medium underline">
-								Prescriptions
+							<Link to="/provider/settings/catalog/drugs" className="text-teal-600 font-medium underline">
+								Drug formulary
 							</Link>{' '}
-							— medication formulary and predefined prescription templates for consultations.
+							— medications available when prescribing during a consultation.
 						</li>
 						{!isPharmacy ? (
 							<li>

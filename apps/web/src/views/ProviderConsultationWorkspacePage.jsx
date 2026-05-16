@@ -661,9 +661,9 @@ export default function ProviderConsultationWorkspacePage() {
 										<h3 className="text-sm font-semibold">Prescriptions</h3>
 									</div>
 									<p className="text-xs text-muted-foreground">
-										Add medications for this visit. Manage your formulary and templates under{' '}
-										<Link to="/provider/prescriptions" className="text-teal-600 underline font-medium">
-											Prescriptions
+										Add medications for this visit. Manage your formulary under{' '}
+										<Link to="/provider/settings/catalog/drugs" className="text-teal-600 underline font-medium">
+											Settings → Drug formulary
 										</Link>
 										. You can edit any line below for this patient.
 									</p>

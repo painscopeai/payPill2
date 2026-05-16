@@ -211,7 +211,7 @@ export async function buildProviderAnalyticsActivity(
 				kind: 'prescription',
 				title: `Prescription · ${String(row.medication_name || 'Medication').trim()}`,
 				subtitle: row.status ? String(row.status) : null,
-				href: '/provider/prescriptions',
+				href: '/provider/consultations',
 				patient_user_id: row.user_id || null,
 			});
 		}
