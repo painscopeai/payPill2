@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
 import apiServerClient from '@/lib/apiServerClient';
 import { supabase } from '@/lib/supabaseClient';
@@ -26,6 +25,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { ListChecks, Tags } from 'lucide-react';
 
 export default function ProvidersManagementPage() {
   const authHeaders = async () => {
@@ -135,40 +136,33 @@ export default function ProvidersManagementPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setSpecialtyRow(row);
-              setSpecialtySlug(row.type || '');
-              setSpecialtyDialog(true);
-            }}
-          >
-            Assign specialty
-          </Button>
-          <Button type="button" size="sm" variant="ghost" asChild>
-            <Link to={`/admin/provider-services?providerId=${encodeURIComponent(row.id)}`}>Services</Link>
-          </Button>
-        </div>
+        <TableRowActionsMenu
+          items={[
+            {
+              label: 'Assign specialty',
+              icon: Tags,
+              onClick: () => {
+                setSpecialtyRow(row);
+                setSpecialtySlug(row.type || '');
+                setSpecialtyDialog(true);
+              },
+            },
+            {
+              label: 'Services',
+              icon: ListChecks,
+              href: `/admin/provider-services?providerId=${encodeURIComponent(row.id)}`,
+              separatorBefore: true,
+            },
+          ]}
+        />
       ),
     },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold font-display">Providers</h1>
-          <p className="text-muted-foreground max-w-2xl">
-            Practices created through provider signup and onboarding. Assign a specialty to control operations (e.g.
-            pharmacy inventory and patient shop). Manage service pricing from the service catalog.
-          </p>
-        </div>
-        <Button variant="outline" asChild>
-          <Link to="/admin/provider-types">Manage specialties</Link>
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold font-display">Providers</h1>
       </div>
 
       <Card className="border-none shadow-sm">

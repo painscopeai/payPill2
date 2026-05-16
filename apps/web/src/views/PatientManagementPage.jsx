@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import ProviderDataTable from '@/components/provider/ProviderDataTable.jsx';
 import { usePatients } from '@/hooks/usePatients.js';
 import { FileText } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/TableRowActionsMenu.jsx';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
 
 function activityBadgeVariant(kind) {
@@ -126,14 +127,16 @@ export default function PatientManagementPage() {
 				sortable: false,
 				className: 'w-[140px]',
 				render: (row) => (
-					<div className="flex justify-end">
-						<Button variant="ghost" size="sm" className="gap-1.5 text-teal-700 dark:text-teal-300" asChild>
-							<Link to={`/provider/patients/${encodeURIComponent(row.patient_id)}`}>
-								<FileText className="h-4 w-4" />
-								View chart
-							</Link>
-						</Button>
-					</div>
+					<TableRowActionsMenu
+						items={[
+							{
+								label: 'View chart',
+								icon: FileText,
+								href: `/provider/patients/${encodeURIComponent(row.patient_id)}`,
+								className: 'text-teal-700 dark:text-teal-300',
+							},
+						]}
+					/>
 				),
 			},
 		],

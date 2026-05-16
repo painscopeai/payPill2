@@ -29,6 +29,7 @@ import { SearchBar } from '@/components/admin/SearchBar.jsx';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 
 const CATEGORY_LABEL = {
   service: 'Service',
@@ -279,14 +280,18 @@ export default function ProviderServicesPage() {
       key: 'actions',
       label: '',
       render: (r) => (
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => openEdit(r)}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => remove(r)}>
-            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-          </Button>
-        </div>
+        <TableRowActionsMenu
+          items={[
+            { label: 'Edit', icon: Pencil, onClick: () => openEdit(r) },
+            {
+              label: 'Delete',
+              icon: Trash2,
+              onClick: () => remove(r),
+              destructive: true,
+              separatorBefore: true,
+            },
+          ]}
+        />
       ),
     },
   ];

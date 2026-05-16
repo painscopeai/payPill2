@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Clipboard, BarChart2 } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -148,15 +149,23 @@ export default function FormResponsesHubPage() {
                             : '—'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            {f.status === 'published' ? (
-                              <Button variant="ghost" size="sm" type="button" onClick={() => copyLink(f.id)}>
-                                <Clipboard className="mr-1 h-4 w-4" /> Copy link
-                              </Button>
-                            ) : null}
-                            <Button variant="default" size="sm" type="button" onClick={() => navigate(`/admin/forms/${f.id}/responses`)}>
-                              <BarChart2 className="mr-1 h-4 w-4" /> Responses
-                            </Button>
+                          <div className="flex justify-end">
+                            <TableRowActionsMenu
+                              items={[
+                                {
+                                  label: 'Copy link',
+                                  icon: Clipboard,
+                                  onClick: () => copyLink(f.id),
+                                  hidden: f.status !== 'published',
+                                },
+                                {
+                                  label: 'Responses',
+                                  icon: BarChart2,
+                                  onClick: () => navigate(`/admin/forms/${f.id}/responses`),
+                                  separatorBefore: f.status === 'published',
+                                },
+                              ]}
+                            />
                           </div>
                         </TableCell>
                       </TableRow>

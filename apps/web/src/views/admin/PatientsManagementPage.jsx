@@ -4,17 +4,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, MoreHorizontal, Download, UserX, UserCheck, Trash2, UserPlus } from 'lucide-react';
+import { Search, Download, UserX, UserCheck, Trash2, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -241,29 +234,30 @@ export default function PatientsManagementPage() {
                         {patient.created_at ? format(new Date(patient.created_at), 'MMM d, yyyy') : '—'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            {patient.status === 'active' ? (
-                              <DropdownMenuItem className="text-warning" onClick={() => updateStatus(patient.id, 'inactive')}>
-                                <UserX className="w-4 h-4 mr-2" /> Deactivate Account
-                              </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem className="text-success" onClick={() => updateStatus(patient.id, 'active')}>
-                                <UserCheck className="w-4 h-4 mr-2" /> Reactivate Account
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onClick={() => deleteUser(patient.id)}>
-                              <Trash2 className="w-4 h-4 mr-2" /> Soft-disable
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <TableRowActionsMenu
+                          items={[
+                            patient.status === 'active'
+                              ? {
+                                  label: 'Deactivate Account',
+                                  icon: UserX,
+                                  onClick: () => updateStatus(patient.id, 'inactive'),
+                                  className: 'text-warning',
+                                }
+                              : {
+                                  label: 'Reactivate Account',
+                                  icon: UserCheck,
+                                  onClick: () => updateStatus(patient.id, 'active'),
+                                  className: 'text-success',
+                                },
+                            {
+                              label: 'Soft-disable',
+                              icon: Trash2,
+                              onClick: () => deleteUser(patient.id),
+                              destructive: true,
+                              separatorBefore: true,
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   ))

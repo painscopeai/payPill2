@@ -25,6 +25,7 @@ import {
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { toast } from 'sonner';
 import { Plus, Loader2, Pencil, Ban } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 
 const OPERATIONS_LABELS = {
   doctor: 'Clinical',
@@ -177,18 +178,20 @@ export default function ProviderTypesPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => openEdit(row)}>
-            <Pencil className="w-4 h-4 mr-1" />
-            Edit
-          </Button>
-          {row.active ? (
-            <Button type="button" size="sm" variant="secondary" onClick={() => void deactivate(row)}>
-              <Ban className="w-4 h-4 mr-1" />
-              Deactivate
-            </Button>
-          ) : null}
-        </div>
+        <TableRowActionsMenu
+          items={[
+            { label: 'Edit', icon: Pencil, onClick: () => openEdit(row) },
+            row.active
+              ? {
+                  label: 'Deactivate',
+                  icon: Ban,
+                  onClick: () => void deactivate(row),
+                  className: 'text-warning',
+                  separatorBefore: true,
+                }
+              : null,
+          ].filter(Boolean)}
+        />
       ),
     },
   ];

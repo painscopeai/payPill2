@@ -24,6 +24,7 @@ import {
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { toast } from 'sonner';
 import { Plus, Loader2, Pencil, Ban } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 
 /** Same rules as server `normalizeSlug` / slug column: lowercase letters, digits, hyphen, underscore. */
 function insuranceSlugFromLabel(raw) {
@@ -370,27 +371,33 @@ export default function AppointmentOptionsPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => {
-            setVtEditing(row);
-            setVtForm({
-              slug: row.slug,
-              label: row.label,
-              sort_order: row.sort_order ?? 0,
-              active: row.active !== false,
-            });
-            setVtDialog(true);
-          }}>
-            <Pencil className="w-4 h-4 mr-1" />
-            Edit
-          </Button>
-          {row.active ? (
-            <Button type="button" size="sm" variant="secondary" onClick={() => void deactivateVisitType(row)}>
-              <Ban className="w-4 h-4 mr-1" />
-              Deactivate
-            </Button>
-          ) : null}
-        </div>
+        <TableRowActionsMenu
+          items={[
+            {
+              label: 'Edit',
+              icon: Pencil,
+              onClick: () => {
+                setVtEditing(row);
+                setVtForm({
+                  slug: row.slug,
+                  label: row.label,
+                  sort_order: row.sort_order ?? 0,
+                  active: row.active !== false,
+                });
+                setVtDialog(true);
+              },
+            },
+            row.active
+              ? {
+                  label: 'Deactivate',
+                  icon: Ban,
+                  onClick: () => void deactivateVisitType(row),
+                  className: 'text-warning',
+                  separatorBefore: true,
+                }
+              : null,
+          ].filter(Boolean)}
+        />
       ),
     },
   ];
@@ -409,33 +416,34 @@ export default function AppointmentOptionsPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setInsEditing(row);
-              setInsForm({
-                label: row.label,
-                sort_order: row.sort_order ?? 0,
-                active: row.active !== false,
-                copay_estimate:
-                  row.copay_estimate != null ? String(row.copay_estimate) : '',
-              });
-              setInsDialog(true);
-            }}
-          >
-            <Pencil className="w-4 h-4 mr-1" />
-            Edit
-          </Button>
-          {row.active ? (
-            <Button type="button" size="sm" variant="secondary" onClick={() => void deactivateInsurance(row)}>
-              <Ban className="w-4 h-4 mr-1" />
-              Deactivate
-            </Button>
-          ) : null}
-        </div>
+        <TableRowActionsMenu
+          items={[
+            {
+              label: 'Edit',
+              icon: Pencil,
+              onClick: () => {
+                setInsEditing(row);
+                setInsForm({
+                  label: row.label,
+                  sort_order: row.sort_order ?? 0,
+                  active: row.active !== false,
+                  copay_estimate:
+                    row.copay_estimate != null ? String(row.copay_estimate) : '',
+                });
+                setInsDialog(true);
+              },
+            },
+            row.active
+              ? {
+                  label: 'Deactivate',
+                  icon: Ban,
+                  onClick: () => void deactivateInsurance(row),
+                  className: 'text-warning',
+                  separatorBefore: true,
+                }
+              : null,
+          ].filter(Boolean)}
+        />
       ),
     },
   ];
@@ -572,41 +580,37 @@ export default function AppointmentOptionsPage() {
                     key: 'actions',
                     label: 'Actions',
                     render: (row) => (
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setCmEditing(row);
-                            setCmForm({
-                              visit_type_id: row.visit_type_id,
-                              insurance_option_id: row.insurance_option_id,
-                              copay_estimate: String(row.copay_estimate ?? ''),
-                              list_price:
-                                row.list_price != null && row.list_price !== ''
-                                  ? String(row.list_price)
-                                  : '',
-                              active: row.active !== false,
-                            });
-                            setCmDialog(true);
-                          }}
-                        >
-                          <Pencil className="w-4 h-4 mr-1" />
-                          Edit
-                        </Button>
-                        {row.active ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => void deactivateCopayRow(row)}
-                          >
-                            <Ban className="w-4 h-4 mr-1" />
-                            Deactivate
-                          </Button>
-                        ) : null}
-                      </div>
+                      <TableRowActionsMenu
+                        items={[
+                          {
+                            label: 'Edit',
+                            icon: Pencil,
+                            onClick: () => {
+                              setCmEditing(row);
+                              setCmForm({
+                                visit_type_id: row.visit_type_id,
+                                insurance_option_id: row.insurance_option_id,
+                                copay_estimate: String(row.copay_estimate ?? ''),
+                                list_price:
+                                  row.list_price != null && row.list_price !== ''
+                                    ? String(row.list_price)
+                                    : '',
+                                active: row.active !== false,
+                              });
+                              setCmDialog(true);
+                            },
+                          },
+                          row.active
+                            ? {
+                                label: 'Deactivate',
+                                icon: Ban,
+                                onClick: () => void deactivateCopayRow(row),
+                                className: 'text-warning',
+                                separatorBefore: true,
+                              }
+                            : null,
+                        ].filter(Boolean)}
+                      />
                     ),
                   },
                 ]}

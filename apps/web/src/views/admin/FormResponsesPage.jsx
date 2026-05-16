@@ -13,7 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Download, Users, Clock, CheckCircle2, Share2 } from 'lucide-react';
+import { ArrowLeft, Download, Users, Clock, CheckCircle2, Share2, Eye } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -162,9 +163,7 @@ export default function FormResponsesPage() {
       key: 'actions',
       label: 'Actions',
       render: (r) => (
-        <Button variant="ghost" size="sm" type="button" onClick={() => openDetail(r)}>
-          View details
-        </Button>
+        <TableRowActionsMenu items={[{ label: 'View details', icon: Eye, onClick: () => openDetail(r) }]} />
       ),
     },
   ];

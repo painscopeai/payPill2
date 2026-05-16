@@ -7,6 +7,7 @@ import { useAppointments } from '@/hooks/useAppointments.js';
 import ProviderDataTable from '@/components/provider/ProviderDataTable.jsx';
 import StatusBadge from '@/components/StatusBadge.jsx';
 import { FileText, User, Video } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/TableRowActionsMenu.jsx';
 
 function formatDateLabel(raw) {
 	if (!raw) return '—';
@@ -97,14 +98,16 @@ export default function ProviderAppointmentsPage() {
 					const uid = row.user_id || row.userId;
 					if (!uid) return <span className="text-xs text-muted-foreground">—</span>;
 					return (
-						<div className="flex justify-end">
-							<Button variant="ghost" size="sm" className="gap-1.5 text-teal-700 dark:text-teal-300" asChild>
-								<Link to={`/provider/patients/${encodeURIComponent(String(uid))}`}>
-									<FileText className="h-4 w-4" />
-									Chart
-								</Link>
-							</Button>
-						</div>
+						<TableRowActionsMenu
+							items={[
+								{
+									label: 'Chart',
+									icon: FileText,
+									href: `/provider/patients/${encodeURIComponent(String(uid))}`,
+									className: 'text-teal-700 dark:text-teal-300',
+								},
+							]}
+						/>
 					);
 				},
 			},

@@ -21,6 +21,7 @@ import apiServerClient from '@/lib/apiServerClient';
 import { parseSimpleCsv } from '@/lib/parseSimpleCsv.js';
 import { toast } from 'sonner';
 import { ArrowLeft, Download, Package, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/TableRowActionsMenu.jsx';
 import {
 	Select,
 	SelectContent,
@@ -452,27 +453,35 @@ export default function ProviderSettingsCatalogPage() {
 			key: 'actions',
 			label: '',
 			sortable: false,
-			className: kind === 'drugs' && practiceRoleSlug === 'pharmacist' ? 'w-[11rem]' : 'w-[120px]',
+			className: 'w-[72px]',
 			render: (row) => (
-				<div className="flex gap-1 justify-end flex-nowrap">
-					{kind === 'drugs' && practiceRoleSlug === 'pharmacist' ? (
-						<Button
-							type="button"
-							variant="outline"
-							size="icon"
-							className="h-8 w-8 shrink-0"
-							title="Restock or adjust stock"
-							onClick={() => openStockDialog(row, 'restock')}
-						>
-							<Package className="h-4 w-4" />
-						</Button>
-					) : null}
-					<Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(row)}>
-						<Pencil className="h-4 w-4" />
-					</Button>
-					<Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => void deleteRow(row.id)}>
-						<Trash2 className="h-4 w-4" />
-					</Button>
+				<div className="flex justify-end">
+					<TableRowActionsMenu
+						items={[
+							...(kind === 'drugs' && practiceRoleSlug === 'pharmacist'
+								? [
+										{
+											label: 'Adjust stock',
+											icon: Package,
+											onClick: () => openStockDialog(row, 'restock'),
+										},
+									]
+								: []),
+							{
+								label: 'Edit',
+								icon: Pencil,
+								onClick: () => openEdit(row),
+								separatorBefore: kind === 'drugs' && practiceRoleSlug === 'pharmacist',
+							},
+							{
+								label: 'Delete',
+								icon: Trash2,
+								onClick: () => void deleteRow(row.id),
+								destructive: true,
+								separatorBefore: true,
+							},
+						]}
+					/>
 				</div>
 			),
 		};

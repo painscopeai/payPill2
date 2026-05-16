@@ -25,6 +25,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { Plus, Loader2, Pencil, Ban, ListTree, Search, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { PROFILE_OPTION_GROUP_LABELS as GROUP_LABELS } from '@/lib/profileOptionGroupLabels';
 import { cn } from '@/lib/utils';
 
@@ -302,37 +303,36 @@ export default function ProfileReferenceDataPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="secondary" onClick={() => void openValues(row)}>
-            <ListTree className="w-4 h-4 mr-1" />
-            Values
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEditingSet(row);
-              setSetForm({
-                key: row.key,
-                label: row.label,
-                group_slug: row.group_slug || 'general',
-                sort_order: row.sort_order ?? 0,
-                active: row.active !== false,
-              });
-              setSetDialogOpen(true);
-            }}
-          >
-            <Pencil className="w-4 h-4 mr-1" />
-            Edit
-          </Button>
-          {row.active ? (
-            <Button type="button" size="sm" variant="ghost" onClick={() => void deactivateSet(row)}>
-              <Ban className="w-4 h-4 mr-1" />
-              Deactivate
-            </Button>
-          ) : null}
-        </div>
+        <TableRowActionsMenu
+          items={[
+            { label: 'Values', icon: ListTree, onClick: () => void openValues(row) },
+            {
+              label: 'Edit',
+              icon: Pencil,
+              onClick: () => {
+                setEditingSet(row);
+                setSetForm({
+                  key: row.key,
+                  label: row.label,
+                  group_slug: row.group_slug || 'general',
+                  sort_order: row.sort_order ?? 0,
+                  active: row.active !== false,
+                });
+                setSetDialogOpen(true);
+              },
+              separatorBefore: true,
+            },
+            row.active
+              ? {
+                  label: 'Deactivate',
+                  icon: Ban,
+                  onClick: () => void deactivateSet(row),
+                  className: 'text-warning',
+                  separatorBefore: true,
+                }
+              : null,
+          ].filter(Boolean)}
+        />
       ),
     },
   ];
@@ -350,32 +350,33 @@ export default function ProfileReferenceDataPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEditingVal(row);
-              setValForm({
-                slug: row.slug,
-                label: row.label,
-                sort_order: row.sort_order ?? 0,
-                active: row.active !== false,
-              });
-              setValDialogOpen(true);
-            }}
-          >
-            <Pencil className="w-4 h-4 mr-1" />
-            Edit
-          </Button>
-          {row.active ? (
-            <Button type="button" size="sm" variant="ghost" onClick={() => void deactivateValue(row)}>
-              <Ban className="w-4 h-4 mr-1" />
-              Deactivate
-            </Button>
-          ) : null}
-        </div>
+        <TableRowActionsMenu
+          items={[
+            {
+              label: 'Edit',
+              icon: Pencil,
+              onClick: () => {
+                setEditingVal(row);
+                setValForm({
+                  slug: row.slug,
+                  label: row.label,
+                  sort_order: row.sort_order ?? 0,
+                  active: row.active !== false,
+                });
+                setValDialogOpen(true);
+              },
+            },
+            row.active
+              ? {
+                  label: 'Deactivate',
+                  icon: Ban,
+                  onClick: () => void deactivateValue(row),
+                  className: 'text-warning',
+                  separatorBefore: true,
+                }
+              : null,
+          ].filter(Boolean)}
+        />
       ),
     },
   ];

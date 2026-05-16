@@ -10,8 +10,8 @@ import { FilterPanel } from '@/components/admin/FilterPanel.jsx';
 import { StatusBadge } from '@/components/admin/StatusBadge.jsx';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { MoreHorizontal, Building2, Eye, Ban, CheckCircle, Trash2, Save, UserPlus } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Building2, Eye, Ban, CheckCircle, Trash2, Save, UserPlus } from 'lucide-react';
+import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -171,31 +171,33 @@ export default function EmployersManagementPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => openDetails(row)}>
-              <Eye className="w-4 h-4 mr-2" /> View / Edit
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {row.status === 'active' ? (
-              <DropdownMenuItem onClick={() => handleAction(row.id, 'suspend')} className="text-warning">
-                <Ban className="w-4 h-4 mr-2" /> Suspend
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onClick={() => handleAction(row.id, 'activate')} className="text-success">
-                <CheckCircle className="w-4 h-4 mr-2" /> Activate
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => deleteEmployer(row.id)} className="text-destructive">
-              <Trash2 className="w-4 h-4 mr-2" /> Soft-disable
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <TableRowActionsMenu
+          items={[
+            { label: 'View / Edit', icon: Eye, onClick: () => openDetails(row) },
+            row.status === 'active'
+              ? {
+                  label: 'Suspend',
+                  icon: Ban,
+                  onClick: () => handleAction(row.id, 'suspend'),
+                  className: 'text-warning',
+                  separatorBefore: true,
+                }
+              : {
+                  label: 'Activate',
+                  icon: CheckCircle,
+                  onClick: () => handleAction(row.id, 'activate'),
+                  className: 'text-success',
+                  separatorBefore: true,
+                },
+            {
+              label: 'Soft-disable',
+              icon: Trash2,
+              onClick: () => deleteEmployer(row.id),
+              destructive: true,
+              separatorBefore: true,
+            },
+          ]}
+        />
       )
     }
   ];
