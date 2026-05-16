@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +26,7 @@ import {
 	ArrowLeft,
 	Phone,
 	Mail,
+	X,
 } from 'lucide-react';
 import DataTable from '@/components/DataTable.jsx';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
@@ -303,9 +304,31 @@ export default function ProviderConsultationWorkspacePage() {
 		setViewMode('queue');
 	}, [searchParams, setSearchParams]);
 
+	const clearQueueSelection = useCallback(() => {
+		setSelectedId(null);
+		setAppointment(null);
+		setPatient(null);
+		applyEncounterPayload(null);
+		const next = new URLSearchParams(searchParams);
+		next.delete('appointment');
+		next.delete('view');
+		setSearchParams(next, { replace: true });
+		setViewMode('queue');
+	}, [applyEncounterPayload, searchParams, setSearchParams]);
+
+	/** Without ?appointment= in the URL, keep the queue table full-width with no selection. */
+	useEffect(() => {
+		if (listLoading || appointmentFromUrl) return;
+		if (!selectedId) return;
+		setSelectedId(null);
+		setAppointment(null);
+		setPatient(null);
+		applyEncounterPayload(null);
+	}, [listLoading, appointmentFromUrl, selectedId, applyEncounterPayload]);
+
+	/** Deep-link only: honor ?appointment= in URL, but never auto-select the first row on load. */
 	useEffect(() => {
 		if (listLoading) return;
-		if (!items.length) return;
 
 		if (appointmentFromUrl && !items.some((i) => i.appointment_id === appointmentFromUrl)) {
 			const next = new URLSearchParams(searchParams);
@@ -315,22 +338,14 @@ export default function ProviderConsultationWorkspacePage() {
 			return;
 		}
 
+		if (!appointmentFromUrl) return;
+
 		const urlViewEncounter = searchParams.get('view') === 'encounter';
-
-		if (appointmentFromUrl && items.some((i) => i.appointment_id === appointmentFromUrl)) {
-			if (selectedId !== appointmentFromUrl) {
-				const row = items.find((i) => i.appointment_id === appointmentFromUrl);
-				if (row) selectQueueRow(row, { openEncounter: urlViewEncounter });
-			} else if (urlViewEncounter && viewMode !== 'encounter') {
-				setViewMode('encounter');
-			}
-			return;
-		}
-
-		if (!appointmentFromUrl && !selectedId) {
-			const firstOpen = items.find((i) => i.encounter_status !== 'finalized');
-			const pick = firstOpen || items[0];
-			selectQueueRow(pick);
+		if (items.some((i) => i.appointment_id === appointmentFromUrl) && selectedId !== appointmentFromUrl) {
+			const row = items.find((i) => i.appointment_id === appointmentFromUrl);
+			if (row) selectQueueRow(row, { openEncounter: urlViewEncounter });
+		} else if (urlViewEncounter && viewMode !== 'encounter') {
+			setViewMode('encounter');
 		}
 	}, [
 		appointmentFromUrl,
@@ -577,7 +592,7 @@ export default function ProviderConsultationWorkspacePage() {
 					<h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Consultation workspace</h1>
 					<p className="text-muted-foreground mt-1 max-w-3xl text-sm">
 						{viewMode === 'queue'
-							? 'Select a patient from the queue to preview demographics and start documentation.'
+							? 'Click a visit in the queue to open the patient snapshot and start documentation.'
 							: 'SOAP documentation for the selected visit. Return to the queue anytime.'}
 					</p>
 				</div>
@@ -651,9 +666,19 @@ export default function ProviderConsultationWorkspacePage() {
 					</div>
 
 					{selectedQueueRow ? (
-						<aside className="w-full sm:w-[22rem] lg:w-[24rem] shrink-0 border-l border-border/80 bg-muted/10 flex flex-col min-h-0">
-							<div className="px-4 py-3 border-b border-border/60 bg-background/80 shrink-0">
+						<aside className="w-full sm:w-[22rem] lg:w-[24rem] shrink-0 border-l border-border/80 bg-muted/10 flex flex-col min-h-0 animate-in slide-in-from-right-4 duration-200">
+							<div className="px-4 py-3 border-b border-border/60 bg-background/80 shrink-0 flex items-center justify-between gap-2">
 								<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Patient snapshot</p>
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon"
+									className="h-8 w-8 shrink-0"
+									aria-label="Close preview"
+									onClick={clearQueueSelection}
+								>
+									<X className="h-4 w-4" />
+								</Button>
 							</div>
 							<ScrollArea className="flex-1 min-h-0">
 								<div className="p-4 space-y-4">
@@ -782,11 +807,7 @@ export default function ProviderConsultationWorkspacePage() {
 								</div>
 							</ScrollArea>
 						</aside>
-					) : (
-						<aside className="hidden lg:flex w-[18rem] shrink-0 border-l border-dashed border-border/60 items-center justify-center p-6 text-center">
-							<p className="text-sm text-muted-foreground">Select a row to preview the patient and start documentation.</p>
-						</aside>
-					)}
+					) : null}
 				</div>
 			) : (
 				<Card className="flex flex-col flex-1 min-h-0 overflow-hidden">
