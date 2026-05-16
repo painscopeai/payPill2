@@ -31,6 +31,36 @@ export function defaultOperationsProfileForSlug(slug: string): OperationsProfile
 	return 'doctor';
 }
 
+/** Default provider_types.slug for self-serve signup when the user picks an operations profile only. */
+export async function resolveDefaultProviderTypeSlugForOperationsProfile(
+	profile: OperationsProfile,
+): Promise<string> {
+	const preferred =
+		profile === 'pharmacist' ? 'pharmacy' : profile === 'laboratory' ? 'laboratory' : 'clinic';
+
+	const { data: preferredRow, error: prefErr } = await sb()
+		.from('provider_types')
+		.select('slug')
+		.eq('slug', preferred)
+		.eq('active', true)
+		.maybeSingle();
+	if (prefErr) throw prefErr;
+	if (preferredRow?.slug) return String(preferredRow.slug);
+
+	const { data: rows, error: listErr } = await sb()
+		.from('provider_types')
+		.select('slug')
+		.eq('operations_profile', profile)
+		.eq('active', true)
+		.order('sort_order', { ascending: true })
+		.limit(1);
+	if (listErr) throw listErr;
+	const first = rows?.[0] as { slug?: string } | undefined;
+	if (first?.slug) return String(first.slug);
+
+	return preferred;
+}
+
 function sb() {
 	return getSupabaseAdmin();
 }

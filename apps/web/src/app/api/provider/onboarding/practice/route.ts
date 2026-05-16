@@ -2,7 +2,12 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import {
+	assertValidOperationsProfile,
+	resolveDefaultProviderTypeSlugForOperationsProfile,
+} from '@/server/admin/providerTypeService';
 import { syncPracticeRoleFromProviderType } from '@/server/provider/syncPracticeRoleFromProviderType';
+import type { OperationsProfile } from '@/server/provider/syncPracticeRoleFromProviderType';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,25 +17,65 @@ type PracticeBody = {
 	address?: string | null;
 	phone?: string | null;
 	providerTypeSlug?: string | null;
+	operationsProfile?: string | null;
 };
+
+const OPS_PROFILES = new Set(['doctor', 'pharmacist', 'laboratory']);
+
+async function isActiveProviderTypeSlug(sb: ReturnType<typeof getSupabaseAdmin>, slug: string): Promise<boolean> {
+	const { data, error } = await sb.from('provider_types').select('slug').eq('slug', slug).eq('active', true).maybeSingle();
+	if (error) throw error;
+	return Boolean(data?.slug);
+}
 
 async function resolveProviderTypeSlug(
 	sb: ReturnType<typeof getSupabaseAdmin>,
 	userId: string,
 	bodySlug: string | null | undefined,
+	bodyOperationsProfile: string | null | undefined,
 ): Promise<string> {
-	const fromBody = typeof bodySlug === 'string' ? bodySlug.trim().toLowerCase() : '';
-	if (fromBody) return fromBody;
+	const fromBodySlug = typeof bodySlug === 'string' ? bodySlug.trim().toLowerCase() : '';
+	const fromBodyOps =
+		typeof bodyOperationsProfile === 'string' ? bodyOperationsProfile.trim().toLowerCase() : '';
+
+	if (fromBodyOps && OPS_PROFILES.has(fromBodyOps)) {
+		return resolveDefaultProviderTypeSlugForOperationsProfile(
+			assertValidOperationsProfile(fromBodyOps) as OperationsProfile,
+		);
+	}
+	if (fromBodySlug) {
+		if (OPS_PROFILES.has(fromBodySlug)) {
+			return resolveDefaultProviderTypeSlugForOperationsProfile(
+				assertValidOperationsProfile(fromBodySlug) as OperationsProfile,
+			);
+		}
+		if (await isActiveProviderTypeSlug(sb, fromBodySlug)) return fromBodySlug;
+	}
 
 	const { data: authUser, error } = await sb.auth.admin.getUserById(userId);
 	if (!error && authUser?.user?.user_metadata) {
 		const meta = authUser.user.user_metadata as Record<string, unknown>;
+		const fromMetaOps = String(meta.operations_profile || meta.operationsProfile || '')
+			.trim()
+			.toLowerCase();
+		if (fromMetaOps && OPS_PROFILES.has(fromMetaOps)) {
+			return resolveDefaultProviderTypeSlugForOperationsProfile(
+				assertValidOperationsProfile(fromMetaOps) as OperationsProfile,
+			);
+		}
 		const fromMeta = String(meta.provider_type || meta.providerType || '').trim().toLowerCase();
-		if (fromMeta) return fromMeta;
+		if (fromMeta) {
+			if (OPS_PROFILES.has(fromMeta)) {
+				return resolveDefaultProviderTypeSlugForOperationsProfile(
+					assertValidOperationsProfile(fromMeta) as OperationsProfile,
+				);
+			}
+			if (await isActiveProviderTypeSlug(sb, fromMeta)) return fromMeta;
+		}
 	}
 
-	console.warn('[onboarding/practice] No provider_type in body or signup metadata; defaulting to clinic');
-	return 'clinic';
+	console.warn('[onboarding/practice] No operations profile or provider type in metadata; defaulting to clinic');
+	return resolveDefaultProviderTypeSlugForOperationsProfile('doctor');
 }
 
 /** PUT /api/provider/onboarding/practice — create or update directory org + link profile */
@@ -53,7 +98,12 @@ export async function PUT(request: NextRequest) {
 	const sb = getSupabaseAdmin();
 	const address = typeof body.address === 'string' ? body.address.trim() || null : null;
 	const phoneFinal = typeof body.phone === 'string' ? body.phone.trim() || null : null;
-	const typeSlug = await resolveProviderTypeSlug(sb, ctx.userId, body.providerTypeSlug);
+	const typeSlug = await resolveProviderTypeSlug(
+		sb,
+		ctx.userId,
+		body.providerTypeSlug,
+		body.operationsProfile,
+	);
 
 	const { data: profile } = await sb
 		.from('profiles')

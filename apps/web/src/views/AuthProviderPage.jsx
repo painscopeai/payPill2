@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import apiServerClient from '@/lib/apiServerClient';
+import { PROVIDER_OPERATIONS_PROFILE_OPTIONS } from '@/lib/providerOperationsProfiles.js';
 import { Stethoscope, Loader2, ArrowLeft } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
@@ -31,12 +31,9 @@ export default function AuthProviderPage() {
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState('');
 
   const [signInData, setSignInData] = useState({ email: '', password: '' });
-  const [providerTypes, setProviderTypes] = useState([]);
-  const [typesLoading, setTypesLoading] = useState(true);
-
   const [signUpData, setSignUpData] = useState({
     practiceName: '',
-    providerType: '',
+    operationsProfile: '',
     npi: '',
     email: '',
     password: '',
@@ -47,27 +44,6 @@ export default function AuthProviderPage() {
   });
 
   const displayError = localError || error;
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setTypesLoading(true);
-      try {
-        const res = await apiServerClient.fetch('/public/provider-types');
-        const json = await res.json().catch(() => ({}));
-        if (!cancelled && res.ok) {
-          setProviderTypes(json.items || []);
-        }
-      } catch {
-        if (!cancelled) setProviderTypes([]);
-      } finally {
-        if (!cancelled) setTypesLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const handleSignIn = async (e) => {
     e.preventDefault();
@@ -96,8 +72,8 @@ export default function AuthProviderPage() {
       setLocalError('Please accept the terms and conditions');
       return;
     }
-    if (!signUpData.providerType) {
-      setLocalError('Please select your practice specialty');
+    if (!signUpData.operationsProfile) {
+      setLocalError('Please select your operational profile');
       return;
     }
 
@@ -116,7 +92,7 @@ export default function AuthProviderPage() {
           phone: signUpData.contactPhone,
           terms_accepted: true,
           privacy_preferences: true,
-          provider_type: signUpData.providerType,
+          operations_profile: signUpData.operationsProfile,
           npi: signUpData.npi || undefined,
         },
         'provider',
@@ -259,23 +235,25 @@ export default function AuthProviderPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="providerType">Practice specialty</Label>
+                      <Label htmlFor="operationsProfile">Operational profile</Label>
                       <Select
-                        value={signUpData.providerType || undefined}
-                        onValueChange={(v) => setSignUpData({ ...signUpData, providerType: v })}
-                        disabled={typesLoading}
+                        value={signUpData.operationsProfile || undefined}
+                        onValueChange={(v) => setSignUpData({ ...signUpData, operationsProfile: v })}
                       >
-                        <SelectTrigger id="providerType" className="rounded-xl bg-background">
-                          <SelectValue placeholder={typesLoading ? 'Loading…' : 'Select specialty'} />
+                        <SelectTrigger id="operationsProfile" className="rounded-xl bg-background">
+                          <SelectValue placeholder="Select operational profile" />
                         </SelectTrigger>
                         <SelectContent>
-                          {providerTypes.map((t) => (
-                            <SelectItem key={t.slug} value={t.slug}>
-                              {t.label}
+                          {PROVIDER_OPERATIONS_PROFILE_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Determines pharmacy inventory, lab workflows, and clinical tools for your practice.
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="npi">NPI (optional)</Label>

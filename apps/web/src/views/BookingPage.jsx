@@ -44,9 +44,11 @@ export default function BookingPage() {
   const [confirmation, setConfirmation] = useState(null);
 
   const [visitTypes, setVisitTypes] = useState([]);
+  const [specialties, setSpecialties] = useState([]);
   const [providers, setProviders] = useState([]);
 
   const [formData, setFormData] = useState({
+    specialtySlug: '',
     providerId: '',
     providerServiceId: '',
     appointmentType: '',
@@ -77,15 +79,23 @@ export default function BookingPage() {
         }
         const data = await res.json();
         if (cancelled) return;
+        const catalogSpecialties = data.specialties || [];
+        const catalogProviders = data.providers || [];
         setVisitTypes(data.visitTypes || []);
-        setProviders(data.providers || []);
+        setSpecialties(catalogSpecialties);
+        setProviders(catalogProviders);
 
         const firstVt = data.visitTypes?.[0];
-        const firstProv = data.providers?.[0];
+        const firstSpec = catalogSpecialties[0]?.slug || '';
+        const firstProv = firstSpec
+          ? catalogProviders.find((p) => p.specialty_slug === firstSpec)
+          : catalogProviders[0];
         setFormData((prev) => ({
           ...prev,
+          specialtySlug: firstSpec,
           appointmentType: firstVt?.slug || '',
           providerId: firstProv?.id || '',
+          providerServiceId: '',
         }));
       } catch (e) {
         if (!cancelled) toast.error(e.message);
@@ -156,9 +166,14 @@ export default function BookingPage() {
     };
   }, [formData.providerId, formData.appointmentDate]);
 
+  const filteredProviders = useMemo(() => {
+    if (!formData.specialtySlug) return [];
+    return providers.filter((p) => p.specialty_slug === formData.specialtySlug);
+  }, [providers, formData.specialtySlug]);
+
   const selectedProvider = useMemo(
-    () => providers.find((p) => p.id === formData.providerId),
-    [providers, formData.providerId],
+    () => filteredProviders.find((p) => p.id === formData.providerId),
+    [filteredProviders, formData.providerId],
   );
 
   const selectedCatalogService = useMemo(() => {
@@ -170,6 +185,10 @@ export default function BookingPage() {
     e.preventDefault();
     if (!currentUser?.id) {
       toast.error('Please sign in to book.');
+      return;
+    }
+    if (!formData.specialtySlug) {
+      toast.error('Select a specialty.');
       return;
     }
     if (!formData.providerId) {
@@ -275,6 +294,41 @@ export default function BookingPage() {
                     <TooltipProvider delayDuration={200}>
                     <>
                       <div className="space-y-2 md:col-span-2">
+                        <Label>Specialty</Label>
+                        <Select
+                          value={formData.specialtySlug || undefined}
+                          onValueChange={(v) => {
+                            const nextProviders = providers.filter((p) => p.specialty_slug === v);
+                            setFormData({
+                              ...formData,
+                              specialtySlug: v,
+                              providerId: nextProviders[0]?.id || '',
+                              providerServiceId: '',
+                            });
+                          }}
+                          required
+                          disabled={specialties.length === 0}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                specialties.length === 0
+                                  ? 'No specialties available yet'
+                                  : 'Select specialty'
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {specialties.map((s) => (
+                              <SelectItem key={s.slug} value={s.slug}>
+                                {s.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
                         <Label>Provider</Label>
                         <Select
                           value={formData.providerId || undefined}
@@ -282,22 +336,23 @@ export default function BookingPage() {
                             setFormData({ ...formData, providerId: v, providerServiceId: '' })
                           }
                           required
-                          disabled={providers.length === 0}
+                          disabled={!formData.specialtySlug || filteredProviders.length === 0}
                         >
                           <SelectTrigger>
                             <SelectValue
                               placeholder={
-                                providers.length === 0
-                                  ? 'No provider practices available yet'
-                                  : 'Select provider'
+                                !formData.specialtySlug
+                                  ? 'Select a specialty first'
+                                  : filteredProviders.length === 0
+                                    ? 'No providers for this specialty'
+                                    : 'Select provider'
                               }
                             />
                           </SelectTrigger>
                           <SelectContent>
-                            {providers.map((p) => (
+                            {filteredProviders.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
                                 {p.provider_name || p.name}
-                                {p.specialty ? ` · ${p.specialty}` : ''}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -601,7 +656,8 @@ export default function BookingPage() {
                     disabled={
                       loading ||
                       catalogLoading ||
-                      providers.length === 0 ||
+                      specialties.length === 0 ||
+                      filteredProviders.length === 0 ||
                       (Boolean(formData.appointmentDate) &&
                         (slotState.loading ||
                           slotState.error ||

@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { listProviderTypes } from '@/server/admin/providerTypeService';
 
 function sb() {
 	return getSupabaseAdmin();
@@ -406,27 +407,47 @@ async function publishedServiceFormsByServiceId(
 	return out;
 }
 
+export type AppointmentCatalogSpecialty = { slug: string; label: string };
+
+function resolveProviderSpecialtySlug(
+	type: string | null,
+	specialtyText: string | null,
+	labelToSlug: Map<string, string>,
+	validSlugs: Set<string>,
+): string | null {
+	const fromType = (type || '').trim().toLowerCase();
+	if (fromType && validSlugs.has(fromType)) return fromType;
+	const text = (specialtyText || '').trim();
+	if (!text) return null;
+	const lower = text.toLowerCase();
+	if (validSlugs.has(lower)) return lower;
+	return labelToSlug.get(lower) || null;
+}
+
 /** Catalog for patient booking UI (server-side read). */
 export async function getAppointmentCatalog(): Promise<{
 	visitTypes: VisitTypeRow[];
 	insuranceOptions: InsuranceOptionRow[];
 	copayMatrix: CopayMatrixCatalogEntry[];
+	specialties: AppointmentCatalogSpecialty[];
 	providers: Array<{
 		id: string;
 		name: string;
 		provider_name: string | null;
 		type: string | null;
 		specialty: string | null;
+		specialty_slug: string | null;
 		email: string | null;
 		address: string | null;
 		scheduling_url: string | null;
 		services: ProviderCatalogService[];
 	}>;
 }> {
-	const [visitTypes, insuranceOptions, copayMatrix, linkedOrgRes] = await Promise.all([
+	const [visitTypes, insuranceOptions, copayMatrix, providerTypeRows, linkedOrgRes] = await Promise.all([
 		listVisitTypes(false),
 		listInsuranceOptions(false),
 		listCopayMatrixCatalog(),
+		listProviderTypes(false),
 		sb()
 			.from('profiles')
 			.select('provider_org_id, specialty')
@@ -434,6 +455,11 @@ export async function getAppointmentCatalog(): Promise<{
 			.eq('provider_onboarding_completed', true)
 			.not('provider_org_id', 'is', null),
 	]);
+	const validSlugs = new Set(providerTypeRows.map((t) => t.slug));
+	const labelToSlug = new Map<string, string>();
+	for (const t of providerTypeRows) {
+		labelToSlug.set(t.label.trim().toLowerCase(), t.slug);
+	}
 	if (linkedOrgRes.error) throw linkedOrgRes.error;
 	const linkRows = (linkedOrgRes.data || []) as { provider_org_id: string | null; specialty: string | null }[];
 	const orgIds = [
@@ -529,19 +555,32 @@ export async function getAppointmentCatalog(): Promise<{
 		}
 	}
 
+	const providers = baseProviders.map((p) => {
+		const specFromProfile = specialtyByOrg.get(p.id);
+		const specialty =
+			(p.specialty && String(p.specialty).trim()) || (specFromProfile && specFromProfile.trim()) || null;
+		const specialty_slug = resolveProviderSpecialtySlug(p.type, specialty, labelToSlug, validSlugs);
+		const typeRow = specialty_slug ? providerTypeRows.find((t) => t.slug === specialty_slug) : null;
+		return {
+			...p,
+			specialty: typeRow?.label || specialty,
+			specialty_slug,
+			services: servicesByProvider.get(p.id) || [],
+		};
+	});
+
+	const slugsInUse = new Set(
+		providers.map((p) => p.specialty_slug).filter((s): s is string => Boolean(s)),
+	);
+	const specialties: AppointmentCatalogSpecialty[] = providerTypeRows
+		.filter((t) => slugsInUse.has(t.slug))
+		.map((t) => ({ slug: t.slug, label: t.label }));
+
 	return {
 		visitTypes,
 		insuranceOptions,
 		copayMatrix,
-		providers: baseProviders.map((p) => {
-			const specFromProfile = specialtyByOrg.get(p.id);
-			const specialty =
-				(p.specialty && String(p.specialty).trim()) || (specFromProfile && specFromProfile.trim()) || null;
-			return {
-				...p,
-				specialty,
-				services: servicesByProvider.get(p.id) || [],
-			};
-		}),
+		specialties,
+		providers,
 	};
 }
