@@ -435,7 +435,21 @@ export default function ProviderConsultationWorkspacePage() {
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(body.error || 'Save failed');
 			if (body.encounter) applyEncounterPayload(body.encounter);
-			toast.success(status === 'finalized' ? 'Encounter finalized.' : 'Draft saved.');
+			if (status === 'finalized') {
+				const routed = body.routed_to_portals;
+				const rx = routed?.pharmacy_items ?? 0;
+				const lab = routed?.laboratory_items ?? 0;
+				if (rx > 0 || lab > 0) {
+					const parts = [];
+					if (rx > 0) parts.push(`${rx} prescription${rx === 1 ? '' : 's'} → pharmacy`);
+					if (lab > 0) parts.push(`${lab} lab order${lab === 1 ? '' : 's'} → laboratory`);
+					toast.success(`Encounter finalized. Routed: ${parts.join('; ')}.`);
+				} else {
+					toast.success('Encounter finalized.');
+				}
+			} else {
+				toast.success('Draft saved.');
+			}
 			await loadList();
 		} catch (e) {
 			toast.error(e.message || 'Save failed');

@@ -4,6 +4,7 @@ import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { buildPatientCoverageSummary } from '@/server/patient/buildPatientCoverageSummary';
 import { loadProviderPatientRecordsBundle } from '@/server/provider/loadProviderPatientRecordsBundle';
+import { getProviderPortalAccess } from '@/server/provider/providerPortalAccess';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
@@ -33,7 +34,26 @@ async function providerMayViewPatient(
 	return Boolean(apt);
 }
 
-/** GET /api/provider/patients/:id — full chart for provider review (Profile + Records data). */
+async function providerMayViewPatientProfile(
+	sb: SupabaseClient,
+	providerUserId: string,
+	providerOrgId: string | null,
+	patientId: string,
+	routedTo: 'pharmacist' | 'laboratory' | null,
+): Promise<boolean> {
+	if (await providerMayViewPatient(sb, providerUserId, providerOrgId, patientId)) return true;
+	if (!routedTo) return false;
+	const { data } = await sb
+		.from('provider_service_queue_items')
+		.select('id')
+		.eq('patient_user_id', patientId)
+		.eq('routed_to', routedTo)
+		.limit(1)
+		.maybeSingle();
+	return Boolean(data);
+}
+
+/** GET /api/provider/patients/:id — clinical: full chart; pharmacy/lab: profile only. */
 export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
 	const authCtx = await requireProvider(request);
 	if (authCtx instanceof NextResponse) return authCtx;
@@ -44,7 +64,16 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 	}
 
 	const sb = getSupabaseAdmin();
-	const allowed = await providerMayViewPatient(sb, authCtx.userId, authCtx.providerOrgId, patientId);
+	const portalAccess = await getProviderPortalAccess(sb, authCtx.providerOrgId);
+	const routedTo = portalAccess.isPharmacy ? 'pharmacist' : portalAccess.isLaboratory ? 'laboratory' : null;
+
+	const allowed = await providerMayViewPatientProfile(
+		sb,
+		authCtx.userId,
+		authCtx.providerOrgId,
+		patientId,
+		routedTo,
+	);
 	if (!allowed) {
 		return NextResponse.json({ error: 'You do not have access to this patient' }, { status: 403 });
 	}
@@ -52,6 +81,26 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 	const { data: profile, error: pErr } = await sb.from('profiles').select('*').eq('id', patientId).maybeSingle();
 	if (pErr || !profile) {
 		return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+	}
+
+	if (!portalAccess.canViewFullPatientRecords) {
+		const { data: queueItems } = await sb
+			.from('provider_service_queue_items')
+			.select('id, item_type, status, payload, created_at, fulfilled_at, lab_result_summary')
+			.eq('patient_user_id', patientId)
+			.eq('routed_to', routedTo || '')
+			.order('created_at', { ascending: false })
+			.limit(50);
+
+		return NextResponse.json({
+			patient_id: patientId,
+			profile,
+			profile_only: true,
+			portal_profile: portalAccess.portalProfile,
+			service_queue_items: queueItems || [],
+			message:
+				'Clinical health records are only available to clinical practices. Use the service queue to fulfill orders routed from consultations.',
+		});
 	}
 
 	const [coverage_summary, recordsBundle, { data: appointments, error: aptErr }] = await Promise.all([
@@ -75,6 +124,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 	return NextResponse.json({
 		patient_id: patientId,
 		profile,
+		profile_only: false,
+		portal_profile: portalAccess.portalProfile,
 		coverage_summary,
 		appointments: appointments || [],
 		...recordsBundle,
@@ -94,6 +145,10 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
 
 	const sb = getSupabaseAdmin();
 	const providerId = authCtx.userId;
+	const portalAccess = await getProviderPortalAccess(sb, authCtx.providerOrgId);
+	if (!portalAccess.canViewFullPatientRecords) {
+		return NextResponse.json({ error: 'Only clinical providers can add chart notes.' }, { status: 403 });
+	}
 
 	const allowed = await providerMayViewPatient(sb, providerId, authCtx.providerOrgId, patientId);
 	if (!allowed) {

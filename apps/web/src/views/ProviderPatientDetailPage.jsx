@@ -134,8 +134,10 @@ export default function ProviderPatientDetailPage() {
 		}
 	};
 
+	const profileOnly = Boolean(record?.profile_only);
 	const p = record?.profile || {};
 	const cov = record?.coverage_summary;
+	const serviceQueueItems = record?.service_queue_items || [];
 	const chartRecords = {
 		health_records: record?.health_records || [],
 		onboarding_steps: record?.onboarding_steps || [],
@@ -170,27 +172,40 @@ export default function ProviderPatientDetailPage() {
 					<div className="border-b border-border/60 pb-6">
 						<h1 className="text-3xl font-semibold tracking-tight text-balance">{displayName}</h1>
 						<p className="text-sm text-muted-foreground mt-2 max-w-2xl leading-relaxed">
-							Chart review: demographics and coverage on <span className="font-medium text-foreground">Profile</span>; patient-reported
-							history, vitals, medications, labs, and notes on <span className="font-medium text-foreground">Records</span> (password
-							required; re-verify after 30 minutes or when you leave this chart). Add encounter notes below—everything else is read-only.
+							{profileOnly ? (
+								<>
+									Profile view for fulfillment partners. Clinical health records are restricted to clinical practices — use your{' '}
+									<span className="font-medium text-foreground">service queue</span> to process orders routed from doctor consultations.
+								</>
+							) : (
+								<>
+									Chart review: demographics and coverage on <span className="font-medium text-foreground">Profile</span>; patient-reported
+									history, vitals, medications, labs, and notes on <span className="font-medium text-foreground">Records</span> (password
+									required; re-verify after 30 minutes or when you leave this chart). Add encounter notes below—everything else is read-only.
+								</>
+							)}
 						</p>
 					</div>
 
-					<ProviderRecordsPasswordDialog
-						open={passwordDialogOpen}
-						onOpenChange={setPasswordDialogOpen}
-						patientId={id}
-						onUnlocked={handleRecordsUnlocked}
-					/>
+					{!profileOnly ? (
+						<ProviderRecordsPasswordDialog
+							open={passwordDialogOpen}
+							onOpenChange={setPasswordDialogOpen}
+							patientId={id}
+							onUnlocked={handleRecordsUnlocked}
+						/>
+					) : null}
 
-					<Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+					<Tabs value={activeTab} onValueChange={profileOnly ? setActiveTab : handleTabChange} className="w-full">
 						<TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full sm:w-auto">
 							<TabsTrigger value="profile" className="min-w-[8rem]">
 								Profile
 							</TabsTrigger>
-							<TabsTrigger value="records" className="min-w-[8rem]">
-								Records
-							</TabsTrigger>
+							{!profileOnly ? (
+								<TabsTrigger value="records" className="min-w-[8rem]">
+									Records
+								</TabsTrigger>
+							) : null}
 						</TabsList>
 
 						<TabsContent value="profile" className="space-y-6 mt-4">
@@ -283,8 +298,37 @@ export default function ProviderPatientDetailPage() {
 									)}
 								</CardContent>
 							</Card>
+
+							{profileOnly && serviceQueueItems.length > 0 ? (
+								<Card className="shadow-sm border-violet-500/20">
+									<CardHeader>
+										<CardTitle className="text-lg">Routed orders</CardTitle>
+										<CardDescription>Work items sent from clinical consultations for this patient.</CardDescription>
+									</CardHeader>
+									<CardContent>
+										<ul className="divide-y rounded-lg border border-border/80">
+											{serviceQueueItems.map((q) => {
+												const payload = q.payload && typeof q.payload === 'object' ? q.payload : {};
+												const label =
+													q.item_type === 'prescription'
+														? payload.medication_name || 'Prescription'
+														: payload.test_name || 'Lab order';
+												return (
+													<li key={q.id} className="px-4 py-3 text-sm flex flex-wrap justify-between gap-2">
+														<span className="font-medium">{label}</span>
+														<Badge variant="secondary" className="capitalize shrink-0">
+															{q.status || 'pending'}
+														</Badge>
+													</li>
+												);
+											})}
+										</ul>
+									</CardContent>
+								</Card>
+							) : null}
 						</TabsContent>
 
+						{!profileOnly ? (
 						<TabsContent value="records" className="space-y-10 mt-4">
 							{!recordsUnlocked ? (
 								<Card className="border-dashed shadow-sm">
@@ -475,8 +519,10 @@ export default function ProviderPatientDetailPage() {
 							</>
 							)}
 						</TabsContent>
+						) : null}
 					</Tabs>
 
+					{!profileOnly ? (
 					<Card className="shadow-sm border-teal-500/20">
 						<CardHeader>
 							<CardTitle>Add clinical note</CardTitle>
@@ -494,6 +540,7 @@ export default function ProviderPatientDetailPage() {
 							</form>
 						</CardContent>
 					</Card>
+					) : null}
 				</>
 			)}
 		</div>

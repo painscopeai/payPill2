@@ -5,6 +5,8 @@ import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { isConsultationQueueVisit, visitSlugFromAppointmentRow } from '@/server/provider/consultationVisitSlugs';
 import { syncConsultationActionItemsOnFinalize } from '@/server/patient/syncConsultationActionItemsOnFinalize';
 import { syncConsultationInvoiceOnFinalize } from '@/server/provider/syncConsultationInvoiceOnFinalize';
+import { syncProviderServiceQueueOnFinalize } from '@/server/provider/syncProviderServiceQueueOnFinalize';
+import { getProviderPortalAccess } from '@/server/provider/providerPortalAccess';
 
 function normalizeJsonArray(raw: unknown): unknown[] {
 	if (Array.isArray(raw)) return raw;
@@ -216,6 +218,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 		lab_orders?: unknown;
 		status: string;
 	};
+	let routed = { rxCount: 0, labCount: 0 };
 	if (enc.status === 'finalized') {
 		await syncConsultationActionItemsOnFinalize(sb, {
 			id: enc.id,
@@ -224,6 +227,19 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 			prescription_lines: enc.prescription_lines,
 			lab_orders: enc.lab_orders,
 		});
+
+		const portalAccess = await getProviderPortalAccess(sb, auth.providerOrgId);
+		if (portalAccess.isClinical) {
+			routed = await syncProviderServiceQueueOnFinalize(sb, {
+				id: enc.id,
+				appointment_id: enc.appointment_id,
+				patient_user_id: enc.patient_user_id,
+				prescription_lines: enc.prescription_lines,
+				lab_orders: enc.lab_orders,
+				clinical_org_id: auth.providerOrgId,
+				clinical_provider_user_id: auth.userId,
+			});
+		}
 
 		const inv = await syncConsultationInvoiceOnFinalize(sb, {
 			encounterId: enc.id,
@@ -250,5 +266,14 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 		}
 	}
 
-	return NextResponse.json({ encounter });
+	return NextResponse.json({
+		encounter,
+		routed_to_portals:
+			enc.status === 'finalized'
+				? {
+						pharmacy_items: routed.rxCount,
+						laboratory_items: routed.labCount,
+					}
+				: undefined,
+	});
 }

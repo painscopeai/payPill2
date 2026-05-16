@@ -142,7 +142,7 @@ export function getProviderBranding(portalProfile) {
 
 /** Routes restricted to a single operational profile (others redirect to dashboard). */
 export const PROVIDER_ROUTE_PROFILES = {
-	'/provider/consultations': ['doctor', 'laboratory'],
+	'/provider/consultations': ['doctor'],
 	'/provider/forms': ['doctor'],
 	'/provider/forms/builder': ['doctor'],
 	'/provider/inventory': ['pharmacist'],
