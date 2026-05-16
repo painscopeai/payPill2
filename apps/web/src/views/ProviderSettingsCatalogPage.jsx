@@ -112,7 +112,7 @@ export default function ProviderSettingsCatalogPage() {
 
 	const csvInputRef = useRef(null);
 	const [csvImporting, setCsvImporting] = useState(false);
-	const [practiceRoleSlug, setPracticeRoleSlug] = useState(null);
+	const [isPharmacy, setIsPharmacy] = useState(false);
 	const [stockDialog, setStockDialog] = useState({
 		open: false,
 		row: null,
@@ -160,10 +160,10 @@ export default function ProviderSettingsCatalogPage() {
 				const res = await apiServerClient.fetch('/provider/practice-context');
 				const body = await res.json().catch(() => ({}));
 				if (!cancelled && res.ok) {
-					setPracticeRoleSlug(body.practice_role_slug || null);
+					setIsPharmacy(body.is_pharmacy === true);
 				}
 			} catch {
-				if (!cancelled) setPracticeRoleSlug(null);
+				if (!cancelled) setIsPharmacy(false);
 			}
 		})();
 		return () => {
@@ -458,7 +458,7 @@ export default function ProviderSettingsCatalogPage() {
 				<div className="flex justify-end">
 					<TableRowActionsMenu
 						items={[
-							...(kind === 'drugs' && practiceRoleSlug === 'pharmacist'
+							...(kind === 'drugs' && isPharmacy
 								? [
 										{
 											label: 'Adjust stock',
@@ -471,7 +471,7 @@ export default function ProviderSettingsCatalogPage() {
 								label: 'Edit',
 								icon: Pencil,
 								onClick: () => openEdit(row),
-								separatorBefore: kind === 'drugs' && practiceRoleSlug === 'pharmacist',
+								separatorBefore: kind === 'drugs' && isPharmacy,
 							},
 							{
 								label: 'Delete',

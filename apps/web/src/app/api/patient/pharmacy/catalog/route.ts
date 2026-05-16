@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getBearerUserId } from '@/server/auth/getBearerUserId';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
-import { getPracticeRoleSlugForOrg } from '@/server/provider/practiceRole';
+import { getPracticeRoleSlugForOrg, isPharmacyPracticeRole } from '@/server/provider/practiceRole';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
 	const sb = getSupabaseAdmin();
 	const slug = await getPracticeRoleSlugForOrg(sb, orgId);
-	if (slug !== 'pharmacist') {
+	if (!isPharmacyPracticeRole(slug)) {
 		return NextResponse.json({ error: 'Not a pharmacy practice' }, { status: 404 });
 	}
 

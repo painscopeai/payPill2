@@ -31,8 +31,9 @@ import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import NotificationBell from '@/components/NotificationBell.jsx';
 import ThemeToggleButton from '@/components/ThemeToggleButton.jsx';
+import { useProviderPracticeContext } from '@/hooks/useProviderPracticeContext';
 
-const navItems = [
+const allNavItems = [
 	{ label: 'Dashboard', icon: Home, path: '/provider/dashboard' },
 	{ label: 'Appointments', icon: Calendar, path: '/provider/appointments' },
 	{ label: 'Patients', icon: Users, path: '/provider/patients' },
@@ -58,8 +59,16 @@ const navItems = [
 export default function ProviderLayout({ children }) {
 	const { currentUser, logout } = useAuth();
 	const location = useLocation();
+	const { isPharmacy, loading: practiceLoading } = useProviderPracticeContext();
 	const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 	const [breadcrumbTick, setBreadcrumbTick] = useState(0);
+
+	const navItems = useMemo(() => {
+		return allNavItems.filter((item) => {
+			if (item.path === '/provider/inventory') return isPharmacy;
+			return true;
+		});
+	}, [isPharmacy]);
 
 	const handleLogout = () => {
 		void logout();
@@ -273,7 +282,7 @@ export default function ProviderLayout({ children }) {
 			</main>
 
 			<nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 border-t bg-background flex items-center justify-around px-1 z-50 pb-safe">
-				{navItems.slice(0, 4).map((item) => (
+				{(practiceLoading ? allNavItems.slice(0, 4) : navItems.slice(0, 4)).map((item) => (
 					<Link
 						key={item.path}
 						to={item.path}

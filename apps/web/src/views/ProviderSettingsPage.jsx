@@ -8,6 +8,7 @@ import apiServerClient from '@/lib/apiServerClient';
 export default function ProviderSettingsPage() {
 	const { currentUser } = useAuth();
 	const [practiceSpecialtyLabel, setPracticeSpecialtyLabel] = useState(null);
+	const [isPharmacy, setIsPharmacy] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -17,9 +18,13 @@ export default function ProviderSettingsPage() {
 				const body = await res.json().catch(() => ({}));
 				if (!cancelled && res.ok) {
 					setPracticeSpecialtyLabel(body.provider_type_label || body.provider_type_slug || null);
+					setIsPharmacy(body.is_pharmacy === true);
 				}
 			} catch {
-				if (!cancelled) setPracticeSpecialtyLabel(null);
+				if (!cancelled) {
+					setPracticeSpecialtyLabel(null);
+					setIsPharmacy(false);
+				}
 			}
 		})();
 		return () => {
@@ -81,6 +86,24 @@ export default function ProviderSettingsPage() {
 				</CardContent>
 			</Card>
 
+			{isPharmacy ? (
+				<Card>
+					<CardHeader>
+						<CardTitle>Pharmacy inventory</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-2 text-sm">
+						<p className="text-muted-foreground">
+							Manage stock levels, pricing, and restock movements for your patient pharmacy shop.
+						</p>
+						<p>
+							<Link to="/provider/inventory" className="text-teal-600 font-medium underline">
+								Open inventory module
+							</Link>
+						</p>
+					</CardContent>
+				</Card>
+			) : null}
+
 			<Card>
 				<CardHeader>
 					<CardTitle>Clinical catalogs & services</CardTitle>
@@ -94,7 +117,7 @@ export default function ProviderSettingsPage() {
 							<Link to="/provider/settings/catalog/drugs" className="text-teal-600 font-medium underline">
 								Drug formulary
 							</Link>{' '}
-							— medications available when prescribing during a visit.
+							— {isPharmacy ? 'full catalog with bulk import; inventory module has stock tools.' : 'medications available when prescribing during a visit.'}
 						</li>
 						<li>
 							<Link to="/provider/settings/catalog/labs" className="text-teal-600 font-medium underline">
