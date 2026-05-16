@@ -38,13 +38,16 @@ const PHARMACY_DISPENSING_NAV = {
 	path: '/provider/dispensing',
 };
 
+const LAB_ORDERS_NAV = {
+	label: 'Lab orders',
+	icon: FlaskConical,
+	path: '/provider/lab-orders',
+};
+
 const ROLE_EXTENSION_NAV = {
 	doctor: [{ label: 'Forms', icon: ClipboardList, path: '/provider/forms' }],
 	pharmacist: [{ label: 'Inventory', icon: Package, path: '/provider/inventory' }],
-	laboratory: [
-		{ label: 'Lab orders', icon: FlaskConical, path: '/provider/lab-orders' },
-		{ label: 'Lab catalog', icon: ClipboardList, path: '/provider/settings/catalog/labs' },
-	],
+	laboratory: [{ label: 'Lab catalog', icon: ClipboardList, path: '/provider/settings/catalog/labs' }],
 };
 
 const SETTINGS_NAV = { label: 'Settings', icon: Settings, path: '/provider/settings' };
@@ -83,6 +86,18 @@ export function getProviderNavItems(portalProfile) {
 			PHARMACY_DISPENSING_NAV,
 			...restBase,
 			...ROLE_EXTENSION_NAV.pharmacist,
+			SETTINGS_NAV,
+		];
+	}
+
+	if (profile === 'laboratory') {
+		const [dashboard, appointments, ...restBase] = PROVIDER_BASE_NAV;
+		return [
+			dashboard,
+			appointments,
+			LAB_ORDERS_NAV,
+			...restBase,
+			...ROLE_EXTENSION_NAV.laboratory,
 			SETTINGS_NAV,
 		];
 	}
