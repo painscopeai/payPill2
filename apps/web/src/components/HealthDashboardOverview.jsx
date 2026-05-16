@@ -7,9 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Activity, HeartPulse, Pill, Calendar, AlertCircle, ArrowRight } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import apiServerClient from '@/lib/apiServerClient';
-import pb from '@/lib/supabaseMappedCollections';
 import { useAuth } from '@/contexts/AuthContext';
-import { computePreventiveCareGaps } from '@/lib/preventiveCareGaps';
 import {
 	appointmentHeadline,
 	formatAppointmentSubtitle,
@@ -124,8 +122,7 @@ export default function HealthDashboardOverview() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [overview, setOverview] = useState(null);
-  const [labResults, setLabResults] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
+  const [preventiveGaps, setPreventiveGaps] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [sidePanelLoading, setSidePanelLoading] = useState(true);
 
@@ -136,8 +133,7 @@ export default function HealthDashboardOverview() {
       if (!currentUser?.id) {
         if (!cancelled) {
           setOverview(null);
-          setLabResults([]);
-          setRecommendations([]);
+          setPreventiveGaps([]);
           setAppointments([]);
           setSidePanelLoading(false);
         }
@@ -147,15 +143,10 @@ export default function HealthDashboardOverview() {
       setSidePanelLoading(true);
 
       try {
-        const [overviewRes, recRes, aptRes, labs] = await Promise.all([
+        const [overviewRes, gapsRes, aptRes] = await Promise.all([
           apiServerClient.fetch('/patient-health-overview?includeRaw=1'),
-          apiServerClient.fetch('/ai-recommendations'),
+          apiServerClient.fetch('/patient/preventive-care-gaps'),
           apiServerClient.fetch(`/appointments?user_id=${encodeURIComponent(currentUser.id)}`),
-          pb.collection('lab_results').getFullList({
-            filter: `userId="${currentUser.id}"`,
-            sort: '-date_tested',
-            $autoCancel: false,
-          }),
         ]);
 
         if (cancelled) return;
@@ -163,11 +154,11 @@ export default function HealthDashboardOverview() {
         const overviewBody = overviewRes.ok ? await overviewRes.json().catch(() => ({})) : null;
         setOverview(overviewBody);
 
-        if (recRes.ok) {
-          const recBody = await recRes.json().catch(() => []);
-          setRecommendations(Array.isArray(recBody) ? recBody : []);
+        if (gapsRes.ok) {
+          const gapsBody = await gapsRes.json().catch(() => ({}));
+          setPreventiveGaps(Array.isArray(gapsBody.items) ? gapsBody.items : []);
         } else {
-          setRecommendations([]);
+          setPreventiveGaps([]);
         }
 
         if (aptRes.ok) {
@@ -177,11 +168,9 @@ export default function HealthDashboardOverview() {
           setAppointments([]);
         }
 
-        setLabResults(Array.isArray(labs) ? labs : []);
       } catch {
         if (!cancelled) {
-          setLabResults([]);
-          setRecommendations([]);
+          setPreventiveGaps([]);
           setAppointments([]);
         }
       } finally {
@@ -195,10 +184,6 @@ export default function HealthDashboardOverview() {
   }, [currentUser?.id]);
 
   const analytics = useMemo(() => computeAnalytics(overview), [overview]);
-  const preventiveGaps = useMemo(
-    () => computePreventiveCareGaps({ overview, labResults, recommendations }),
-    [overview, labResults, recommendations],
-  );
   return (
     <div className="space-y-8">
       {/* Top Metrics */}
@@ -309,9 +294,18 @@ export default function HealthDashboardOverview() {
                 type="button"
                 variant="link"
                 className="w-full text-primary p-0 h-auto justify-start mt-2"
-                onClick={() => navigate('/patient/booking')}
+                onClick={() =>
+                  navigate(
+                    preventiveGaps.some((g) => /complete lab|fill prescription|action needed/i.test(g.label))
+                      ? '/patient/consultations'
+                      : '/patient/booking',
+                  )
+                }
               >
-                Schedule Screenings <ArrowRight className="w-4 h-4 ml-1" />
+                {preventiveGaps.some((g) => /complete lab|fill prescription/i.test(g.label))
+                  ? 'View care plan'
+                  : 'Schedule Screenings'}{' '}
+                <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </CardContent>
           </Card>
