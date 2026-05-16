@@ -36,6 +36,25 @@ function formatCatalogLinePrice(row) {
   return Number.isFinite(n) ? `${cur} ${n.toFixed(2)}` : '—';
 }
 
+function formatActionDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function pendingActionSelectLabel(item) {
+  const when = formatActionDateTime(item.created_at);
+  const base = `${item.summary} — ${item.plan_label}`;
+  return when ? `${base} · ${when}` : base;
+}
+
 export default function BookingPage() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -68,7 +87,8 @@ export default function BookingPage() {
     error: '',
   });
 
-  const [pendingFulfillment, setPendingFulfillment] = useState({ loading: false, items: [] });
+  const [pendingActions, setPendingActions] = useState({ loading: false, items: [] });
+  const [selectedPendingActionId, setSelectedPendingActionId] = useState('');
   const [assigningFulfillment, setAssigningFulfillment] = useState(false);
 
   const selectedSpecialty = useMemo(
@@ -79,6 +99,11 @@ export default function BookingPage() {
   const fulfillmentKind = useMemo(
     () => fulfillmentKindFromSpecialty(selectedSpecialty),
     [selectedSpecialty],
+  );
+
+  const selectedPendingAction = useMemo(
+    () => pendingActions.items.find((a) => a.action_item_id === selectedPendingActionId) || null,
+    [pendingActions.items, selectedPendingActionId],
   );
 
   useEffect(() => {
@@ -182,27 +207,30 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (!currentUser?.id || !fulfillmentKind) {
-      setPendingFulfillment({ loading: false, items: [] });
+      setPendingActions({ loading: false, items: [] });
+      setSelectedPendingActionId('');
       return;
     }
     let cancelled = false;
     (async () => {
-      setPendingFulfillment((s) => ({ ...s, loading: true }));
+      setPendingActions((s) => ({ ...s, loading: true }));
+      setSelectedPendingActionId('');
       try {
         const res = await apiServerClient.fetch(
-          `/patient/pending-fulfillment?kind=${encodeURIComponent(fulfillmentKind)}`,
+          `/patient/pending-booking-actions?kind=${encodeURIComponent(fulfillmentKind)}`,
         );
         const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || 'Failed to load pending orders');
+        if (!res.ok) throw new Error(body.error || 'Failed to load pending action plans');
         if (cancelled) return;
-        setPendingFulfillment({
-          loading: false,
-          items: Array.isArray(body.items) ? body.items : [],
-        });
+        const items = Array.isArray(body.items) ? body.items : [];
+        setPendingActions({ loading: false, items });
+        if (items.length === 1) {
+          setSelectedPendingActionId(items[0].action_item_id);
+        }
       } catch (e) {
         if (!cancelled) {
-          setPendingFulfillment({ loading: false, items: [] });
-          toast.error(e.message || 'Could not load orders from your doctor');
+          setPendingActions({ loading: false, items: [] });
+          toast.error(e.message || 'Could not load pending action plans');
         }
       }
     })();
@@ -211,8 +239,10 @@ export default function BookingPage() {
     };
   }, [currentUser?.id, fulfillmentKind]);
 
-  const assignPendingFulfillment = async (providerOrgId) => {
-    if (!fulfillmentKind || !providerOrgId || pendingFulfillment.items.length === 0) return true;
+  const assignPendingFulfillment = async (providerOrgId, action = selectedPendingAction) => {
+    if (!fulfillmentKind || !providerOrgId || !action?.needs_fulfillment_assign || !action.queue_item_id) {
+      return true;
+    }
     setAssigningFulfillment(true);
     try {
       const res = await apiServerClient.fetch('/patient/pending-fulfillment/assign', {
@@ -221,18 +251,13 @@ export default function BookingPage() {
         body: JSON.stringify({
           fulfillment_org_id: providerOrgId,
           kind: fulfillmentKind,
-          queue_item_ids: pendingFulfillment.items.map((i) => i.id),
+          queue_item_ids: [action.queue_item_id],
         }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Failed to link orders to provider');
       if (body.assigned > 0) {
-        setPendingFulfillment({ loading: false, items: [] });
-        toast.success(
-          body.assigned === 1
-            ? 'Your order was sent to the selected provider.'
-            : `${body.assigned} orders were sent to the selected provider.`,
-        );
+        toast.success('Your order was sent to the selected provider.');
       }
       return true;
     } catch (e) {
@@ -268,6 +293,10 @@ export default function BookingPage() {
       toast.error('Select a specialty.');
       return;
     }
+    if (pendingActions.items.length > 0 && !selectedPendingActionId) {
+      toast.error('Select a pending action plan from your consultation.');
+      return;
+    }
     if (!formData.providerId) {
       toast.error('Select a provider.');
       return;
@@ -297,8 +326,8 @@ export default function BookingPage() {
       toast.error('Enter a valid preferred time.');
       return;
     }
-    if (pendingFulfillment.items.length > 0 && formData.providerId) {
-      const linked = await assignPendingFulfillment(formData.providerId);
+    if (selectedPendingAction?.needs_fulfillment_assign && formData.providerId) {
+      const linked = await assignPendingFulfillment(formData.providerId, selectedPendingAction);
       if (!linked) return;
     }
 
@@ -323,6 +352,7 @@ export default function BookingPage() {
           location: location || undefined,
           reason: formData.reason,
           ...(formData.providerServiceId ? { providerServiceId: formData.providerServiceId } : {}),
+          ...(selectedPendingActionId ? { consultationActionItemId: selectedPendingActionId } : {}),
         }),
       });
 
@@ -387,7 +417,8 @@ export default function BookingPage() {
                               providerId: nextProviders[0]?.id || '',
                               providerServiceId: '',
                             });
-                            setPendingFulfillment({ loading: false, items: [] });
+                            setPendingActions({ loading: false, items: [] });
+                            setSelectedPendingActionId('');
                           }}
                           required
                           disabled={specialties.length === 0}
@@ -411,7 +442,7 @@ export default function BookingPage() {
                         </Select>
                       </div>
 
-                      {fulfillmentKind && (pendingFulfillment.loading || pendingFulfillment.items.length > 0) ? (
+                      {fulfillmentKind && (pendingActions.loading || pendingActions.items.length > 0) ? (
                         <div className="rounded-lg border border-teal-200/80 bg-teal-50/50 dark:bg-teal-950/20 p-4 space-y-3">
                           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                             {fulfillmentKind === 'pharmacy' ? (
@@ -419,29 +450,44 @@ export default function BookingPage() {
                             ) : (
                               <FlaskConical className="h-4 w-4 text-teal-600" />
                             )}
-                            Orders from your doctor
+                            Pending action plan
                           </div>
-                          {pendingFulfillment.loading ? (
+                          {pendingActions.loading ? (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Loader2 className="h-4 w-4 animate-spin" />
-                              Loading pending orders…
+                              Loading pending actions…
                             </div>
                           ) : (
                             <>
-                              <ul className="text-sm space-y-2 list-disc pl-5 text-muted-foreground">
-                                {pendingFulfillment.items.map((item) => (
-                                  <li key={item.id}>
-                                    <span className="text-foreground font-medium">{item.summary}</span>
-                                    {item.clinical_org_name ? (
-                                      <span> — from {item.clinical_org_name}</span>
-                                    ) : null}
-                                  </li>
-                                ))}
-                              </ul>
-                              <p className="text-xs text-muted-foreground">
-                                Select a {fulfillmentKind === 'pharmacy' ? 'pharmacy' : 'laboratory'} below to send
-                                these orders there. Your appointment will be scheduled with that provider.
-                              </p>
+                              <Select
+                                value={selectedPendingActionId || undefined}
+                                onValueChange={setSelectedPendingActionId}
+                                required
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select an action from your consultation" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {pendingActions.items.map((item) => (
+                                    <SelectItem key={item.action_item_id} value={item.action_item_id}>
+                                      {pendingActionSelectLabel(item)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {selectedPendingAction ? (
+                                <p className="text-xs text-muted-foreground">
+                                  {selectedPendingAction.subtitle || selectedPendingAction.plan_label}
+                                  {selectedPendingAction.needs_fulfillment_assign
+                                    ? ' — choose a provider below to route this order.'
+                                    : ' — then choose a provider for your appointment.'}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-muted-foreground">
+                                  Select which {fulfillmentKind === 'pharmacy' ? 'prescription' : 'lab order'} this
+                                  visit is for, then pick a provider.
+                                </p>
+                              )}
                             </>
                           )}
                         </div>
@@ -453,15 +499,19 @@ export default function BookingPage() {
                           value={formData.providerId || undefined}
                           onValueChange={async (v) => {
                             setFormData({ ...formData, providerId: v, providerServiceId: '' });
-                            if (pendingFulfillment.items.length > 0) {
-                              await assignPendingFulfillment(v);
+                            const action =
+                              pendingActions.items.find((a) => a.action_item_id === selectedPendingActionId) ||
+                              null;
+                            if (action?.needs_fulfillment_assign) {
+                              await assignPendingFulfillment(v, action);
                             }
                           }}
                           required
                           disabled={
                             assigningFulfillment ||
                             !formData.specialtySlug ||
-                            filteredProviders.length === 0
+                            filteredProviders.length === 0 ||
+                            (pendingActions.items.length > 0 && !selectedPendingActionId)
                           }
                         >
                           <SelectTrigger>
