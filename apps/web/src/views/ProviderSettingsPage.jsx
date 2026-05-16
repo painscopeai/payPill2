@@ -124,28 +124,30 @@ export default function ProviderSettingsPage() {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>{isPharmacy ? 'Services & prescribing' : 'Clinical catalogs & services'}</CardTitle>
+					<CardTitle>{isPharmacy ? 'Services & pricing' : 'Clinical catalogs & services'}</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-3 text-sm">
 					<p className="text-muted-foreground">
 						{isPharmacy
-							? 'Manage your medication formulary and billable services for consultations.'
+							? 'Manage billable services and fees for patient bookings.'
 							: 'Manage medications, lab tests, and billable services. Add or edit rows manually, or use bulk import on the drug catalog page.'}
 					</p>
 					<ul className="list-disc pl-5 space-y-1.5">
-						<li>
-							<Link to="/provider/settings/catalog/drugs" className="text-teal-600 font-medium underline">
-								Drug formulary
-							</Link>{' '}
-							— medications available when prescribing during a consultation.
-						</li>
 						{!isPharmacy ? (
-							<li>
-								<Link to="/provider/settings/catalog/labs" className="text-teal-600 font-medium underline">
-									Lab catalog
-								</Link>{' '}
-								— tests you can order or reference.
-							</li>
+							<>
+								<li>
+									<Link to="/provider/settings/catalog/drugs" className="text-teal-600 font-medium underline">
+										Drug formulary
+									</Link>{' '}
+									— medications available when prescribing during a consultation.
+								</li>
+								<li>
+									<Link to="/provider/settings/catalog/labs" className="text-teal-600 font-medium underline">
+										Lab catalog
+									</Link>{' '}
+									— tests you can order or reference.
+								</li>
+							</>
 						) : null}
 						<li>
 							<Link to="/provider/settings/catalog/services" className="text-teal-600 font-medium underline">

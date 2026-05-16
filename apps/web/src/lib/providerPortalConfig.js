@@ -149,7 +149,7 @@ export const PROVIDER_ROUTE_PROFILES = {
 	'/provider/dispensing': ['pharmacist'],
 	'/provider/lab-orders': ['laboratory'],
 	'/provider/settings/catalog/labs': ['laboratory', 'doctor'],
-	'/provider/settings/catalog/drugs': ['doctor', 'pharmacist'],
+	'/provider/settings/catalog/drugs': ['doctor'],
 };
 
 export function allowedProfilesForPath(pathname) {
