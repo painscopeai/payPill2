@@ -9,6 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import apiServerClient from '@/lib/apiServerClient';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { toast } from 'sonner';
@@ -174,6 +184,9 @@ export default function ProviderConsultationWorkspacePage() {
 	const [templatePick, setTemplatePick] = useState('');
 	const [queueFilter, setQueueFilter] = useState('all');
 	const [viewMode, setViewMode] = useState('queue');
+	const [finalizeDialogOpen, setFinalizeDialogOpen] = useState(false);
+	/** When false on a finalized encounter, SOAP is read-only until provider clicks Edit Consultation. */
+	const [encounterEditing, setEncounterEditing] = useState(true);
 	const queueInitRef = useRef(false);
 	/** Prevents URL-sync effect from fighting row clicks (re-selecting the previous appointment). */
 	const lastSyncedAppointmentRef = useRef(null);
@@ -263,11 +276,14 @@ export default function ProviderConsultationWorkspacePage() {
 				setAppointment(body.appointment || null);
 				setPatient(body.patient || null);
 				applyEncounterPayload(body.encounter);
+				const isFinalized = body.encounter?.status === 'finalized';
+				setEncounterEditing(!isFinalized);
 			} catch (e) {
 				setDetailError(e.message || 'Failed to load');
 				setAppointment(null);
 				setPatient(null);
 				applyEncounterPayload(null);
+				setEncounterEditing(true);
 			} finally {
 				setDetailLoading(false);
 			}
@@ -299,6 +315,10 @@ export default function ProviderConsultationWorkspacePage() {
 
 	const openEncounterForSelected = useCallback(() => {
 		if (!selectedId) return;
+		const row = items.find((i) => i.appointment_id === selectedId);
+		if (row?.encounter_status === 'finalized') {
+			setEncounterEditing(true);
+		}
 		setSearchParams(
 			(prev) => {
 				const next = new URLSearchParams(prev);
@@ -309,7 +329,7 @@ export default function ProviderConsultationWorkspacePage() {
 			{ replace: true },
 		);
 		setViewMode('encounter');
-	}, [selectedId, setSearchParams]);
+	}, [selectedId, items, setSearchParams]);
 
 	const backToQueue = useCallback(() => {
 		setSearchParams(
@@ -575,10 +595,16 @@ export default function ProviderConsultationWorkspacePage() {
 		setLabOrders((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
 	};
 
-	const save = async (status) => {
-		if (!selectedId) return;
+	const save = async (status, { closeAfterFinalize = false } = {}) => {
+		if (!selectedId) return false;
 		setSaving(true);
 		try {
+			const saveStatus =
+				status === 'finalized'
+					? 'finalized'
+					: encounterStatus === 'finalized'
+						? 'finalized'
+						: 'draft';
 			const res = await apiServerClient.fetch(
 				`/provider/consultations/${encodeURIComponent(selectedId)}/encounter`,
 				{
@@ -593,7 +619,7 @@ export default function ProviderConsultationWorkspacePage() {
 						vitals: parseVitalsForSave(vitalsForm),
 						prescription_lines: prescriptionLines,
 						lab_orders: labOrders,
-						status: status === 'finalized' ? 'finalized' : 'draft',
+						status: saveStatus,
 					}),
 				},
 			);
@@ -612,16 +638,30 @@ export default function ProviderConsultationWorkspacePage() {
 				} else {
 					toast.success('Encounter finalized.');
 				}
+				setEncounterEditing(false);
+				setFinalizeDialogOpen(false);
+				await loadList();
+				if (closeAfterFinalize) {
+					backToQueue();
+				}
 			} else {
-				toast.success('Draft saved.');
+				toast.success(encounterStatus === 'finalized' ? 'Consultation updated.' : 'Draft saved.');
+				await loadList();
 			}
-			await loadList();
+			return true;
 		} catch (e) {
 			toast.error(e.message || 'Save failed');
+			return false;
 		} finally {
 			setSaving(false);
 		}
 	};
+
+	const isFinalizedEncounter = encounterStatus === 'finalized';
+	const encounterFormLocked = isFinalizedEncounter && !encounterEditing;
+
+	const rxCount = prescriptionLines.filter((l) => String(l.medication_name || '').trim()).length;
+	const labCount = labOrders.filter((l) => String(l.test_name || '').trim()).length;
 
 	return (
 		<div className="flex flex-col gap-4 min-h-[calc(100dvh-6.5rem)] max-w-[100rem] w-full">
@@ -818,7 +858,7 @@ export default function ProviderConsultationWorkspacePage() {
 												>
 													<Stethoscope className="h-4 w-4 mr-2" />
 													{selectedQueueRow.encounter_status === 'finalized'
-														? 'Review encounter'
+														? 'Edit Consultation'
 														: 'Document encounter'}
 												</Button>
 												{selectedQueueRow.patient_user_id ? (
@@ -920,6 +960,10 @@ export default function ProviderConsultationWorkspacePage() {
 									) : null}
 								</div>
 
+								<fieldset
+									disabled={encounterFormLocked}
+									className="min-w-0 border-0 p-0 m-0 space-y-6 disabled:opacity-100"
+								>
 								<div>
 									<h3 className="text-sm font-semibold mb-3">Vitals</h3>
 									<div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -1349,20 +1393,61 @@ export default function ProviderConsultationWorkspacePage() {
 										/>
 									</div>
 								</div>
+								</fieldset>
 
-								<div className="flex flex-wrap gap-2 pt-2 border-t">
-									<Button type="button" variant="secondary" disabled={saving} onClick={() => void save('draft')}>
-										Save draft
-									</Button>
-									<Button type="button" disabled={saving} onClick={() => void save('finalized')}>
-										Finalize encounter
-									</Button>
-									<span className="text-xs text-muted-foreground self-center max-w-md text-right">
-										{encounterStatus === 'finalized'
-											? 'Marked finalized — the patient can open this visit under Consultations and complete lab or medication actions.'
-											: 'Draft — save before the patient leaves, or finalize when complete so the patient sees the visit and action plan.'}
-									</span>
-								</div>
+								{encounterFormLocked ? (
+									<div className="flex flex-wrap gap-2 pt-2 border-t">
+										<Button
+											type="button"
+											className="bg-teal-600 hover:bg-teal-700 text-white"
+											onClick={() => setEncounterEditing(true)}
+										>
+											<Stethoscope className="h-4 w-4 mr-2" />
+											Edit Consultation
+										</Button>
+										<Button type="button" variant="outline" onClick={backToQueue}>
+											Back to queue
+										</Button>
+										<span className="text-xs text-muted-foreground self-center max-w-md">
+											This encounter is finalized. The patient can complete lab or medication actions from their
+											portal.
+										</span>
+									</div>
+								) : (
+									<div className="flex flex-wrap gap-2 pt-2 border-t">
+										{!isFinalizedEncounter ? (
+											<Button type="button" variant="secondary" disabled={saving} onClick={() => void save('draft')}>
+												Save draft
+											</Button>
+										) : (
+											<Button type="button" variant="secondary" disabled={saving} onClick={() => void save('draft')}>
+												Save changes
+											</Button>
+										)}
+										{!isFinalizedEncounter ? (
+											<Button
+												type="button"
+												disabled={saving}
+												className="bg-teal-600 hover:bg-teal-700 text-white"
+												onClick={() => setFinalizeDialogOpen(true)}
+											>
+												Finalize encounter
+											</Button>
+										) : (
+											<Button type="button" variant="outline" onClick={() => setEncounterEditing(false)}>
+												Done editing
+											</Button>
+										)}
+										<Button type="button" variant="ghost" onClick={backToQueue}>
+											Back to queue
+										</Button>
+										<span className="text-xs text-muted-foreground self-center max-w-md">
+											{isFinalizedEncounter
+												? 'Update documentation for this finalized visit.'
+												: 'Save a draft before the patient leaves, or finalize when documentation is complete.'}
+										</span>
+									</div>
+								)}
 							</>
 						) : items.length === 0 && !listLoading ? (
 							<p className="text-sm text-muted-foreground">Nothing to show until a matching booking exists.</p>
@@ -1370,6 +1455,48 @@ export default function ProviderConsultationWorkspacePage() {
 					</CardContent>
 				</Card>
 			)}
+
+			<AlertDialog open={finalizeDialogOpen} onOpenChange={setFinalizeDialogOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Finalize this encounter?</AlertDialogTitle>
+						<AlertDialogDescription asChild>
+							<div className="space-y-2 text-sm text-muted-foreground">
+								<p>
+									Confirming will lock this visit for the patient action plan
+									{rxCount > 0 || labCount > 0 ? ' and route orders to the appropriate portals' : ''}.
+								</p>
+								{rxCount > 0 ? (
+									<p>
+										<strong className="text-foreground">{rxCount}</strong> prescription
+										{rxCount === 1 ? '' : 's'} will be sent to pharmacy.
+									</p>
+								) : null}
+								{labCount > 0 ? (
+									<p>
+										<strong className="text-foreground">{labCount}</strong> lab order
+										{labCount === 1 ? '' : 's'} will be sent to the laboratory.
+									</p>
+								) : null}
+								<p>You can edit the consultation later from the queue if needed.</p>
+							</div>
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={saving}>Go back to edit</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={saving}
+							className="bg-teal-600 hover:bg-teal-700 text-white"
+							onClick={(e) => {
+								e.preventDefault();
+								void save('finalized', { closeAfterFinalize: true });
+							}}
+						>
+							{saving ? 'Saving…' : 'Confirm & save'}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
