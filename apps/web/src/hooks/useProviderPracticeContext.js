@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import apiServerClient from '@/lib/apiServerClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { normalizeProviderPortalProfile } from '@/lib/providerPortalConfig.js';
 
 function isPharmacySpecialtyHint(slug, label) {
 	const s = (slug || '').trim().toLowerCase();
@@ -10,7 +11,7 @@ function isPharmacySpecialtyHint(slug, label) {
 }
 
 /**
- * Practice org context for provider portal (specialty, pharmacy inventory access).
+ * Practice org context for provider portal (operational profile, nav, feature gating).
  */
 export function useProviderPracticeContext() {
 	const { user } = useAuth();
@@ -21,7 +22,10 @@ export function useProviderPracticeContext() {
 		operationsProfile: null,
 		providerTypeSlug: null,
 		providerTypeLabel: null,
+		portalProfile: 'doctor',
 		isPharmacy: false,
+		isLaboratory: false,
+		isClinical: true,
 	});
 
 	const refresh = useCallback(async () => {
@@ -32,21 +36,29 @@ export function useProviderPracticeContext() {
 			if (!res.ok) throw new Error(body.error || 'Failed to load practice context');
 			const providerTypeSlug = body.provider_type_slug || null;
 			const providerTypeLabel = body.provider_type_label || null;
+			const operationsProfile = body.operations_profile || null;
+			const practiceRoleSlug = body.practice_role_slug || null;
 			const isPharmacy =
 				body.is_pharmacy === true ||
 				isPharmacySpecialtyHint(providerTypeSlug, providerTypeLabel) ||
 				isPharmacySpecialtyHint(null, user?.specialty);
+			const isLaboratory = body.is_laboratory === true || operationsProfile === 'laboratory';
+			const portalProfile = normalizeProviderPortalProfile(operationsProfile, practiceRoleSlug, isPharmacy);
 			setState({
 				loading: false,
 				providerOrgId: body.provider_org_id || null,
-				practiceRoleSlug: body.practice_role_slug || null,
-				operationsProfile: body.operations_profile || null,
+				practiceRoleSlug,
+				operationsProfile,
 				providerTypeSlug,
 				providerTypeLabel,
-				isPharmacy,
+				portalProfile,
+				isPharmacy: portalProfile === 'pharmacist',
+				isLaboratory: portalProfile === 'laboratory',
+				isClinical: portalProfile === 'doctor',
 			});
 		} catch {
 			const fallbackPharmacy = isPharmacySpecialtyHint(null, user?.specialty);
+			const portalProfile = normalizeProviderPortalProfile(null, null, fallbackPharmacy);
 			setState({
 				loading: false,
 				providerOrgId: user?.provider_org_id || null,
@@ -54,7 +66,10 @@ export function useProviderPracticeContext() {
 				operationsProfile: null,
 				providerTypeSlug: null,
 				providerTypeLabel: user?.specialty || null,
-				isPharmacy: fallbackPharmacy,
+				portalProfile,
+				isPharmacy: portalProfile === 'pharmacist',
+				isLaboratory: portalProfile === 'laboratory',
+				isClinical: portalProfile === 'doctor',
 			});
 		}
 	}, [user?.provider_org_id, user?.specialty]);

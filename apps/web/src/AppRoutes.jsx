@@ -100,6 +100,8 @@ const ProviderSettingsPage = React.lazy(() => import('./views/ProviderSettingsPa
 const ProviderSettingsCatalogPage = React.lazy(() => import('./views/ProviderSettingsCatalogPage.jsx'));
 const ProviderIntegrationsPage = React.lazy(() => import('./views/ProviderIntegrationsPage.jsx'));
 import ProviderInventoryPage from './views/ProviderInventoryPage.jsx';
+const ProviderDispensingPage = React.lazy(() => import('./views/ProviderDispensingPage.jsx'));
+const ProviderLabOrdersPage = React.lazy(() => import('./views/ProviderLabOrdersPage.jsx'));
 const ProviderCompliancePage = React.lazy(() => import('./views/ProviderCompliancePage.jsx'));
 const ProviderTeamPage = React.lazy(() => import('./views/ProviderTeamPage.jsx'));
 const ProviderLocationsPage = React.lazy(() => import('./views/ProviderLocationsPage.jsx'));
@@ -393,9 +395,11 @@ export default function AppRoutes() {
 											<Route path="forms" element={<ProviderFormsPage />} />
 											<Route path="forms/builder/:formId" element={<ProviderFormBuilderPage />} />
 											<Route path="telemedicine" element={<ProviderTelemedicinePage />} />
-											<Route path="insurance-payers" element={<ProviderInsuranceProvidersPage />} />
+											<Route path="insurance-payers" element={<Navigate to="/provider/dashboard" replace />} />
 											<Route path="integrations" element={<ProviderIntegrationsPage />} />
 											<Route path="inventory" element={<ProviderInventoryPage />} />
+											<Route path="dispensing" element={<ProviderDispensingPage />} />
+											<Route path="lab-orders" element={<ProviderLabOrdersPage />} />
 											<Route path="compliance" element={<ProviderCompliancePage />} />
 											<Route path="team" element={<ProviderTeamPage />} />
 											<Route path="locations" element={<ProviderLocationsPage />} />

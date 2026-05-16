@@ -12,6 +12,13 @@ export function isPharmacyProviderTypeSlug(slug: string | null | undefined): boo
 	return s === 'pharmacy' || s === 'pharmacist' || s.includes('pharmacy');
 }
 
+export function isLaboratoryOperationsProfile(profile: string | null | undefined): boolean {
+	const p = String(profile || '')
+		.trim()
+		.toLowerCase();
+	return p === 'laboratory' || p === 'lab';
+}
+
 export function resolveIsPharmacyAccess(input: {
 	practiceRoleSlug?: string | null;
 	operationsProfile?: string | null;
@@ -31,6 +38,7 @@ export type PharmacyAccessContext = {
 	providerTypeSlug: string | null;
 	providerTypeLabel: string | null;
 	isPharmacy: boolean;
+	isLaboratory: boolean;
 };
 
 /** Unified pharmacy gating for provider APIs and portal UI. */
@@ -44,6 +52,7 @@ export async function getPharmacyAccessForOrg(
 		providerTypeSlug: null,
 		providerTypeLabel: null,
 		isPharmacy: false,
+		isLaboratory: false,
 	};
 	if (!providerOrgId) return empty;
 
@@ -81,6 +90,9 @@ export async function getPharmacyAccessForOrg(
 		providerTypeSlug,
 		providerTypeLabel,
 	});
+	const isLaboratory =
+		isLaboratoryOperationsProfile(operationsProfile) ||
+		isLaboratoryOperationsProfile(practiceRoleSlug);
 
 	return {
 		practiceRoleSlug,
@@ -88,6 +100,7 @@ export async function getPharmacyAccessForOrg(
 		providerTypeSlug,
 		providerTypeLabel,
 		isPharmacy,
+		isLaboratory,
 	};
 }
 

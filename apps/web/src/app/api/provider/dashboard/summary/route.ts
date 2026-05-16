@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { fetchAppointmentsForPracticeOrg } from '@/server/provider/fetchAppointmentsForPracticeOrg';
+import { getPharmacyAccessForOrg } from '@/server/provider/practiceRole';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -71,11 +72,55 @@ export async function GET(request: NextRequest) {
 		(m: { read_at?: string | null; sender_user_id: string }) => !m.read_at && m.sender_user_id !== uid,
 	).length;
 
+	const access = await getPharmacyAccessForOrg(sb, orgId);
+
+	let pharmacy: { catalogItems: number; lowStockCount: number } | undefined;
+	if (access.isPharmacy && orgId) {
+		const { data: catalogRows, error: catErr } = await sb
+			.from('provider_drug_catalog')
+			.select('quantity_on_hand, low_stock_threshold')
+			.eq('provider_org_id', orgId);
+		if (catErr) console.error('[api/provider/dashboard/summary] pharmacy catalog', catErr.message);
+		let lowStockCount = 0;
+		for (const row of catalogRows || []) {
+			const qty = typeof row.quantity_on_hand === 'number' ? row.quantity_on_hand : 0;
+			const th = row.low_stock_threshold;
+			if (th != null && qty <= th) lowStockCount += 1;
+		}
+		pharmacy = { catalogItems: (catalogRows || []).length, lowStockCount };
+	}
+
+	let laboratory: { openLabOrders: number; draftEncounters: number } | undefined;
+	if (access.isLaboratory) {
+		const { data: encRows, error: encErr } = await sb
+			.from('provider_consultation_encounters')
+			.select('lab_orders, status')
+			.eq('provider_user_id', uid)
+			.limit(300);
+		if (encErr) console.error('[api/provider/dashboard/summary] lab encounters', encErr.message);
+		let openLabOrders = 0;
+		let draftEncounters = 0;
+		for (const row of encRows || []) {
+			const status = String((row as { status?: string }).status || '');
+			if (status === 'draft') draftEncounters += 1;
+			const labs = (row as { lab_orders?: unknown }).lab_orders;
+			const arr = Array.isArray(labs) ? labs : [];
+			const hasLab = arr.some(
+				(l) => l && typeof l === 'object' && String((l as { test_name?: string }).test_name || '').trim(),
+			);
+			if (hasLab && status !== 'finalized') openLabOrders += 1;
+		}
+		laboratory = { openLabOrders, draftEncounters };
+	}
+
 	return NextResponse.json({
 		todayAppointments,
 		totalPatients,
 		pendingTasks: pendingInvoices,
 		unreadMessages,
 		providerOrgLinked: Boolean(orgId),
+		operations_profile: access.operationsProfile,
+		...(pharmacy ? { pharmacy } : {}),
+		...(laboratory ? { laboratory } : {}),
 	});
 }

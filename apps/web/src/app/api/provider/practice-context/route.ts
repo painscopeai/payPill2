@@ -23,5 +23,6 @@ export async function GET(request: NextRequest) {
 		provider_type_slug: access.providerTypeSlug,
 		provider_type_label: access.providerTypeLabel,
 		is_pharmacy: access.isPharmacy,
+		is_laboratory: access.isLaboratory,
 	});
 }

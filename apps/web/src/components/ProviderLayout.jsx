@@ -3,57 +3,29 @@ import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import {
-	Home,
-	Calendar,
-	Users,
-	MessageSquare,
-	CreditCard,
-	Activity,
-	Settings,
-	LogOut,
-	Menu,
-	FileText,
-	Shield,
-	Package,
-	Building2,
-	ClipboardList,
-	Stethoscope,
-} from 'lucide-react';
+import { LogOut, Menu } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import NotificationBell from '@/components/NotificationBell.jsx';
 import ThemeToggleButton from '@/components/ThemeToggleButton.jsx';
 import { useProviderPracticeContext } from '@/hooks/useProviderPracticeContext';
-
-const allNavItems = [
-	{ label: 'Dashboard', icon: Home, path: '/provider/dashboard' },
-	{ label: 'Appointments', icon: Calendar, path: '/provider/appointments' },
-	{ label: 'Patients', icon: Users, path: '/provider/patients' },
-	{ label: 'Consultations', icon: FileText, path: '/provider/consultations' },
-	{ label: 'Messages', icon: MessageSquare, path: '/provider/messaging' },
-	{ label: 'Billing', icon: CreditCard, path: '/provider/billing' },
-	{ label: 'Claims', icon: Shield, path: '/provider/claims' },
-	{ label: 'Analytics', icon: Activity, path: '/provider/analytics' },
-	{ label: 'Forms', icon: ClipboardList, path: '/provider/forms' },
-	{ label: 'Insurance payers', icon: Building2, path: '/provider/insurance-payers' },
-	{ label: 'Inventory', icon: Package, path: '/provider/inventory' },
-	{ label: 'Settings', icon: Settings, path: '/provider/settings' },
-];
+import {
+	allowedProfilesForPath,
+	getProviderBranding,
+	getProviderNavItems,
+} from '@/lib/providerPortalConfig.js';
+import { cn } from '@/lib/utils';
 
 export default function ProviderLayout({ children }) {
 	const { currentUser, logout } = useAuth();
 	const location = useLocation();
-	const { isPharmacy, loading: practiceLoading } = useProviderPracticeContext();
+	const { portalProfile, loading: practiceLoading, providerTypeLabel } = useProviderPracticeContext();
 	const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 	const [breadcrumbTick, setBreadcrumbTick] = useState(0);
 
-	const navItems = useMemo(() => {
-		return allNavItems.filter((item) => {
-			if (item.path === '/provider/inventory') return isPharmacy;
-			return true;
-		});
-	}, [isPharmacy]);
+	const brand = useMemo(() => getProviderBranding(portalProfile), [portalProfile]);
+	const navItems = useMemo(() => getProviderNavItems(portalProfile), [portalProfile]);
+	const PortalIcon = brand.icon;
 
 	const handleLogout = () => {
 		void logout();
@@ -130,7 +102,6 @@ export default function ProviderLayout({ children }) {
 			.join(' / ');
 	}, [location.pathname, breadcrumbTick]);
 
-	/** Self-serve practice / services / schedule wizard until profile flag is set. */
 	const mustFinishProviderOnboarding =
 		currentUser?.role === 'provider' &&
 		currentUser?.provider_onboarding_completed !== true &&
@@ -139,6 +110,46 @@ export default function ProviderLayout({ children }) {
 	if (mustFinishProviderOnboarding) {
 		return <Navigate to="/provider/onboarding" replace />;
 	}
+
+	const routeAllowed = allowedProfilesForPath(location.pathname);
+	if (!practiceLoading && routeAllowed && !routeAllowed.includes(portalProfile)) {
+		return <Navigate to="/provider/dashboard" replace />;
+	}
+
+	const navLinkClass = (active) =>
+		cn(
+			'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+			active ? brand.activeNavClass : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+		);
+
+	const renderNavLink = (item) => (
+		<Link key={item.path} to={item.path} className={navLinkClass(isActive(item.path))}>
+			<item.icon className="h-4 w-4 shrink-0" />
+			<span className="flex-1 truncate">{item.label}</span>
+			{item.path === '/provider/messaging' && unreadMessageCount > 0 ? (
+				<span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white">
+					{unreadBadgeText}
+				</span>
+			) : null}
+		</Link>
+	);
+
+	const profileSidebar = (
+		<div className="flex items-center gap-2 mb-1">
+			<div className={cn('h-9 w-9 rounded-lg flex items-center justify-center', brand.chipClass)}>
+				<PortalIcon className={cn('h-5 w-5', brand.accentClass)} />
+			</div>
+			<div className="min-w-0">
+				<p className="font-medium truncate text-sm">
+					{currentUser?.first_name} {currentUser?.last_name}
+				</p>
+				<p className="text-xs text-muted-foreground truncate">{brand.title}</p>
+				{providerTypeLabel ? (
+					<p className="text-[10px] text-muted-foreground truncate">{providerTypeLabel}</p>
+				) : null}
+			</div>
+		</div>
+	);
 
 	return (
 		<div className="min-h-screen bg-background flex flex-col md:flex-row">
@@ -156,35 +167,9 @@ export default function ProviderLayout({ children }) {
 							</Button>
 						</SheetTrigger>
 						<SheetContent side="right" className="w-[280px] flex flex-col overflow-y-auto">
-							<div className="py-4 flex items-center gap-2">
-								<div className="h-9 w-9 rounded-lg bg-teal-500/15 flex items-center justify-center">
-									<Stethoscope className="h-5 w-5 text-teal-600" />
-								</div>
-								<div>
-									<p className="font-medium truncate">
-										{currentUser?.first_name} {currentUser?.last_name}
-									</p>
-									<p className="text-xs text-muted-foreground truncate">{currentUser?.email}</p>
-								</div>
-							</div>
+							<div className="py-4">{profileSidebar}</div>
 							<nav className="flex flex-col gap-0.5 flex-1 pb-6">
-								{navItems.map((item) => (
-									<Link
-										key={item.path}
-										to={item.path}
-										className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-											isActive(item.path) ? 'bg-teal-500/10 text-teal-800 dark:text-teal-200' : 'hover:bg-muted'
-										}`}
-									>
-										<item.icon className="h-4 w-4 shrink-0" />
-										<span className="flex-1 truncate">{item.label}</span>
-										{item.path === '/provider/messaging' && unreadMessageCount > 0 ? (
-											<span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white">
-												{unreadBadgeText}
-											</span>
-										) : null}
-									</Link>
-								))}
+								{(practiceLoading ? getProviderNavItems('doctor').slice(0, 6) : navItems).map(renderNavLink)}
 							</nav>
 							<Button variant="ghost" className="justify-start text-destructive mt-auto" onClick={handleLogout}>
 								<LogOut className="h-4 w-4 mr-2" /> Logout
@@ -196,51 +181,23 @@ export default function ProviderLayout({ children }) {
 
 			<aside className="hidden md:flex flex-col w-64 border-r bg-card min-h-screen sticky top-0 overflow-y-auto">
 				<div className="h-16 flex items-center px-6 border-b shrink-0">
-					<Link to="/provider/dashboard" className="flex items-center gap-2">
+					<Link to="/provider/dashboard" className="flex flex-col gap-0.5">
 						<PayPillLogo className="h-8 max-h-9 w-auto" />
+						<span className="text-[10px] font-medium text-muted-foreground tracking-wide">{brand.portalName}</span>
 					</Link>
 				</div>
 				<div className="p-4 border-b shrink-0">
-					<div className="flex items-center gap-2 mb-1">
-						<div className="h-9 w-9 rounded-lg bg-teal-500/15 flex items-center justify-center">
-							<Stethoscope className="h-5 w-5 text-teal-600" />
-						</div>
-						<div className="min-w-0">
-							<p className="font-medium truncate text-sm">
-								{currentUser?.first_name} {currentUser?.last_name}
-							</p>
-							<p className="text-xs text-muted-foreground truncate">{currentUser?.email}</p>
-						</div>
-					</div>
+					{profileSidebar}
 					{currentUser?.role === 'provider' && currentUser?.provider_onboarding_completed !== true ? (
 						<p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
 							<Link to="/provider/onboarding" className="underline font-medium">
 								Continue practice setup
-							</Link>{' '}
-							to finish onboarding.
+							</Link>
 						</p>
 					) : null}
 				</div>
 				<nav className="flex-1 p-3 space-y-0.5 pb-8">
-					{navItems.map((item) => (
-						<Link
-							key={item.path}
-							to={item.path}
-							className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-								isActive(item.path)
-									? 'bg-teal-500/10 text-teal-800 dark:text-teal-200'
-									: 'text-muted-foreground hover:bg-muted hover:text-foreground'
-							}`}
-						>
-							<item.icon className="h-4 w-4 shrink-0" />
-							<span className="flex-1 truncate">{item.label}</span>
-							{item.path === '/provider/messaging' && unreadMessageCount > 0 ? (
-								<span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white">
-									{unreadBadgeText}
-								</span>
-							) : null}
-						</Link>
-					))}
+					{navItems.map(renderNavLink)}
 				</nav>
 				<div className="p-4 border-t mt-auto shrink-0">
 					<Button
@@ -267,13 +224,14 @@ export default function ProviderLayout({ children }) {
 			</main>
 
 			<nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 border-t bg-background flex items-center justify-around px-1 z-50 pb-safe">
-				{(practiceLoading ? allNavItems.slice(0, 4) : navItems.slice(0, 4)).map((item) => (
+				{(practiceLoading ? getProviderNavItems('doctor').slice(0, 4) : navItems.slice(0, 4)).map((item) => (
 					<Link
 						key={item.path}
 						to={item.path}
-						className={`flex flex-col items-center justify-center w-16 h-full gap-1 ${
-							isActive(item.path) ? 'text-teal-600' : 'text-muted-foreground'
-						}`}
+						className={cn(
+							'flex flex-col items-center justify-center w-16 h-full gap-1',
+							isActive(item.path) ? brand.accentClass : 'text-muted-foreground',
+						)}
 					>
 						<span className="relative">
 							<item.icon className="h-5 w-5" />
