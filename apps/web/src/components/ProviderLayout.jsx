@@ -16,15 +16,10 @@ import {
 	FileText,
 	Shield,
 	Package,
-	Plug,
 	Building2,
-	UsersRound,
-	MapPin,
-	Radio,
 	Pill,
 	Share2,
 	ClipboardList,
-	Video,
 	Stethoscope,
 } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
@@ -45,14 +40,8 @@ const allNavItems = [
 	{ label: 'Prescriptions', icon: Pill, path: '/provider/prescriptions' },
 	{ label: 'Referrals', icon: Share2, path: '/provider/referrals' },
 	{ label: 'Forms', icon: ClipboardList, path: '/provider/forms' },
-	{ label: 'Telemedicine', icon: Video, path: '/provider/telemedicine' },
 	{ label: 'Insurance payers', icon: Building2, path: '/provider/insurance-payers' },
-	{ label: 'Integrations', icon: Plug, path: '/provider/integrations' },
 	{ label: 'Inventory', icon: Package, path: '/provider/inventory' },
-	{ label: 'Compliance', icon: Shield, path: '/provider/compliance' },
-	{ label: 'Team', icon: UsersRound, path: '/provider/team' },
-	{ label: 'Locations', icon: MapPin, path: '/provider/locations' },
-	{ label: 'Communications', icon: Radio, path: '/provider/communications' },
 	{ label: 'Settings', icon: Settings, path: '/provider/settings' },
 ];
 
