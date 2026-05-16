@@ -1,7 +1,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
-import { deleteAdminDataTableRow } from '@/lib/adminDataDelete.js';
+import { deleteAdminDataTableRow, removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { StatusBadge } from '@/components/admin/StatusBadge.jsx';
@@ -33,8 +33,8 @@ export default function AILogsPage() {
       for (const row of rows) {
         await deleteAdminDataTableRow('ai_logs', row.id);
       }
+      removeRowsFromState(setData, rows);
       toast.success(rows.length === 1 ? 'Log deleted' : `Deleted ${rows.length} logs`);
-      await fetchData();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Delete failed');
     }

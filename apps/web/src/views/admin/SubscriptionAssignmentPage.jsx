@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
-import { deleteAdminDataTableRow } from '@/lib/adminDataDelete.js';
+import { deleteAdminDataTableRow, removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { SearchBar } from '@/components/admin/SearchBar.jsx';
@@ -42,8 +42,8 @@ export default function SubscriptionAssignmentPage() {
       for (const row of rows) {
         await deleteAdminDataTableRow('subscriptions', row.id);
       }
+      removeRowsFromState(setData, rows);
       toast.success(rows.length === 1 ? 'Subscription deleted' : `Deleted ${rows.length} subscriptions`);
-      await fetchData();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Delete failed');
     }

@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { removeRowsFromState } from '@/lib/adminDataDelete.js';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -94,13 +95,9 @@ export default function PatientsManagementPage() {
   };
 
   const removePatient = async (patient) => {
-    try {
-      await deleteUser(patient.id);
-      toast.success('Patient deleted');
-      void fetchPatients();
-    } catch (e) {
-      toast.error(e.message || 'Delete failed');
-    }
+    await deleteUser(patient.id);
+    removeRowsFromState(setPatients, [patient]);
+    toast.success('Patient deleted');
   };
 
   const createPatient = async () => {
@@ -255,7 +252,13 @@ export default function PatientsManagementPage() {
                                 },
                             deleteMenuItem({
                               displayName: fullName(patient),
-                              onDelete: () => removePatient(patient),
+                              onDelete: async () => {
+                                try {
+                                  await removePatient(patient);
+                                } catch (e) {
+                                  toast.error(e.message || 'Delete failed');
+                                }
+                              },
                               message:
                                 'Delete this patient account? They will no longer be able to sign in.',
                             }),

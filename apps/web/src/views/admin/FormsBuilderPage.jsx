@@ -1,7 +1,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
-import { deleteAdminForm } from '@/lib/adminDataDelete.js';
+import { deleteAdminForm, removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { Button } from '@/components/ui/button';
@@ -34,8 +34,8 @@ export default function FormsBuilderPage() {
       for (const row of rows) {
         await deleteAdminForm(row.id);
       }
+      removeRowsFromState(setData, rows);
       toast.success(rows.length === 1 ? 'Form deleted' : `Deleted ${rows.length} forms`);
-      await fetchData();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Delete failed');
     }

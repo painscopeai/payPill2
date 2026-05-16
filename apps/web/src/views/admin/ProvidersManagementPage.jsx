@@ -27,7 +27,7 @@ import {
 import { toast } from 'sonner';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
-import { deleteAdminProvider } from '@/lib/adminDataDelete.js';
+import { deleteAdminProvider, removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { ListChecks, Tags } from 'lucide-react';
 
 export default function ProvidersManagementPage() {
@@ -179,7 +179,13 @@ export default function ProvidersManagementPage() {
             },
             deleteMenuItem({
               displayName: row.name || row.email || 'provider',
-              onDelete: () => removeProvider(row),
+              onDelete: async () => {
+                try {
+                  await handleDeleteRows([row]);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Delete failed');
+                }
+              },
             }),
           ]}
         />

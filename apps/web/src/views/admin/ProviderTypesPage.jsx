@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { Plus, Loader2, Pencil } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { removeRowsFromState } from '@/lib/adminDataDelete.js';
 
 const OPERATIONS_LABELS = {
   doctor: 'Clinical',
@@ -144,7 +145,7 @@ export default function ProviderTypesPage() {
     }
   };
 
-  const deactivate = async (row, { silent = false } = {}) => {
+  const deleteRow = async (row) => {
     const res = await apiServerClient.fetch(`/admin/provider-types/${row.id}`, {
       method: 'DELETE',
       headers: await authHeaders(),
@@ -153,10 +154,14 @@ export default function ProviderTypesPage() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Delete failed');
     }
-    if (!silent) {
-      toast.success('Provider specialty deleted');
-      await load();
+  };
+
+  const handleDeleteRows = async (rows) => {
+    for (const row of rows) {
+      await deleteRow(row);
     }
+    removeRowsFromState(setItems, rows);
+    toast.success(rows.length === 1 ? 'Provider specialty deleted' : `Deleted ${rows.length} specialties`);
   };
 
   const columns = [
@@ -178,20 +183,18 @@ export default function ProviderTypesPage() {
         <TableRowActionsMenu
           items={[
             { label: 'Edit', icon: Pencil, onClick: () => openEdit(row) },
-            row.active
-              ? deleteMenuItem({
-                  displayName: row.label,
-                  onDelete: async () => {
-                    try {
-                      await deactivate(row);
-                    } catch (e) {
-                      toast.error(e.message);
-                    }
-                  },
-                  separatorBefore: true,
-                })
-              : null,
-          ].filter(Boolean)}
+            deleteMenuItem({
+              displayName: row.label,
+              onDelete: async () => {
+                try {
+                  await handleDeleteRows([row]);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Delete failed');
+                }
+              },
+              separatorBefore: true,
+            }),
+          ]}
         />
       ),
     },
@@ -230,14 +233,7 @@ export default function ProviderTypesPage() {
             selectable
             onDeleteRows={async (rows) => {
               try {
-                const active = rows.filter((row) => row.active);
-                for (const row of active) {
-                  await deactivate(row, { silent: true });
-                }
-                toast.success(
-                  active.length === 1 ? 'Provider specialty deleted' : `Deleted ${active.length} specialties`,
-                );
-                await load();
+                await handleDeleteRows(rows);
               } catch (e) {
                 toast.error(e instanceof Error ? e.message : 'Delete failed');
               }

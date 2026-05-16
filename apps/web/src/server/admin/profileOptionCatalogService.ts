@@ -121,6 +121,13 @@ export async function deactivateOptionSet(id: string): Promise<OptionSetRow> {
 	return updateOptionSet(id, { active: false });
 }
 
+export async function deleteOptionSet(id: string): Promise<void> {
+	const existing = await getOptionSetById(id);
+	if (!existing) throw Object.assign(new Error('Not found'), { status: 404 });
+	const { error } = await sb().from('profile_option_sets').delete().eq('id', id);
+	if (error) throw error;
+}
+
 export async function listOptionValuesForSet(
 	setId: string,
 	includeInactive: boolean,
@@ -194,6 +201,13 @@ export async function updateOptionValue(
 
 export async function deactivateOptionValue(id: string): Promise<OptionValueRow> {
 	return updateOptionValue(id, { active: false });
+}
+
+export async function deleteOptionValue(id: string): Promise<void> {
+	const existing = await getOptionValue(id);
+	if (!existing) throw Object.assign(new Error('Not found'), { status: 404 });
+	const { error } = await sb().from('profile_option_values').delete().eq('id', id);
+	if (error) throw error;
 }
 
 /** Public catalog: active values keyed by set key (machine key). */

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Ban, CheckCircle, Trash2, Eye, Save, UserPlus } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -78,28 +79,14 @@ export default function InsuranceUsersManagementPage() {
     if (!res.ok) throw new Error(body.error || 'Delete failed');
   };
 
-  const removeRow = async (row) => {
-    try {
-      await deleteRow(row.id);
-      toast.success('Insurance partner deleted');
-      void fetchData();
-    } catch (e) {
-      toast.error(e.message || 'Delete failed');
-    }
-  };
-
   const handleDeleteRows = async (rows) => {
-    try {
-      for (const row of rows) {
-        await deleteRow(row.id);
-      }
-      toast.success(
-        rows.length === 1 ? 'Insurance partner deleted' : `Deleted ${rows.length} insurance accounts`,
-      );
-      void fetchData();
-    } catch (e) {
-      toast.error(e.message || 'Delete failed');
+    for (const row of rows) {
+      await deleteRow(row.id);
     }
+    removeRowsFromState(setData, rows);
+    toast.success(
+      rows.length === 1 ? 'Insurance partner deleted' : `Deleted ${rows.length} insurance accounts`,
+    );
   };
 
   const createInsurance = async () => {
@@ -202,7 +189,13 @@ export default function InsuranceUsersManagementPage() {
                 },
             deleteMenuItem({
               displayName: insLabel(row),
-              onDelete: () => removeRow(row),
+              onDelete: async () => {
+                try {
+                  await handleDeleteRows([row]);
+                } catch (e) {
+                  toast.error(e.message || 'Delete failed');
+                }
+              },
               message:
                 'Delete this insurance account? They will no longer be able to sign in.',
             }),

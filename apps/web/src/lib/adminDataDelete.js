@@ -1,6 +1,16 @@
 import apiServerClient from '@/lib/apiServerClient';
 import { supabase } from '@/lib/supabaseClient';
 
+/** Drop deleted rows from React table state immediately (active or inactive). */
+export function removeRowsFromState(setData, rowsOrIds) {
+  const list = Array.isArray(rowsOrIds) ? rowsOrIds : [rowsOrIds];
+  const ids = new Set(
+    list.map((r) => (typeof r === 'string' || typeof r === 'number' ? String(r) : r?.id)).filter(Boolean),
+  );
+  if (ids.size === 0) return;
+  setData((prev) => prev.filter((row) => !ids.has(row.id)));
+}
+
 export async function getAdminAuthHeaders() {
   const {
     data: { session },

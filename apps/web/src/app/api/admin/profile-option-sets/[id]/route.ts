@@ -1,7 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireManageProvidersAdmin } from '@/server/auth/requireManageProvidersAdmin';
-import { deactivateOptionSet, getOptionSetById, updateOptionSet } from '@/server/admin/profileOptionCatalogService';
+import {
+	deleteOptionSet,
+	getOptionSetById,
+	updateOptionSet,
+} from '@/server/admin/profileOptionCatalogService';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,8 +56,10 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
 	if (ctx instanceof NextResponse) return ctx;
 	const { id } = await context.params;
 	try {
-		const row = await deactivateOptionSet(id);
-		return NextResponse.json({ item: row });
+		const existing = await getOptionSetById(id);
+		if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+		await deleteOptionSet(id);
+		return NextResponse.json({ ok: true, id });
 	} catch (e) {
 		return errResponse(e);
 	}

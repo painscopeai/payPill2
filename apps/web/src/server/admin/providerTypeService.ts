@@ -130,3 +130,11 @@ export async function updateProviderType(
 export async function deactivateProviderType(id: string): Promise<ProviderTypeRow> {
 	return updateProviderType(id, { active: false });
 }
+
+/** Permanent delete — row is removed from admin lists. */
+export async function deleteProviderType(id: string): Promise<void> {
+	const existing = await getProviderType(id);
+	if (!existing) throw Object.assign(new Error('Not found'), { status: 404 });
+	const { error } = await sb().from('provider_types').delete().eq('id', id);
+	if (error) throw error;
+}

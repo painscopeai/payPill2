@@ -16,7 +16,7 @@ import {
 import { ArrowLeft, Download, Users, Clock, CheckCircle2, Share2, Eye } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
-import { deleteFormResponse } from '@/lib/adminDataDelete.js';
+import { deleteFormResponse, removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -106,26 +106,12 @@ export default function FormResponsesPage() {
     void fetchData();
   }, [fetchData]);
 
-  const removeResponse = async (row) => {
-    try {
-      await deleteFormResponse(formId, row.id);
-      toast.success('Response deleted');
-      await fetchData();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Delete failed');
-    }
-  };
-
   const handleDeleteRows = async (rows) => {
-    try {
-      for (const row of rows) {
-        await deleteFormResponse(formId, row.id);
-      }
-      toast.success(rows.length === 1 ? 'Response deleted' : `Deleted ${rows.length} responses`);
-      await fetchData();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    for (const row of rows) {
+      await deleteFormResponse(formId, row.id);
     }
+    removeRowsFromState(setResponses, rows);
+    toast.success(rows.length === 1 ? 'Response deleted' : `Deleted ${rows.length} responses`);
   };
 
   const timelineChartData = useMemo(() => {
@@ -194,7 +180,13 @@ export default function FormResponsesPage() {
             { label: 'View details', icon: Eye, onClick: () => openDetail(r) },
             deleteMenuItem({
               displayName: r.respondent_email || 'response',
-              onDelete: () => removeResponse(r),
+              onDelete: async () => {
+                try {
+                  await handleDeleteRows([r]);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Delete failed');
+                }
+              },
             }),
           ]}
         />

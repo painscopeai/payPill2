@@ -113,6 +113,13 @@ export async function deactivateVisitType(id: string): Promise<VisitTypeRow> {
 	return updateVisitType(id, { active: false });
 }
 
+export async function deleteVisitType(id: string): Promise<void> {
+	const existing = await getVisitType(id);
+	if (!existing) throw Object.assign(new Error('Not found'), { status: 404 });
+	const { error } = await sb().from('visit_types').delete().eq('id', id);
+	if (error) throw error;
+}
+
 // --- Insurance options ---
 
 export async function listInsuranceOptions(includeInactive: boolean): Promise<InsuranceOptionRow[]> {

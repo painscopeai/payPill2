@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireManageProvidersAdmin } from '@/server/auth/requireManageProvidersAdmin';
-import { deactivateVisitType, getVisitType, updateVisitType } from '@/server/admin/appointmentReferenceService';
+import { deleteVisitType, getVisitType, updateVisitType } from '@/server/admin/appointmentReferenceService';
 import { auditLog } from '@/server/express-api/middleware/rbac.js';
 
 export const runtime = 'nodejs';
@@ -80,19 +80,22 @@ export async function DELETE(
 	const { id } = await context.params;
 
 	try {
-		const row = await deactivateVisitType(id);
+		const existing = await getVisitType(id);
+		if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+		await deleteVisitType(id);
 
 		await auditLog({
 			adminId: ctx.adminId,
-			action: 'DEACTIVATE_VISIT_TYPE',
+			action: 'DELETE_VISIT_TYPE',
 			resourceType: 'visit_type',
 			resourceId: id,
-			changes: { active: false },
+			changes: { slug: existing.slug, label: existing.label },
 			ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
 			userAgent: request.headers.get('user-agent'),
 		});
 
-		return NextResponse.json({ item: row });
+		return NextResponse.json({ ok: true, id });
 	} catch (e) {
 		return errResponse(e);
 	}

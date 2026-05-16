@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Building2, Eye, Ban, CheckCircle, Trash2, Save, UserPlus } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -80,26 +81,12 @@ export default function EmployersManagementPage() {
     if (!res.ok) throw new Error(body.error || 'Delete failed');
   };
 
-  const removeEmployer = async (row) => {
-    try {
-      await deleteEmployer(row.id);
-      toast.success('Employer deleted');
-      void fetchData();
-    } catch (e) {
-      toast.error(e.message || 'Delete failed');
-    }
-  };
-
   const handleDeleteRows = async (rows) => {
-    try {
-      for (const row of rows) {
-        await deleteEmployer(row.id);
-      }
-      toast.success(rows.length === 1 ? 'Employer deleted' : `Deleted ${rows.length} employers`);
-      void fetchData();
-    } catch (e) {
-      toast.error(e.message || 'Delete failed');
+    for (const row of rows) {
+      await deleteEmployer(row.id);
     }
+    removeRowsFromState(setData, rows);
+    toast.success(rows.length === 1 ? 'Employer deleted' : `Deleted ${rows.length} employers`);
   };
 
   const createEmployer = async () => {
@@ -207,7 +194,13 @@ export default function EmployersManagementPage() {
                 },
             deleteMenuItem({
               displayName: employerLabel(row),
-              onDelete: () => removeEmployer(row),
+              onDelete: async () => {
+                try {
+                  await handleDeleteRows([row]);
+                } catch (e) {
+                  toast.error(e.message || 'Delete failed');
+                }
+              },
               message:
                 'Delete this employer account? They will no longer be able to sign in.',
             }),

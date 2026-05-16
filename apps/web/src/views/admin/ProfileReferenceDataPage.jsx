@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { Plus, Loader2, Pencil, ListTree, Search, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { PROFILE_OPTION_GROUP_LABELS as GROUP_LABELS } from '@/lib/profileOptionGroupLabels';
 import { cn } from '@/lib/utils';
 
@@ -203,7 +204,7 @@ export default function ProfileReferenceDataPage() {
     }
   };
 
-  const deactivateSet = async (row, { silent = false } = {}) => {
+  const deleteSetRow = async (row) => {
     const res = await apiServerClient.fetch(`/admin/profile-option-sets/${row.id}`, {
       method: 'DELETE',
       headers: await authHeaders(),
@@ -212,10 +213,19 @@ export default function ProfileReferenceDataPage() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Delete failed');
     }
-    if (!silent) {
-      toast.success('Set deleted');
-      await loadSets();
+  };
+
+  const handleDeleteSets = async (rows) => {
+    for (const row of rows) {
+      await deleteSetRow(row);
     }
+    removeRowsFromState(setSets, rows);
+    if (activeSet && rows.some((r) => r.id === activeSet.id)) {
+      setActiveSet(null);
+      setValues([]);
+      setValuesOpen(false);
+    }
+    toast.success(rows.length === 1 ? 'Set deleted' : `Deleted ${rows.length} sets`);
   };
 
   const saveValue = async () => {
@@ -265,8 +275,7 @@ export default function ProfileReferenceDataPage() {
     }
   };
 
-  const deactivateValue = async (row, { silent = false } = {}) => {
-    if (!activeSet) return;
+  const deleteValueRow = async (row) => {
     const res = await apiServerClient.fetch(`/admin/profile-option-values/${row.id}`, {
       method: 'DELETE',
       headers: await authHeaders(),
@@ -275,10 +284,14 @@ export default function ProfileReferenceDataPage() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Delete failed');
     }
-    if (!silent) {
-      toast.success('Option deleted');
-      await loadValues(activeSet.id);
+  };
+
+  const handleDeleteValues = async (rows) => {
+    for (const row of rows) {
+      await deleteValueRow(row);
     }
+    removeRowsFromState(setValues, rows);
+    toast.success(rows.length === 1 ? 'Option deleted' : `Deleted ${rows.length} options`);
   };
 
   const setColumns = [
@@ -317,20 +330,18 @@ export default function ProfileReferenceDataPage() {
               },
               separatorBefore: true,
             },
-            row.active
-              ? deleteMenuItem({
-                  displayName: row.label,
-                  onDelete: async () => {
-                    try {
-                      await deactivateSet(row);
-                    } catch (e) {
-                      toast.error(e.message);
-                    }
-                  },
-                  separatorBefore: true,
-                })
-              : null,
-          ].filter(Boolean)}
+            deleteMenuItem({
+              displayName: row.label,
+              onDelete: async () => {
+                try {
+                  await handleDeleteSets([row]);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Delete failed');
+                }
+              },
+              separatorBefore: true,
+            }),
+          ]}
         />
       ),
     },
@@ -363,20 +374,18 @@ export default function ProfileReferenceDataPage() {
                 setValDialogOpen(true);
               },
             },
-            row.active
-              ? deleteMenuItem({
-                  displayName: row.label,
-                  onDelete: async () => {
-                    try {
-                      await deactivateValue(row);
-                    } catch (e) {
-                      toast.error(e.message);
-                    }
-                  },
-                  separatorBefore: true,
-                })
-              : null,
-          ].filter(Boolean)}
+            deleteMenuItem({
+              displayName: row.label,
+              onDelete: async () => {
+                try {
+                  await handleDeleteValues([row]);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Delete failed');
+                }
+              },
+              separatorBefore: true,
+            }),
+          ]}
         />
       ),
     },
@@ -504,12 +513,7 @@ export default function ProfileReferenceDataPage() {
               selectable
               onDeleteRows={async (rows) => {
                 try {
-                  const active = rows.filter((row) => row.active);
-                  for (const row of active) {
-                    await deactivateSet(row, { silent: true });
-                  }
-                  toast.success(active.length === 1 ? 'Set deleted' : `Deleted ${active.length} sets`);
-                  await loadSets();
+                  await handleDeleteSets(rows);
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : 'Delete failed');
                 }
@@ -553,16 +557,8 @@ export default function ProfileReferenceDataPage() {
               isLoading={valuesLoading}
               selectable
               onDeleteRows={async (rows) => {
-                if (!activeSet) return;
                 try {
-                  const active = rows.filter((row) => row.active);
-                  for (const row of active) {
-                    await deactivateValue(row, { silent: true });
-                  }
-                  toast.success(
-                    active.length === 1 ? 'Option deleted' : `Deleted ${active.length} options`,
-                  );
-                  await loadValues(activeSet.id);
+                  await handleDeleteValues(rows);
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : 'Delete failed');
                 }

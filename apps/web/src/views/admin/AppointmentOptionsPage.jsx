@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { Plus, Loader2, Pencil } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { removeRowsFromState } from '@/lib/adminDataDelete.js';
 
 export default function AppointmentOptionsPage() {
   const authHeaders = async () => {
@@ -103,7 +104,7 @@ export default function AppointmentOptionsPage() {
     }
   };
 
-  const deactivateVisitType = async (row, { silent = false } = {}) => {
+  const deleteVisitTypeRow = async (row) => {
     const res = await apiServerClient.fetch(`/admin/visit-types/${row.id}`, {
       method: 'DELETE',
       headers: await authHeaders(),
@@ -112,10 +113,14 @@ export default function AppointmentOptionsPage() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Delete failed');
     }
-    if (!silent) {
-      toast.success('Visit type deleted');
-      await loadVisitTypes();
+  };
+
+  const handleDeleteRows = async (rows) => {
+    for (const row of rows) {
+      await deleteVisitTypeRow(row);
     }
+    removeRowsFromState(setVisitTypes, rows);
+    toast.success(rows.length === 1 ? 'Visit type deleted' : `Deleted ${rows.length} visit types`);
   };
 
   const vtColumns = [
@@ -141,20 +146,18 @@ export default function AppointmentOptionsPage() {
                 setVtDialog(true);
               },
             },
-            row.active
-              ? deleteMenuItem({
-                  displayName: row.label,
-                  onDelete: async () => {
-                    try {
-                      await deactivateVisitType(row);
-                    } catch (e) {
-                      toast.error(e.message);
-                    }
-                  },
-                  separatorBefore: true,
-                })
-              : null,
-          ].filter(Boolean)}
+            deleteMenuItem({
+              displayName: row.label,
+              onDelete: async () => {
+                try {
+                  await handleDeleteRows([row]);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Delete failed');
+                }
+              },
+              separatorBefore: true,
+            }),
+          ]}
         />
       ),
     },
@@ -193,14 +196,7 @@ export default function AppointmentOptionsPage() {
             selectable
             onDeleteRows={async (rows) => {
               try {
-                const active = rows.filter((row) => row.active);
-                for (const row of active) {
-                  await deactivateVisitType(row, { silent: true });
-                }
-                toast.success(
-                  active.length === 1 ? 'Visit type deleted' : `Deleted ${active.length} visit types`,
-                );
-                await loadVisitTypes();
+                await handleDeleteRows(rows);
               } catch (e) {
                 toast.error(e instanceof Error ? e.message : 'Delete failed');
               }

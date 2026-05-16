@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { removeRowsFromState } from '@/lib/adminDataDelete.js';
 
 const CATEGORY_LABEL = {
   service: 'Service',
@@ -341,7 +342,13 @@ export default function ProviderServicesPage() {
             { label: 'Edit', icon: Pencil, onClick: () => openEdit(r) },
             deleteMenuItem({
               displayName: r.name,
-              onDelete: () => remove(r),
+              onDelete: async () => {
+                try {
+                  await handleDeleteRows([r]);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Delete failed');
+                }
+              },
             }),
           ]}
         />
