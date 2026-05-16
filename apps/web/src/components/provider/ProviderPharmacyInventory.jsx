@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,11 @@ import { TableRowActionsMenu } from '@/components/TableRowActionsMenu.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { AlertTriangle, Minus, Package, Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { AlertTriangle, Download, Minus, Package, Pencil, Plus, SlidersHorizontal, Trash2, Upload } from 'lucide-react';
 import { STOCK_MOVE_REASON, formatMovementReasonLabel } from '@/lib/pharmacyStockMovement';
+import { parseSimpleCsv } from '@/lib/parseSimpleCsv.js';
+import { downloadInventoryCsvTemplate, mapCsvRowsToInventoryItems } from '@/lib/pharmacyInventoryCsv.js';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const API_DRUGS = '/provider/catalog/drugs?manage=1';
 
@@ -54,6 +57,9 @@ export default function ProviderPharmacyInventory() {
 	const [savingForm, setSavingForm] = useState(false);
 
 	const stockMove = usePharmacyStockMoveDialog();
+	const csvInputRef = useRef(null);
+	const [csvImporting, setCsvImporting] = useState(false);
+	const [replaceAllCsv, setReplaceAllCsv] = useState(false);
 
 	const loadCatalog = useCallback(async () => {
 		setLoading(true);
@@ -169,6 +175,55 @@ export default function ProviderPharmacyInventory() {
 		}
 	};
 
+	const runCsvImport = async (event) => {
+		const file = event.target.files?.[0];
+		event.target.value = '';
+		if (!file) return;
+		if (!/\.csv$/i.test(file.name) && file.type !== 'text/csv') {
+			toast.error('Please choose a .csv file');
+			return;
+		}
+		setCsvImporting(true);
+		try {
+			const text = await file.text();
+			const { rows } = parseSimpleCsv(text);
+			if (!rows.length) {
+				toast.error('No data rows found in CSV');
+				return;
+			}
+			const { items: parsedItems, skipped, errors } = mapCsvRowsToInventoryItems(rows);
+			if (errors.length) {
+				toast.error(errors.slice(0, 3).join(' · ') + (errors.length > 3 ? ` (+${errors.length - 3} more)` : ''));
+				return;
+			}
+			if (!parsedItems.length) {
+				toast.error('No valid rows — each row needs a product name');
+				return;
+			}
+			if (replaceAllCsv) {
+				const ok = window.confirm(
+					`Replace all ${items.length} existing inventory item(s) with ${parsedItems.length} row(s) from the CSV? This cannot be undone.`,
+				);
+				if (!ok) return;
+			}
+			const res = await apiServerClient.fetch('/provider/catalog/drugs', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ items: parsedItems, replace: replaceAllCsv }),
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.error || 'CSV import failed');
+			const imported = body.imported ?? parsedItems.length;
+			const skippedMsg = skipped > 0 ? ` (${skipped} empty row(s) skipped)` : '';
+			toast.success(`Imported ${imported} item(s) from CSV${skippedMsg}`);
+			await refreshAll();
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'CSV import failed');
+		} finally {
+			setCsvImporting(false);
+		}
+	};
+
 	const deleteRow = async (id) => {
 		if (!window.confirm('Delete this product from inventory?')) return;
 		try {
@@ -211,20 +266,20 @@ export default function ProviderPharmacyInventory() {
 			key: 'low_stock_threshold',
 			label: 'Low at',
 			sortable: true,
-			render: (row) => (row.low_stock_threshold != null ? row.low_stock_threshold : 'â€”'),
+			render: (row) => (row.low_stock_threshold != null ? row.low_stock_threshold : '—'),
 		},
 		{
 			key: 'unit_price',
 			label: 'Unit price',
 			sortable: true,
 			render: (row) =>
-				row.unit_price != null ? `${row.currency || 'USD'} ${Number(row.unit_price).toFixed(2)}` : 'â€”',
+				row.unit_price != null ? `${row.currency || 'USD'} ${Number(row.unit_price).toFixed(2)}` : '—',
 		},
 		{
 			key: 'default_strength',
 			label: 'Strength',
 			sortable: true,
-			render: (row) => row.default_strength || 'â€”',
+			render: (row) => row.default_strength || '—',
 		},
 		{
 			key: 'actions',
@@ -280,7 +335,7 @@ export default function ProviderPharmacyInventory() {
 				try {
 					return format(new Date(r.created_at), 'MMM d, yyyy HH:mm');
 				} catch {
-					return 'â€”';
+					return '—';
 				}
 			},
 		},
@@ -299,13 +354,13 @@ export default function ProviderPharmacyInventory() {
 			label: 'Type',
 			render: (r) => <span>{formatMovementReasonLabel(r.reason)}</span>,
 		},
-		{ key: 'notes', label: 'Note', render: (r) => r.notes || 'â€”' },
+		{ key: 'notes', label: 'Note', render: (r) => r.notes || '—' },
 	];
 
 	return (
 		<div className="space-y-8 w-full max-w-6xl">
 			<Helmet>
-				<title>Pharmacy inventory â€” Provider</title>
+				<title>Pharmacy inventory — Provider</title>
 			</Helmet>
 
 			<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -325,12 +380,42 @@ export default function ProviderPharmacyInventory() {
 					) : null}
 				</div>
 				<div className="flex flex-wrap gap-2 shrink-0">
+					<Button type="button" variant="outline" disabled={csvImporting} onClick={() => csvInputRef.current?.click()}>
+						<Upload className="h-4 w-4 mr-1.5" />
+						{csvImporting ? 'Importing…' : 'Import CSV'}
+					</Button>
+					<input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => void runCsvImport(e)} />
 					<Button type="button" onClick={openCreate}>
 						<Plus className="h-4 w-4 mr-1.5" />
 						Add item
 					</Button>
 				</div>
 			</div>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Bulk import (CSV)</CardTitle>
+					<CardDescription>
+						Download the template, fill in your products, then use Import CSV. Each row needs a name; optional columns
+						include unit price, on hand, low-stock threshold, currency, strength, route, and notes.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-3">
+					<Button type="button" variant="outline" size="sm" onClick={downloadInventoryCsvTemplate}>
+						<Download className="h-4 w-4 mr-1.5" />
+						Download CSV template
+					</Button>
+					<label className="flex items-start gap-2 text-sm cursor-pointer">
+						<Checkbox checked={replaceAllCsv} onCheckedChange={(v) => setReplaceAllCsv(v === true)} className="mt-0.5" />
+						<span>
+							<span className="font-medium">Replace entire inventory</span>
+							<span className="text-muted-foreground block text-xs mt-0.5">
+								Removes all current items before importing (use with care).
+							</span>
+						</span>
+					</label>
+				</CardContent>
+			</Card>
 
 			<Card>
 				<CardHeader>
@@ -445,7 +530,7 @@ export default function ProviderPharmacyInventory() {
 							Cancel
 						</Button>
 						<Button type="button" disabled={savingForm} onClick={() => void saveForm()}>
-							{savingForm ? 'Savingâ€¦' : 'Save'}
+							{savingForm ? 'Saving…' : 'Save'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
