@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
+import { deleteAdminDataTableRow } from '@/lib/adminDataDelete.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { SearchBar } from '@/components/admin/SearchBar.jsx';
@@ -40,6 +41,18 @@ export default function TransactionsManagementPage() {
   useEffect(() => {
     fetchData();
   }, [searchTerm, typeFilter, page]);
+
+  const handleDeleteRows = async (rows) => {
+    try {
+      for (const row of rows) {
+        await deleteAdminDataTableRow('transactions', row.id);
+      }
+      toast.success(rows.length === 1 ? 'Transaction deleted' : `Deleted ${rows.length} transactions`);
+      await fetchData();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
 
   const columns = [
     { key: 'id', label: 'TXN ID', render: (r) => <span className="font-mono text-xs">{r.id.substring(0,8)}</span> },
@@ -91,7 +104,17 @@ export default function TransactionsManagementPage() {
             </FilterPanel>
           </div>
           <div className="p-4">
-            <DataTable columns={columns} data={data} isLoading={isLoading} page={page} totalPages={totalPages} onPageChange={setPage} />
+            <DataTable
+              columns={columns}
+              data={data}
+              isLoading={isLoading}
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              selectable
+              onDeleteRows={handleDeleteRows}
+              getRowDeleteLabel={(r) => r.id?.substring(0, 8) || 'transaction'}
+            />
           </div>
         </CardContent>
       </Card>

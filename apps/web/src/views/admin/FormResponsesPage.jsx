@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiServerClient from '@/lib/apiServerClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { ArrowLeft, Download, Users, Clock, CheckCircle2, Share2, Eye } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { deleteFormResponse } from '@/lib/adminDataDelete.js';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -72,35 +74,59 @@ export default function FormResponsesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const formRes = await apiServerClient.fetch(`/forms/${formId}`);
-        if (!formRes.ok) {
-          const err = await formRes.json().catch(() => ({}));
-          throw new Error(err.error || 'Failed to load form');
-        }
-        const formData = await formRes.json();
-        setForm(formData);
-
-        const respRes = await apiServerClient.fetch(`/forms/${formId}/responses?page=${page}&limit=15`);
-        if (!respRes.ok) {
-          const err = await respRes.json().catch(() => ({}));
-          throw new Error(err.error || 'Failed to load responses');
-        }
-        const respData = await respRes.json();
-        setResponses(respData.items || []);
-        setTotalPages(respData.totalPages || 1);
-        setAnalytics(respData.analytics || {});
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to load responses');
-      } finally {
-        setIsLoading(false);
+  const fetchData = useCallback(async () => {
+    if (!formId) return;
+    setIsLoading(true);
+    try {
+      const formRes = await apiServerClient.fetch(`/forms/${formId}`);
+      if (!formRes.ok) {
+        const err = await formRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load form');
       }
-    };
-    if (formId) void fetchData();
+      const formData = await formRes.json();
+      setForm(formData);
+
+      const respRes = await apiServerClient.fetch(`/forms/${formId}/responses?page=${page}&limit=15`);
+      if (!respRes.ok) {
+        const err = await respRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load responses');
+      }
+      const respData = await respRes.json();
+      setResponses(respData.items || []);
+      setTotalPages(respData.totalPages || 1);
+      setAnalytics(respData.analytics || {});
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load responses');
+    } finally {
+      setIsLoading(false);
+    }
   }, [formId, page]);
+
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  const removeResponse = async (row) => {
+    try {
+      await deleteFormResponse(formId, row.id);
+      toast.success('Response deleted');
+      await fetchData();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
+
+  const handleDeleteRows = async (rows) => {
+    try {
+      for (const row of rows) {
+        await deleteFormResponse(formId, row.id);
+      }
+      toast.success(rows.length === 1 ? 'Response deleted' : `Deleted ${rows.length} responses`);
+      await fetchData();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
 
   const timelineChartData = useMemo(() => {
     const tl = analytics?.response_timeline;
@@ -163,7 +189,15 @@ export default function FormResponsesPage() {
       key: 'actions',
       label: 'Actions',
       render: (r) => (
-        <TableRowActionsMenu items={[{ label: 'View details', icon: Eye, onClick: () => openDetail(r) }]} />
+        <TableRowActionsMenu
+          items={[
+            { label: 'View details', icon: Eye, onClick: () => openDetail(r) },
+            deleteMenuItem({
+              displayName: r.respondent_email || 'response',
+              onDelete: () => removeResponse(r),
+            }),
+          ]}
+        />
       ),
     },
   ];
@@ -253,6 +287,9 @@ export default function FormResponsesPage() {
                 page={page}
                 totalPages={totalPages}
                 onPageChange={setPage}
+                selectable
+                onDeleteRows={handleDeleteRows}
+                getRowDeleteLabel={(r) => r.respondent_email || 'response'}
               />
             </div>
           </CardContent>

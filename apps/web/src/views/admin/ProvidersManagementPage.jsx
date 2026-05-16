@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { deleteAdminProvider } from '@/lib/adminDataDelete.js';
 import { ListChecks, Tags } from 'lucide-react';
 
 export default function ProvidersManagementPage() {
@@ -95,6 +97,28 @@ export default function ProvidersManagementPage() {
     void loadProviderTypes();
   }, [loadProviderTypes]);
 
+  const removeProvider = async (row) => {
+    try {
+      await deleteAdminProvider(row.id);
+      toast.success('Provider deleted');
+      await refreshProviders();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
+
+  const handleDeleteRows = async (rows) => {
+    try {
+      for (const row of rows) {
+        await deleteAdminProvider(row.id);
+      }
+      toast.success(rows.length === 1 ? 'Provider deleted' : `Deleted ${rows.length} providers`);
+      await refreshProviders();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
+
   const saveSpecialty = async () => {
     if (!specialtyRow?.id || !specialtySlug) {
       toast.error('Select a specialty');
@@ -153,6 +177,10 @@ export default function ProvidersManagementPage() {
               href: `/admin/provider-services?providerId=${encodeURIComponent(row.id)}`,
               separatorBefore: true,
             },
+            deleteMenuItem({
+              displayName: row.name || row.email || 'provider',
+              onDelete: () => removeProvider(row),
+            }),
           ]}
         />
       ),
@@ -171,7 +199,14 @@ export default function ProvidersManagementPage() {
             <SearchBar placeholder="Search practices..." onSearch={setSearchTerm} className="max-w-md" />
           </div>
           <div className="p-4">
-            <DataTable columns={columns} data={data} isLoading={isLoading} />
+            <DataTable
+              columns={columns}
+              data={data}
+              isLoading={isLoading}
+              selectable
+              onDeleteRows={handleDeleteRows}
+              getRowDeleteLabel={(r) => r.name || r.email || 'provider'}
+            />
           </div>
         </CardContent>
       </Card>

@@ -15,8 +15,9 @@ import {
 } from '@/components/ui/dialog';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, Ban } from 'lucide-react';
+import { Plus, Loader2, Pencil } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 
 export default function AppointmentOptionsPage() {
   const authHeaders = async () => {
@@ -102,21 +103,18 @@ export default function AppointmentOptionsPage() {
     }
   };
 
-  const deactivateVisitType = async (row) => {
-    if (!window.confirm(`Deactivate "${row.label}"?`)) return;
-    try {
-      const res = await apiServerClient.fetch(`/admin/visit-types/${row.id}`, {
-        method: 'DELETE',
-        headers: await authHeaders(),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Deactivate failed');
-      }
-      toast.success('Visit type deactivated');
+  const deactivateVisitType = async (row, { silent = false } = {}) => {
+    const res = await apiServerClient.fetch(`/admin/visit-types/${row.id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Delete failed');
+    }
+    if (!silent) {
+      toast.success('Visit type deleted');
       await loadVisitTypes();
-    } catch (e) {
-      toast.error(e.message);
     }
   };
 
@@ -144,13 +142,17 @@ export default function AppointmentOptionsPage() {
               },
             },
             row.active
-              ? {
-                  label: 'Deactivate',
-                  icon: Ban,
-                  onClick: () => void deactivateVisitType(row),
-                  className: 'text-warning',
+              ? deleteMenuItem({
+                  displayName: row.label,
+                  onDelete: async () => {
+                    try {
+                      await deactivateVisitType(row);
+                    } catch (e) {
+                      toast.error(e.message);
+                    }
+                  },
                   separatorBefore: true,
-                }
+                })
               : null,
           ].filter(Boolean)}
         />
@@ -184,7 +186,27 @@ export default function AppointmentOptionsPage() {
           <CardDescription>Displayed in the patient “Schedule appointment” form.</CardDescription>
         </CardHeader>
         <CardContent>
-          <DataTable columns={vtColumns} data={visitTypes} isLoading={vtLoading} />
+          <DataTable
+            columns={vtColumns}
+            data={visitTypes}
+            isLoading={vtLoading}
+            selectable
+            onDeleteRows={async (rows) => {
+              try {
+                const active = rows.filter((row) => row.active);
+                for (const row of active) {
+                  await deactivateVisitType(row, { silent: true });
+                }
+                toast.success(
+                  active.length === 1 ? 'Visit type deleted' : `Deleted ${active.length} visit types`,
+                );
+                await loadVisitTypes();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : 'Delete failed');
+              }
+            }}
+            getRowDeleteLabel={(r) => r.label || 'visit type'}
+          />
         </CardContent>
       </Card>
 

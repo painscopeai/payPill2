@@ -16,6 +16,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Clipboard, BarChart2 } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
+import { deleteAdminForm } from '@/lib/adminDataDelete.js';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -71,6 +73,16 @@ export default function FormResponsesHubPage() {
       return name.includes(q) || cat.includes(q) || ft.includes(q);
     });
   }, [items, search]);
+
+  const removeForm = async (form) => {
+    try {
+      await deleteAdminForm(form.id);
+      toast.success('Form deleted');
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
 
   const copyLink = (formId) => {
     const url = publicFormUrl(formId);
@@ -164,6 +176,10 @@ export default function FormResponsesHubPage() {
                                   onClick: () => navigate(`/admin/forms/${f.id}/responses`),
                                   separatorBefore: f.status === 'published',
                                 },
+                                deleteMenuItem({
+                                  displayName: f.name || 'form',
+                                  onDelete: () => removeForm(f),
+                                }),
                               ]}
                             />
                           </div>

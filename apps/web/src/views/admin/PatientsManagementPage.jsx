@@ -8,6 +8,7 @@ import { Search, Download, UserX, UserCheck, Trash2, UserPlus } from 'lucide-rea
 import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -87,12 +88,15 @@ export default function PatientsManagementPage() {
   };
 
   const deleteUser = async (id) => {
-    if (!window.confirm('Soft-disable this patient account? They will no longer be able to sign in.')) return;
+    const res = await apiServerClient.fetch(`/admin/users/${id}`, { method: 'DELETE' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Delete failed');
+  };
+
+  const removePatient = async (patient) => {
     try {
-      const res = await apiServerClient.fetch(`/admin/users/${id}`, { method: 'DELETE' });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'Delete failed');
-      toast.success('Patient deactivated');
+      await deleteUser(patient.id);
+      toast.success('Patient deleted');
       void fetchPatients();
     } catch (e) {
       toast.error(e.message || 'Delete failed');
@@ -249,13 +253,12 @@ export default function PatientsManagementPage() {
                                   onClick: () => updateStatus(patient.id, 'active'),
                                   className: 'text-success',
                                 },
-                            {
-                              label: 'Soft-disable',
-                              icon: Trash2,
-                              onClick: () => deleteUser(patient.id),
-                              destructive: true,
-                              separatorBefore: true,
-                            },
+                            deleteMenuItem({
+                              displayName: fullName(patient),
+                              onDelete: () => removePatient(patient),
+                              message:
+                                'Delete this patient account? They will no longer be able to sign in.',
+                            }),
                           ]}
                         />
                       </td>

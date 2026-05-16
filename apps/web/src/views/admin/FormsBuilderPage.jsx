@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
+import { deleteAdminForm } from '@/lib/adminDataDelete.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { Button } from '@/components/ui/button';
@@ -12,19 +13,33 @@ export default function FormsBuilderPage() {
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { items } = await adminPagedList('forms', 1, 20, {});
-        setData(items);
-      } catch (error) {
-        toast.error('Failed to fetch forms');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { items } = await adminPagedList('forms', 1, 20, {});
+      setData(items);
+    } catch {
+      toast.error('Failed to fetch forms');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  const handleDeleteRows = async (rows) => {
+    try {
+      for (const row of rows) {
+        await deleteAdminForm(row.id);
+      }
+      toast.success(rows.length === 1 ? 'Form deleted' : `Deleted ${rows.length} forms`);
+      await fetchData();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
 
   const columns = [
     { key: 'name', label: 'Form Name' },
@@ -44,7 +59,14 @@ export default function FormsBuilderPage() {
 
       <Card className="w-full border-none shadow-sm">
         <CardContent className="p-4">
-          <DataTable columns={columns} data={data} isLoading={isLoading} />
+          <DataTable
+            columns={columns}
+            data={data}
+            isLoading={isLoading}
+            selectable
+            onDeleteRows={handleDeleteRows}
+            getRowDeleteLabel={(r) => r.name || 'form'}
+          />
         </CardContent>
       </Card>
     </div>

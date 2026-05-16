@@ -166,3 +166,42 @@ export async function PATCH(
 		return errResponse(e);
 	}
 }
+
+export async function DELETE(
+	request: NextRequest,
+	context: { params: Promise<{ id: string }> },
+) {
+	const ctx = await requireManageProvidersAdmin(request);
+	if (ctx instanceof NextResponse) return ctx;
+	const { id } = await context.params;
+
+	const sb = getSupabaseAdmin();
+	try {
+		const { data: existing, error: exErr } = await sb
+			.from('providers')
+			.select('id, name, email')
+			.eq('id', id)
+			.maybeSingle();
+		if (exErr) throw exErr;
+		if (!existing) {
+			return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
+		}
+
+		const { error: delErr } = await sb.from('providers').delete().eq('id', id);
+		if (delErr) throw delErr;
+
+		await auditLog({
+			adminId: ctx.adminId,
+			action: 'DELETE_PROVIDER',
+			resourceType: 'provider',
+			resourceId: id,
+			changes: { name: existing.name, email: existing.email },
+			ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+			userAgent: request.headers.get('user-agent'),
+		});
+
+		return NextResponse.json({ ok: true });
+	} catch (e) {
+		return errResponse(e);
+	}
+}

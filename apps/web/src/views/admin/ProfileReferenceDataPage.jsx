@@ -24,8 +24,9 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, Ban, ListTree, Search, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Plus, Loader2, Pencil, ListTree, Search, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 import { PROFILE_OPTION_GROUP_LABELS as GROUP_LABELS } from '@/lib/profileOptionGroupLabels';
 import { cn } from '@/lib/utils';
 
@@ -202,21 +203,18 @@ export default function ProfileReferenceDataPage() {
     }
   };
 
-  const deactivateSet = async (row) => {
-    if (!window.confirm(`Deactivate "${row.label}"? Existing patient answers keep stored slugs.`)) return;
-    try {
-      const res = await apiServerClient.fetch(`/admin/profile-option-sets/${row.id}`, {
-        method: 'DELETE',
-        headers: await authHeaders(),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Deactivate failed');
-      }
-      toast.success('Set deactivated');
+  const deactivateSet = async (row, { silent = false } = {}) => {
+    const res = await apiServerClient.fetch(`/admin/profile-option-sets/${row.id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Delete failed');
+    }
+    if (!silent) {
+      toast.success('Set deleted');
       await loadSets();
-    } catch (e) {
-      toast.error(e.message);
     }
   };
 
@@ -267,21 +265,19 @@ export default function ProfileReferenceDataPage() {
     }
   };
 
-  const deactivateValue = async (row) => {
-    if (!window.confirm(`Deactivate "${row.label}"?`)) return;
-    try {
-      const res = await apiServerClient.fetch(`/admin/profile-option-values/${row.id}`, {
-        method: 'DELETE',
-        headers: await authHeaders(),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Deactivate failed');
-      }
-      toast.success('Option deactivated');
+  const deactivateValue = async (row, { silent = false } = {}) => {
+    if (!activeSet) return;
+    const res = await apiServerClient.fetch(`/admin/profile-option-values/${row.id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Delete failed');
+    }
+    if (!silent) {
+      toast.success('Option deleted');
       await loadValues(activeSet.id);
-    } catch (e) {
-      toast.error(e.message);
     }
   };
 
@@ -322,13 +318,17 @@ export default function ProfileReferenceDataPage() {
               separatorBefore: true,
             },
             row.active
-              ? {
-                  label: 'Deactivate',
-                  icon: Ban,
-                  onClick: () => void deactivateSet(row),
-                  className: 'text-warning',
+              ? deleteMenuItem({
+                  displayName: row.label,
+                  onDelete: async () => {
+                    try {
+                      await deactivateSet(row);
+                    } catch (e) {
+                      toast.error(e.message);
+                    }
+                  },
                   separatorBefore: true,
-                }
+                })
               : null,
           ].filter(Boolean)}
         />
@@ -364,13 +364,17 @@ export default function ProfileReferenceDataPage() {
               },
             },
             row.active
-              ? {
-                  label: 'Deactivate',
-                  icon: Ban,
-                  onClick: () => void deactivateValue(row),
-                  className: 'text-warning',
+              ? deleteMenuItem({
+                  displayName: row.label,
+                  onDelete: async () => {
+                    try {
+                      await deactivateValue(row);
+                    } catch (e) {
+                      toast.error(e.message);
+                    }
+                  },
                   separatorBefore: true,
-                }
+                })
               : null,
           ].filter(Boolean)}
         />
@@ -493,7 +497,25 @@ export default function ProfileReferenceDataPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <DataTable columns={setColumns} data={filteredSets} isLoading={loading} />
+            <DataTable
+              columns={setColumns}
+              data={filteredSets}
+              isLoading={loading}
+              selectable
+              onDeleteRows={async (rows) => {
+                try {
+                  const active = rows.filter((row) => row.active);
+                  for (const row of active) {
+                    await deactivateSet(row, { silent: true });
+                  }
+                  toast.success(active.length === 1 ? 'Set deleted' : `Deleted ${active.length} sets`);
+                  await loadSets();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Delete failed');
+                }
+              }}
+              getRowDeleteLabel={(r) => r.label || 'set'}
+            />
           </CardContent>
         </Card>
       </div>
@@ -525,7 +547,28 @@ export default function ProfileReferenceDataPage() {
             </Button>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
-            <DataTable columns={valColumns} data={values} isLoading={valuesLoading} />
+            <DataTable
+              columns={valColumns}
+              data={values}
+              isLoading={valuesLoading}
+              selectable
+              onDeleteRows={async (rows) => {
+                if (!activeSet) return;
+                try {
+                  const active = rows.filter((row) => row.active);
+                  for (const row of active) {
+                    await deactivateValue(row, { silent: true });
+                  }
+                  toast.success(
+                    active.length === 1 ? 'Option deleted' : `Deleted ${active.length} options`,
+                  );
+                  await loadValues(activeSet.id);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Delete failed');
+                }
+              }}
+              getRowDeleteLabel={(r) => r.label || 'option'}
+            />
           </div>
         </DialogContent>
       </Dialog>

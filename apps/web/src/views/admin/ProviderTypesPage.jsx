@@ -24,8 +24,9 @@ import {
 } from '@/components/ui/dialog';
 import { DataTable } from '@/components/admin/DataTable.jsx';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, Ban } from 'lucide-react';
+import { Plus, Loader2, Pencil } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 
 const OPERATIONS_LABELS = {
   doctor: 'Clinical',
@@ -143,21 +144,18 @@ export default function ProviderTypesPage() {
     }
   };
 
-  const deactivate = async (row) => {
-    if (!window.confirm(`Deactivate "${row.label}"? Existing records keep slug "${row.slug}".`)) return;
-    try {
-      const res = await apiServerClient.fetch(`/admin/provider-types/${row.id}`, {
-        method: 'DELETE',
-        headers: await authHeaders(),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Deactivate failed');
-      }
-      toast.success('Provider specialty deactivated');
+  const deactivate = async (row, { silent = false } = {}) => {
+    const res = await apiServerClient.fetch(`/admin/provider-types/${row.id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Delete failed');
+    }
+    if (!silent) {
+      toast.success('Provider specialty deleted');
       await load();
-    } catch (e) {
-      toast.error(e.message);
     }
   };
 
@@ -181,13 +179,17 @@ export default function ProviderTypesPage() {
           items={[
             { label: 'Edit', icon: Pencil, onClick: () => openEdit(row) },
             row.active
-              ? {
-                  label: 'Deactivate',
-                  icon: Ban,
-                  onClick: () => void deactivate(row),
-                  className: 'text-warning',
+              ? deleteMenuItem({
+                  displayName: row.label,
+                  onDelete: async () => {
+                    try {
+                      await deactivate(row);
+                    } catch (e) {
+                      toast.error(e.message);
+                    }
+                  },
                   separatorBefore: true,
-                }
+                })
               : null,
           ].filter(Boolean)}
         />
@@ -221,7 +223,27 @@ export default function ProviderTypesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DataTable columns={columns} data={items} isLoading={loading} />
+          <DataTable
+            columns={columns}
+            data={items}
+            isLoading={loading}
+            selectable
+            onDeleteRows={async (rows) => {
+              try {
+                const active = rows.filter((row) => row.active);
+                for (const row of active) {
+                  await deactivate(row, { silent: true });
+                }
+                toast.success(
+                  active.length === 1 ? 'Provider specialty deleted' : `Deleted ${active.length} specialties`,
+                );
+                await load();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : 'Delete failed');
+              }
+            }}
+            getRowDeleteLabel={(r) => r.label || 'specialty'}
+          />
         </CardContent>
       </Card>
 

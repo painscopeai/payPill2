@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { adminPagedList } from '@/lib/adminSupabaseList.js';
+import { deleteAdminDataTableRow } from '@/lib/adminDataDelete.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/admin/DataTable.jsx';
@@ -32,6 +33,18 @@ export default function SubscriptionPlansPage() {
   useEffect(() => {
     fetchData();
   }, [searchTerm]);
+
+  const handleDeleteRows = async (rows) => {
+    try {
+      for (const row of rows) {
+        await deleteAdminDataTableRow('subscription_plans', row.id);
+      }
+      toast.success(rows.length === 1 ? 'Plan deleted' : `Deleted ${rows.length} plans`);
+      await fetchData();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
 
   const columns = [
     { key: 'name', label: 'Plan Name', sortable: true },
@@ -65,7 +78,14 @@ export default function SubscriptionPlansPage() {
             <SearchBar placeholder="Search plans..." onSearch={setSearchTerm} className="max-w-md" />
           </div>
           <div className="p-4">
-            <DataTable columns={columns} data={data} isLoading={isLoading} />
+            <DataTable
+              columns={columns}
+              data={data}
+              isLoading={isLoading}
+              selectable
+              onDeleteRows={handleDeleteRows}
+              getRowDeleteLabel={(r) => r.name || 'plan'}
+            />
           </div>
         </CardContent>
       </Card>

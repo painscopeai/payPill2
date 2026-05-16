@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Building2, Eye, Ban, CheckCircle, Trash2, Save, UserPlus } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -74,12 +75,27 @@ export default function EmployersManagementPage() {
   };
 
   const deleteEmployer = async (id) => {
-    if (!window.confirm('Soft-disable this employer account? They will no longer be able to sign in.')) return;
+    const res = await apiServerClient.fetch(`/admin/users/${id}`, { method: 'DELETE' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Delete failed');
+  };
+
+  const removeEmployer = async (row) => {
     try {
-      const res = await apiServerClient.fetch(`/admin/users/${id}`, { method: 'DELETE' });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'Delete failed');
-      toast.success('Employer deactivated');
+      await deleteEmployer(row.id);
+      toast.success('Employer deleted');
+      void fetchData();
+    } catch (e) {
+      toast.error(e.message || 'Delete failed');
+    }
+  };
+
+  const handleDeleteRows = async (rows) => {
+    try {
+      for (const row of rows) {
+        await deleteEmployer(row.id);
+      }
+      toast.success(rows.length === 1 ? 'Employer deleted' : `Deleted ${rows.length} employers`);
       void fetchData();
     } catch (e) {
       toast.error(e.message || 'Delete failed');
@@ -189,13 +205,12 @@ export default function EmployersManagementPage() {
                   className: 'text-success',
                   separatorBefore: true,
                 },
-            {
-              label: 'Soft-disable',
-              icon: Trash2,
-              onClick: () => deleteEmployer(row.id),
-              destructive: true,
-              separatorBefore: true,
-            },
+            deleteMenuItem({
+              displayName: employerLabel(row),
+              onDelete: () => removeEmployer(row),
+              message:
+                'Delete this employer account? They will no longer be able to sign in.',
+            }),
           ]}
         />
       )
@@ -246,6 +261,9 @@ export default function EmployersManagementPage() {
               page={page}
               totalPages={totalPages}
               onPageChange={setPage}
+              selectable
+              onDeleteRows={handleDeleteRows}
+              getRowDeleteLabel={(r) => employerLabel(r)}
             />
           </div>
         </CardContent>

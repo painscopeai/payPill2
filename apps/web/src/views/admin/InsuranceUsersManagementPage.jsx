@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Ban, CheckCircle, Trash2, Eye, Save, UserPlus } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -72,12 +73,29 @@ export default function InsuranceUsersManagementPage() {
   };
 
   const deleteRow = async (id) => {
-    if (!window.confirm('Soft-disable this insurance account? They will no longer be able to sign in.')) return;
+    const res = await apiServerClient.fetch(`/admin/users/${id}`, { method: 'DELETE' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Delete failed');
+  };
+
+  const removeRow = async (row) => {
     try {
-      const res = await apiServerClient.fetch(`/admin/users/${id}`, { method: 'DELETE' });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'Delete failed');
-      toast.success('Insurance partner deactivated');
+      await deleteRow(row.id);
+      toast.success('Insurance partner deleted');
+      void fetchData();
+    } catch (e) {
+      toast.error(e.message || 'Delete failed');
+    }
+  };
+
+  const handleDeleteRows = async (rows) => {
+    try {
+      for (const row of rows) {
+        await deleteRow(row.id);
+      }
+      toast.success(
+        rows.length === 1 ? 'Insurance partner deleted' : `Deleted ${rows.length} insurance accounts`,
+      );
       void fetchData();
     } catch (e) {
       toast.error(e.message || 'Delete failed');
@@ -182,13 +200,12 @@ export default function InsuranceUsersManagementPage() {
                   className: 'text-success',
                   separatorBefore: true,
                 },
-            {
-              label: 'Soft-disable',
-              icon: Trash2,
-              onClick: () => deleteRow(row.id),
-              destructive: true,
-              separatorBefore: true,
-            },
+            deleteMenuItem({
+              displayName: insLabel(row),
+              onDelete: () => removeRow(row),
+              message:
+                'Delete this insurance account? They will no longer be able to sign in.',
+            }),
           ]}
         />
       )
@@ -235,6 +252,9 @@ export default function InsuranceUsersManagementPage() {
               page={page}
               totalPages={totalPages}
               onPageChange={setPage}
+              selectable
+              onDeleteRows={handleDeleteRows}
+              getRowDeleteLabel={(r) => insLabel(r)}
             />
           </div>
         </CardContent>

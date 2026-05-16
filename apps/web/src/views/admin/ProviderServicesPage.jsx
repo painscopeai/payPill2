@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
+import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 
 const CATEGORY_LABEL = {
   service: 'Service',
@@ -260,16 +261,31 @@ export default function ProviderServicesPage() {
     }
   };
 
+  const deleteService = async (row) => {
+    const res = await apiServerClient.fetch(`/admin/provider-services/${row.id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || 'Delete failed');
+  };
+
   const remove = async (row) => {
-    if (!window.confirm(`Delete "${row.name}"?`)) return;
     try {
-      const res = await apiServerClient.fetch(`/admin/provider-services/${row.id}`, {
-        method: 'DELETE',
-        headers: await authHeaders(),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Delete failed');
+      await deleteService(row);
       toast.success('Deleted');
+      await loadServices();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
+
+  const handleDeleteRows = async (rows) => {
+    try {
+      for (const row of rows) {
+        await deleteService(row);
+      }
+      toast.success(rows.length === 1 ? 'Service deleted' : `Deleted ${rows.length} services`);
       await loadServices();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Delete failed');
@@ -323,13 +339,10 @@ export default function ProviderServicesPage() {
         <TableRowActionsMenu
           items={[
             { label: 'Edit', icon: Pencil, onClick: () => openEdit(r) },
-            {
-              label: 'Delete',
-              icon: Trash2,
-              onClick: () => remove(r),
-              destructive: true,
-              separatorBefore: true,
-            },
+            deleteMenuItem({
+              displayName: r.name,
+              onDelete: () => remove(r),
+            }),
           ]}
         />
       ),
@@ -416,7 +429,14 @@ export default function ProviderServicesPage() {
               : null}
           </p>
 
-          <DataTable columns={columns} data={filteredRows} isLoading={servicesLoading} />
+          <DataTable
+            columns={columns}
+            data={filteredRows}
+            isLoading={servicesLoading}
+            selectable
+            onDeleteRows={handleDeleteRows}
+            getRowDeleteLabel={(r) => r.name || 'service'}
+          />
         </CardContent>
       </Card>
 
