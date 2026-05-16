@@ -49,13 +49,13 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 	}
 
-	if (typeof body.slug !== 'string' || typeof body.label !== 'string') {
-		return NextResponse.json({ error: 'slug and label are required' }, { status: 400 });
+	if (typeof body.label !== 'string') {
+		return NextResponse.json({ error: 'label is required' }, { status: 400 });
 	}
 
 	try {
 		const row = await createProviderType({
-			slug: body.slug,
+			slug: typeof body.slug === 'string' ? body.slug : undefined,
 			label: body.label,
 			sort_order: typeof body.sort_order === 'number' ? body.sort_order : undefined,
 			active: body.active,

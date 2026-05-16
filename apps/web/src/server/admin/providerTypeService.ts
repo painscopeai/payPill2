@@ -41,6 +41,43 @@ export function normalizeSlug(raw: string): string {
 	return raw.trim().toLowerCase();
 }
 
+/** Derive a URL-safe slug from a display label when admins do not supply one. */
+export function slugFromLabel(label: string): string {
+	const base = label
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '_')
+		.replace(/^_+|_+$/g, '')
+		.slice(0, 48);
+	return base || 'specialty';
+}
+
+async function ensureUniqueSlug(base: string): Promise<string> {
+	let candidate = base;
+	let n = 2;
+	for (;;) {
+		assertValidSlug(candidate);
+		const { data, error } = await sb().from('provider_types').select('id').eq('slug', candidate).maybeSingle();
+		if (error) throw error;
+		if (!data) return candidate;
+		const suffix = `_${n}`;
+		candidate = `${base.slice(0, Math.max(1, 48 - suffix.length))}${suffix}`;
+		n += 1;
+	}
+}
+
+async function nextProviderTypeSortOrder(): Promise<number> {
+	const { data, error } = await sb()
+		.from('provider_types')
+		.select('sort_order')
+		.order('sort_order', { ascending: false })
+		.limit(1)
+		.maybeSingle();
+	if (error) throw error;
+	const row = data as { sort_order?: number } | null;
+	return (typeof row?.sort_order === 'number' ? row.sort_order : 0) + 1;
+}
+
 export function assertValidSlug(slug: string): void {
 	if (!slug || !SLUG_RE.test(slug)) {
 		throw Object.assign(new Error('slug must be lowercase letters, digits, hyphen or underscore'), {
@@ -71,25 +108,29 @@ export async function getProviderType(id: string): Promise<ProviderTypeRow | nul
 }
 
 export async function createProviderType(input: {
-	slug: string;
+	slug?: string;
 	label: string;
 	sort_order?: number;
 	active?: boolean;
 	operations_profile?: OperationsProfile;
 }): Promise<ProviderTypeRow> {
-	const slug = normalizeSlug(input.slug);
-	assertValidSlug(slug);
 	const label = input.label.trim();
 	if (!label) {
 		throw Object.assign(new Error('label is required'), { status: 400 });
 	}
+	const slugBase = input.slug?.trim() ? normalizeSlug(input.slug) : slugFromLabel(label);
+	const slug = await ensureUniqueSlug(slugBase);
 	const operations_profile = input.operations_profile
 		? assertValidOperationsProfile(input.operations_profile)
 		: defaultOperationsProfileForSlug(slug);
+	const sort_order =
+		typeof input.sort_order === 'number' && Number.isFinite(input.sort_order)
+			? input.sort_order
+			: await nextProviderTypeSortOrder();
 	const row = {
 		slug,
 		label,
-		sort_order: input.sort_order ?? 0,
+		sort_order,
 		active: input.active !== false,
 		operations_profile,
 		updated_at: new Date().toISOString(),

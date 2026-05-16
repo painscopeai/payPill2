@@ -123,9 +123,7 @@ export default function ProviderTypesPage() {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            slug: form.slug,
             label: form.label,
-            sort_order: Number(form.sort_order) || 0,
             active: form.active,
             operations_profile: form.operations_profile,
           }),
@@ -250,20 +248,16 @@ export default function ProviderTypesPage() {
             <DialogDescription>
               {editing
                 ? 'Slug cannot be changed. Update label, operations profile, display order, or active flag.'
-                : 'Slug is permanent (lowercase, letters, numbers, hyphen, underscore).'}
+                : 'A slug and display order are assigned automatically from the description.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="space-y-2">
-              <Label>Slug</Label>
-              <Input
-                value={form.slug}
-                onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                disabled={!!editing}
-                placeholder="e.g. imaging_center"
-                className="bg-background"
-              />
-            </div>
+            {editing ? (
+              <div className="space-y-2">
+                <Label>Slug</Label>
+                <Input value={form.slug} disabled className="bg-muted" />
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label>Description</Label>
               <Input
@@ -289,15 +283,17 @@ export default function ProviderTypesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Sort order (dropdowns only)</Label>
-              <Input
-                type="number"
-                value={form.sort_order}
-                onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
-                className="bg-background"
-              />
-            </div>
+            {editing ? (
+              <div className="space-y-2">
+                <Label>Sort order (dropdowns only)</Label>
+                <Input
+                  type="number"
+                  value={form.sort_order}
+                  onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
+                  className="bg-background"
+                />
+              </div>
+            ) : null}
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
