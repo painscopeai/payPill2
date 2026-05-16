@@ -437,7 +437,11 @@ async function publishedServiceFormsByServiceId(
 	return out;
 }
 
-export type AppointmentCatalogSpecialty = { slug: string; label: string };
+export type AppointmentCatalogSpecialty = {
+	slug: string;
+	label: string;
+	operations_profile?: string | null;
+};
 
 function resolveProviderSpecialtySlug(
 	type: string | null,
@@ -604,7 +608,11 @@ export async function getAppointmentCatalog(): Promise<{
 	);
 	const specialties: AppointmentCatalogSpecialty[] = providerTypeRows
 		.filter((t) => slugsInUse.has(t.slug))
-		.map((t) => ({ slug: t.slug, label: t.label }));
+		.map((t) => ({
+			slug: t.slug,
+			label: t.label,
+			operations_profile: t.operations_profile ?? null,
+		}));
 
 	return {
 		visitTypes,

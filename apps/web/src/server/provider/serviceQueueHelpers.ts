@@ -7,6 +7,8 @@ export type ServiceQueueRow = {
 	patient_user_id: string;
 	item_type: string;
 	routed_to: string;
+	assignment_mode?: string;
+	fulfillment_org_id?: string | null;
 	source_line_id: string;
 	line_index: number;
 	payload: Record<string, unknown>;

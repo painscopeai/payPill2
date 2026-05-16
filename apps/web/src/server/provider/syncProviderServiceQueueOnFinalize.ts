@@ -3,6 +3,12 @@ import {
 	coerceJsonArray,
 	type EncounterForActionSync,
 } from '@/server/patient/syncConsultationActionItemsOnFinalize';
+import {
+	mergeFulfillmentIntoPayload,
+	parseSectionFulfillment,
+	serializeSectionFulfillment,
+	type SectionFulfillment,
+} from '@/lib/consultationFulfillment';
 
 function normalizeLines(raw: unknown): Record<string, unknown>[] {
 	return coerceJsonArray(raw).filter((x) => x && typeof x === 'object') as Record<string, unknown>[];
@@ -25,6 +31,8 @@ function isNonEmptyLab(p: Record<string, unknown>): boolean {
 export type EncounterForServiceQueue = EncounterForActionSync & {
 	clinical_org_id: string;
 	clinical_provider_user_id: string;
+	prescription_fulfillment?: unknown;
+	lab_fulfillment?: unknown;
 };
 
 /**
@@ -34,6 +42,9 @@ export async function syncProviderServiceQueueOnFinalize(
 	sb: SupabaseClient,
 	encounter: EncounterForServiceQueue,
 ): Promise<{ rxCount: number; labCount: number }> {
+	const rxFulfillment = serializeSectionFulfillment(parseSectionFulfillment(encounter.prescription_fulfillment));
+	const labFulfillment = serializeSectionFulfillment(parseSectionFulfillment(encounter.lab_fulfillment));
+
 	const rxLines = normalizeLines(encounter.prescription_lines).filter(isNonEmptyPrescription);
 	const labLines = normalizeLines(encounter.lab_orders).filter(isNonEmptyLab);
 
@@ -49,7 +60,8 @@ export async function syncProviderServiceQueueOnFinalize(
 	const desiredKeys = new Set<string>();
 
 	let idx = 0;
-	for (const payload of rxLines) {
+	for (const line of rxLines) {
+		const payload = mergeFulfillmentIntoPayload(line, rxFulfillment);
 		const source_line_id = stableLineId('prescription', idx, payload);
 		desiredKeys.add(`prescription:${source_line_id}`);
 		await upsertQueueRow(sb, encounter, {
@@ -58,12 +70,14 @@ export async function syncProviderServiceQueueOnFinalize(
 			source_line_id,
 			line_index: idx,
 			payload,
+			sectionFulfillment: rxFulfillment,
 		});
 		idx += 1;
 	}
 
 	idx = 0;
-	for (const payload of labLines) {
+	for (const line of labLines) {
+		const payload = mergeFulfillmentIntoPayload(line, labFulfillment);
 		const source_line_id = stableLineId('lab', idx, payload);
 		desiredKeys.add(`lab:${source_line_id}`);
 		await upsertQueueRow(sb, encounter, {
@@ -72,6 +86,7 @@ export async function syncProviderServiceQueueOnFinalize(
 			source_line_id,
 			line_index: idx,
 			payload,
+			sectionFulfillment: labFulfillment,
 		});
 		idx += 1;
 	}
@@ -96,6 +111,7 @@ async function upsertQueueRow(
 		source_line_id: string;
 		line_index: number;
 		payload: Record<string, unknown>;
+		sectionFulfillment: SectionFulfillment;
 	},
 ) {
 	const { data: existing } = await sb
@@ -105,6 +121,7 @@ async function upsertQueueRow(
 		.eq('source_line_id', row.source_line_id)
 		.maybeSingle();
 
+	const serialized = serializeSectionFulfillment(row.sectionFulfillment);
 	const base = {
 		appointment_id: encounter.appointment_id,
 		patient_user_id: encounter.patient_user_id,
@@ -114,6 +131,8 @@ async function upsertQueueRow(
 		routed_to: row.routed_to,
 		line_index: row.line_index,
 		payload: row.payload,
+		assignment_mode: serialized.mode,
+		fulfillment_org_id: serialized.fulfillment_org_id,
 		updated_at: new Date().toISOString(),
 	};
 

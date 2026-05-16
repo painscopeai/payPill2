@@ -41,6 +41,8 @@ export async function POST(
 		.select('*')
 		.eq('id', id)
 		.eq('routed_to', 'laboratory')
+		.eq('assignment_mode', 'assigned')
+		.eq('fulfillment_org_id', ctx.providerOrgId)
 		.maybeSingle();
 	if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
 	if (!queueItem) return NextResponse.json({ error: 'Queue item not found' }, { status: 404 });

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { mergeFulfillmentIntoPayload, parseSectionFulfillment, serializeSectionFulfillment } from '@/lib/consultationFulfillment';
 
 export type EncounterForActionSync = {
 	id: string;
@@ -6,6 +7,8 @@ export type EncounterForActionSync = {
 	patient_user_id: string;
 	prescription_lines: unknown;
 	lab_orders: unknown;
+	prescription_fulfillment?: unknown;
+	lab_fulfillment?: unknown;
 };
 
 /** JSONB is usually an array; tolerate legacy stringified JSON. */
@@ -48,6 +51,9 @@ export async function syncConsultationActionItemsOnFinalize(
 	sb: SupabaseClient,
 	encounter: EncounterForActionSync,
 ): Promise<void> {
+	const rxFulfillment = serializeSectionFulfillment(parseSectionFulfillment(encounter.prescription_fulfillment));
+	const labFulfillment = serializeSectionFulfillment(parseSectionFulfillment(encounter.lab_fulfillment));
+
 	const rxLines = normalizeLines(encounter.prescription_lines).filter(isNonEmptyPrescription);
 	const labLines = normalizeLines(encounter.lab_orders).filter(isNonEmptyLab);
 
@@ -66,7 +72,8 @@ export async function syncConsultationActionItemsOnFinalize(
 	const desiredKeys = new Set<string>();
 
 	let idx = 0;
-	for (const payload of rxLines) {
+	for (const line of rxLines) {
+		const payload = mergeFulfillmentIntoPayload(line, rxFulfillment);
 		const source_line_id = stableLineId('prescription', idx, payload);
 		desiredKeys.add(`prescription:${source_line_id}`);
 		const { data: row } = await sb
@@ -102,7 +109,8 @@ export async function syncConsultationActionItemsOnFinalize(
 	}
 
 	idx = 0;
-	for (const payload of labLines) {
+	for (const line of labLines) {
+		const payload = mergeFulfillmentIntoPayload(line, labFulfillment);
 		const source_line_id = stableLineId('lab', idx, payload);
 		desiredKeys.add(`lab:${source_line_id}`);
 		const { data: row } = await sb

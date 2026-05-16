@@ -29,13 +29,17 @@ export async function GET(request: NextRequest) {
 	const statuses =
 		status === 'all' ? ['pending', 'in_progress', 'completed'] : status === 'open' ? ['pending', 'in_progress'] : [status];
 
-	const { data, error } = await sb
+	const query = sb
 		.from('provider_service_queue_items')
 		.select('*')
 		.eq('routed_to', routedTo)
+		.eq('assignment_mode', 'assigned')
+		.eq('fulfillment_org_id', ctx.providerOrgId)
 		.in('status', statuses)
 		.order('created_at', { ascending: false })
 		.limit(200);
+
+	const { data, error } = await query;
 
 	if (error) {
 		if (/does not exist|schema cache/i.test(error.message)) {

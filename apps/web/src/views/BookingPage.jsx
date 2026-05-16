@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/tooltip.jsx';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.jsx';
 import { toast } from 'sonner';
-import { Calendar, MapPin, CheckCircle2, Loader2, ExternalLink, Info, CalendarClock, FileText } from 'lucide-react';
+import { Calendar, MapPin, CheckCircle2, Loader2, ExternalLink, Info, CalendarClock, FileText, Pill, FlaskConical } from 'lucide-react';
+import { fulfillmentKindFromSpecialty } from '@/lib/consultationFulfillment';
 import { normalizeAppointmentTime } from '@/lib/appointmentDateTime';
 import { publicFormUrl } from '@/lib/publicFormUrl';
 
@@ -66,6 +67,19 @@ export default function BookingPage() {
     availableTimes: [],
     error: '',
   });
+
+  const [pendingFulfillment, setPendingFulfillment] = useState({ loading: false, items: [] });
+  const [assigningFulfillment, setAssigningFulfillment] = useState(false);
+
+  const selectedSpecialty = useMemo(
+    () => specialties.find((s) => s.slug === formData.specialtySlug) || null,
+    [specialties, formData.specialtySlug],
+  );
+
+  const fulfillmentKind = useMemo(
+    () => fulfillmentKindFromSpecialty(selectedSpecialty),
+    [selectedSpecialty],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -166,6 +180,69 @@ export default function BookingPage() {
     };
   }, [formData.providerId, formData.appointmentDate]);
 
+  useEffect(() => {
+    if (!currentUser?.id || !fulfillmentKind) {
+      setPendingFulfillment({ loading: false, items: [] });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setPendingFulfillment((s) => ({ ...s, loading: true }));
+      try {
+        const res = await apiServerClient.fetch(
+          `/patient/pending-fulfillment?kind=${encodeURIComponent(fulfillmentKind)}`,
+        );
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'Failed to load pending orders');
+        if (cancelled) return;
+        setPendingFulfillment({
+          loading: false,
+          items: Array.isArray(body.items) ? body.items : [],
+        });
+      } catch (e) {
+        if (!cancelled) {
+          setPendingFulfillment({ loading: false, items: [] });
+          toast.error(e.message || 'Could not load orders from your doctor');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, fulfillmentKind]);
+
+  const assignPendingFulfillment = async (providerOrgId) => {
+    if (!fulfillmentKind || !providerOrgId || pendingFulfillment.items.length === 0) return true;
+    setAssigningFulfillment(true);
+    try {
+      const res = await apiServerClient.fetch('/patient/pending-fulfillment/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fulfillment_org_id: providerOrgId,
+          kind: fulfillmentKind,
+          queue_item_ids: pendingFulfillment.items.map((i) => i.id),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Failed to link orders to provider');
+      if (body.assigned > 0) {
+        setPendingFulfillment({ loading: false, items: [] });
+        toast.success(
+          body.assigned === 1
+            ? 'Your order was sent to the selected provider.'
+            : `${body.assigned} orders were sent to the selected provider.`,
+        );
+      }
+      return true;
+    } catch (e) {
+      toast.error(e.message || 'Could not link orders to this provider');
+      return false;
+    } finally {
+      setAssigningFulfillment(false);
+    }
+  };
+
   const filteredProviders = useMemo(() => {
     if (!formData.specialtySlug) return [];
     return providers.filter((p) => p.specialty_slug === formData.specialtySlug);
@@ -220,6 +297,11 @@ export default function BookingPage() {
       toast.error('Enter a valid preferred time.');
       return;
     }
+    if (pendingFulfillment.items.length > 0 && formData.providerId) {
+      const linked = await assignPendingFulfillment(formData.providerId);
+      if (!linked) return;
+    }
+
     setLoading(true);
     try {
       const pname =
@@ -305,6 +387,7 @@ export default function BookingPage() {
                               providerId: nextProviders[0]?.id || '',
                               providerServiceId: '',
                             });
+                            setPendingFulfillment({ loading: false, items: [] });
                           }}
                           required
                           disabled={specialties.length === 0}
@@ -328,15 +411,58 @@ export default function BookingPage() {
                         </Select>
                       </div>
 
+                      {fulfillmentKind && (pendingFulfillment.loading || pendingFulfillment.items.length > 0) ? (
+                        <div className="rounded-lg border border-teal-200/80 bg-teal-50/50 dark:bg-teal-950/20 p-4 space-y-3">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                            {fulfillmentKind === 'pharmacy' ? (
+                              <Pill className="h-4 w-4 text-teal-600" />
+                            ) : (
+                              <FlaskConical className="h-4 w-4 text-teal-600" />
+                            )}
+                            Orders from your doctor
+                          </div>
+                          {pendingFulfillment.loading ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading pending orders…
+                            </div>
+                          ) : (
+                            <>
+                              <ul className="text-sm space-y-2 list-disc pl-5 text-muted-foreground">
+                                {pendingFulfillment.items.map((item) => (
+                                  <li key={item.id}>
+                                    <span className="text-foreground font-medium">{item.summary}</span>
+                                    {item.clinical_org_name ? (
+                                      <span> — from {item.clinical_org_name}</span>
+                                    ) : null}
+                                  </li>
+                                ))}
+                              </ul>
+                              <p className="text-xs text-muted-foreground">
+                                Select a {fulfillmentKind === 'pharmacy' ? 'pharmacy' : 'laboratory'} below to send
+                                these orders there. Your appointment will be scheduled with that provider.
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      ) : null}
+
                       <div className="space-y-2 md:col-span-2">
                         <Label>Provider</Label>
                         <Select
                           value={formData.providerId || undefined}
-                          onValueChange={(v) =>
-                            setFormData({ ...formData, providerId: v, providerServiceId: '' })
-                          }
+                          onValueChange={async (v) => {
+                            setFormData({ ...formData, providerId: v, providerServiceId: '' });
+                            if (pendingFulfillment.items.length > 0) {
+                              await assignPendingFulfillment(v);
+                            }
+                          }}
                           required
-                          disabled={!formData.specialtySlug || filteredProviders.length === 0}
+                          disabled={
+                            assigningFulfillment ||
+                            !formData.specialtySlug ||
+                            filteredProviders.length === 0
+                          }
                         >
                           <SelectTrigger>
                             <SelectValue

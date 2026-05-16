@@ -13,15 +13,6 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function displayNameFromProfile(
-	p: { first_name?: string | null; last_name?: string | null; name?: string | null; email?: string | null } | null,
-) {
-	if (!p) return '';
-	const n = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
-	if (n) return n;
-	return String(p.name || '').trim() || String(p.email || '').trim() || '';
-}
-
 type LinkedVia =
 	| 'relationship'
 	| 'appointment'

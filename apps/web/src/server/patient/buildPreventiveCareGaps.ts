@@ -6,6 +6,12 @@ export type PreventiveCareGap = {
 	status: string;
 };
 
+type RecommendationRow = {
+	status?: string | null;
+	priority?: string | null;
+	title?: string | null;
+};
+
 const REVIEW_RESULT_PATTERN = /\breview|abnormal|elevated|positive|critical|high|low\b/i;
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
@@ -144,7 +150,8 @@ export async function buildPreventiveCareGaps(userId: string): Promise<Preventiv
 	}
 
 	if (!recsRes.error && recsRes.data?.length) {
-		const open = recsRes.data
+		const recRows = recsRes.data as RecommendationRow[];
+		const open = recRows
 			.filter((r) => isOpenRecommendationStatus(r.status))
 			.sort((a, b) => {
 				const pa = PRIORITY_RANK[String(a.priority || '').toLowerCase()] ?? 2;

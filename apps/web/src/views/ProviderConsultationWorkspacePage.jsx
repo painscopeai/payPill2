@@ -50,6 +50,13 @@ import {
 } from '@/components/ui/select';
 import { MedicationFrequencySelect } from '@/components/provider/MedicationFrequencySelect.jsx';
 import { MEDICATION_ROUTE_OPTIONS, buildPrescriptionSig, drugCatalogToRxLine } from '@/lib/prescriptionMedicationOptions';
+import SectionFulfillmentSelect from '@/components/provider/SectionFulfillmentSelect.jsx';
+import {
+	DEFAULT_SECTION_FULFILLMENT,
+	parseSectionFulfillment,
+	serializeSectionFulfillment,
+	validateSectionFulfillmentForFinalize,
+} from '@/lib/consultationFulfillment';
 
 function formatDateShort(value) {
 	if (!value) return '—';
@@ -178,6 +185,10 @@ export default function ProviderConsultationWorkspacePage() {
 	const [labCatalog, setLabCatalog] = useState([]);
 	const [prescriptionLines, setPrescriptionLines] = useState([]);
 	const [labOrders, setLabOrders] = useState([]);
+	const [prescriptionFulfillment, setPrescriptionFulfillment] = useState(() => ({ ...DEFAULT_SECTION_FULFILLMENT }));
+	const [labFulfillment, setLabFulfillment] = useState(() => ({ ...DEFAULT_SECTION_FULFILLMENT }));
+	const [pharmacyPartners, setPharmacyPartners] = useState([]);
+	const [laboratoryPartners, setLaboratoryPartners] = useState([]);
 
 	const [saving, setSaving] = useState(false);
 	const [formularyPick, setFormularyPick] = useState('');
@@ -217,18 +228,24 @@ export default function ProviderConsultationWorkspacePage() {
 		let cancelled = false;
 		(async () => {
 			try {
-				const [dRes, tRes, lRes] = await Promise.all([
+				const [dRes, tRes, lRes, phRes, labRes] = await Promise.all([
 					apiServerClient.fetch('/provider/catalog/drugs'),
 					apiServerClient.fetch('/provider/prescription-templates'),
 					apiServerClient.fetch('/provider/catalog/labs'),
+					apiServerClient.fetch('/provider/fulfillment-partners?kind=pharmacy'),
+					apiServerClient.fetch('/provider/fulfillment-partners?kind=laboratory'),
 				]);
 				const dBody = await dRes.json().catch(() => ({}));
 				const tBody = await tRes.json().catch(() => ({}));
 				const lBody = await lRes.json().catch(() => ({}));
+				const phBody = await phRes.json().catch(() => ({}));
+				const labPartnersBody = await labRes.json().catch(() => ({}));
 				if (cancelled) return;
 				if (dRes.ok) setDrugCatalog(Array.isArray(dBody.items) ? dBody.items : []);
 				if (tRes.ok) setRxTemplates(Array.isArray(tBody.items) ? tBody.items.filter((t) => t.is_active !== false) : []);
 				if (lRes.ok) setLabCatalog(Array.isArray(lBody.items) ? lBody.items : []);
+				if (phRes.ok) setPharmacyPartners(Array.isArray(phBody.items) ? phBody.items : []);
+				if (labRes.ok) setLaboratoryPartners(Array.isArray(labPartnersBody.items) ? labPartnersBody.items : []);
 			} catch {
 				/* non-blocking */
 			}
@@ -248,6 +265,8 @@ export default function ProviderConsultationWorkspacePage() {
 			setVitalsForm(emptyVitals());
 			setPrescriptionLines([]);
 			setLabOrders([]);
+			setPrescriptionFulfillment({ ...DEFAULT_SECTION_FULFILLMENT });
+			setLabFulfillment({ ...DEFAULT_SECTION_FULFILLMENT });
 			setEncounterStatus('draft');
 			return;
 		}
@@ -259,6 +278,8 @@ export default function ProviderConsultationWorkspacePage() {
 		setVitalsForm(vitalsFromEncounter(enc.vitals));
 		setPrescriptionLines(normalizeEncounterLines(enc.prescription_lines, () => newRxLine()));
 		setLabOrders(normalizeEncounterLines(enc.lab_orders, () => newLabLine()));
+		setPrescriptionFulfillment(parseSectionFulfillment(enc.prescription_fulfillment));
+		setLabFulfillment(parseSectionFulfillment(enc.lab_fulfillment));
 		setEncounterStatus(enc.status === 'finalized' ? 'finalized' : 'draft');
 	}, []);
 
@@ -597,6 +618,22 @@ export default function ProviderConsultationWorkspacePage() {
 
 	const save = async (status, { closeAfterFinalize = false } = {}) => {
 		if (!selectedId) return false;
+
+		const rxHasLines = prescriptionLines.some((r) => String(r.medication_name || '').trim());
+		const labHasLines = labOrders.some((r) => String(r.test_name || '').trim());
+		if (status === 'finalized') {
+			const rxErr = validateSectionFulfillmentForFinalize(prescriptionFulfillment, rxHasLines, 'prescriptions');
+			if (rxErr) {
+				toast.error(rxErr);
+				return false;
+			}
+			const labErr = validateSectionFulfillmentForFinalize(labFulfillment, labHasLines, 'laboratory orders');
+			if (labErr) {
+				toast.error(labErr);
+				return false;
+			}
+		}
+
 		setSaving(true);
 		try {
 			const saveStatus =
@@ -619,6 +656,8 @@ export default function ProviderConsultationWorkspacePage() {
 						vitals: parseVitalsForSave(vitalsForm),
 						prescription_lines: prescriptionLines,
 						lab_orders: labOrders,
+						prescription_fulfillment: serializeSectionFulfillment(prescriptionFulfillment),
+						lab_fulfillment: serializeSectionFulfillment(labFulfillment),
 						status: saveStatus,
 					}),
 				},
@@ -1048,6 +1087,13 @@ export default function ProviderConsultationWorkspacePage() {
 										</Link>
 										. You can edit any line below for this patient.
 									</p>
+									<SectionFulfillmentSelect
+										label="Pharmacy service provider"
+										value={prescriptionFulfillment}
+										onChange={setPrescriptionFulfillment}
+										partners={pharmacyPartners}
+										disabled={encounterFormLocked}
+									/>
 									<div className="flex flex-wrap gap-2 items-end">
 										{rxTemplates.length > 0 ? (
 											<div className="min-w-[200px] flex-1 space-y-1">
@@ -1210,6 +1256,13 @@ export default function ProviderConsultationWorkspacePage() {
 									<p className="text-xs text-muted-foreground">
 										Select tests from your catalog or add custom orders. Saved with the encounter.
 									</p>
+									<SectionFulfillmentSelect
+										label="Laboratory service provider"
+										value={labFulfillment}
+										onChange={setLabFulfillment}
+										partners={laboratoryPartners}
+										disabled={encounterFormLocked}
+									/>
 									<div className="flex flex-wrap gap-2 items-end">
 										<div className="min-w-[200px] flex-1 space-y-1">
 											<Label className="text-xs">From catalog</Label>
@@ -1440,7 +1493,7 @@ export default function ProviderConsultationWorkspacePage() {
 										<span className="text-xs text-muted-foreground self-center max-w-md">
 											{isFinalizedEncounter
 												? 'Update documentation for this finalized visit.'
-												: 'Save a draft before the patient leaves, or finalize when documentation is complete.'}
+												: 'Finalize when documentation is complete to release the patient action plan.'}
 										</span>
 									</div>
 								)}

@@ -7,6 +7,11 @@ import { syncConsultationActionItemsOnFinalize } from '@/server/patient/syncCons
 import { syncConsultationInvoiceOnFinalize } from '@/server/provider/syncConsultationInvoiceOnFinalize';
 import { syncProviderServiceQueueOnFinalize } from '@/server/provider/syncProviderServiceQueueOnFinalize';
 import { getProviderPortalAccess } from '@/server/provider/providerPortalAccess';
+import {
+	parseSectionFulfillment,
+	serializeSectionFulfillment,
+	validateSectionFulfillmentForFinalize,
+} from '@/lib/consultationFulfillment';
 
 function normalizeJsonArray(raw: unknown): unknown[] {
 	if (Array.isArray(raw)) return raw;
@@ -149,6 +154,8 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 		status?: string;
 		prescription_lines?: unknown;
 		lab_orders?: unknown;
+		prescription_fulfillment?: unknown;
+		lab_fulfillment?: unknown;
 	};
 
 	const sb = getSupabaseAdmin();
@@ -161,6 +168,21 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 	const vitals = body.vitals && typeof body.vitals === 'object' ? body.vitals : {};
 	const prescription_lines = normalizeJsonArray(body.prescription_lines);
 	const lab_orders = normalizeJsonArray(body.lab_orders);
+	const prescription_fulfillment = serializeSectionFulfillment(parseSectionFulfillment(body.prescription_fulfillment));
+	const lab_fulfillment = serializeSectionFulfillment(parseSectionFulfillment(body.lab_fulfillment));
+
+	if (status === 'finalized') {
+		const rxLines = prescription_lines.filter(
+			(x) => x && typeof x === 'object' && String((x as Record<string, unknown>).medication_name || '').trim(),
+		);
+		const labLines = lab_orders.filter(
+			(x) => x && typeof x === 'object' && String((x as Record<string, unknown>).test_name || '').trim(),
+		);
+		const rxErr = validateSectionFulfillmentForFinalize(prescription_fulfillment, rxLines.length > 0, 'prescriptions');
+		if (rxErr) return NextResponse.json({ error: rxErr }, { status: 400 });
+		const labErr = validateSectionFulfillmentForFinalize(lab_fulfillment, labLines.length > 0, 'laboratory orders');
+		if (labErr) return NextResponse.json({ error: labErr }, { status: 400 });
+	}
 
 	const payload = {
 		appointment_id: appointmentId,
@@ -174,6 +196,8 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 		vitals,
 		prescription_lines,
 		lab_orders,
+		prescription_fulfillment,
+		lab_fulfillment,
 		status,
 		updated_at: new Date().toISOString(),
 	};
@@ -220,12 +244,19 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 	};
 	let routed = { rxCount: 0, labCount: 0 };
 	if (enc.status === 'finalized') {
+		const encFull = encounter as {
+			prescription_fulfillment?: unknown;
+			lab_fulfillment?: unknown;
+		};
+
 		await syncConsultationActionItemsOnFinalize(sb, {
 			id: enc.id,
 			appointment_id: enc.appointment_id,
 			patient_user_id: enc.patient_user_id,
 			prescription_lines: enc.prescription_lines,
 			lab_orders: enc.lab_orders,
+			prescription_fulfillment: encFull.prescription_fulfillment,
+			lab_fulfillment: encFull.lab_fulfillment,
 		});
 
 		const portalAccess = await getProviderPortalAccess(sb, auth.providerOrgId);
@@ -236,6 +267,8 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ appoint
 				patient_user_id: enc.patient_user_id,
 				prescription_lines: enc.prescription_lines,
 				lab_orders: enc.lab_orders,
+				prescription_fulfillment: encFull.prescription_fulfillment,
+				lab_fulfillment: encFull.lab_fulfillment,
 				clinical_org_id: auth.providerOrgId,
 				clinical_provider_user_id: auth.userId,
 			});
