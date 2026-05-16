@@ -267,7 +267,7 @@ export default function EmployerEmployeeRosterPage() {
 				</DialogContent>
 			</Dialog>
 
-			<div className="space-y-6 max-w-6xl mx-auto">
+			<div className="w-full space-y-6">
 				<div>
 				<h1 className="text-3xl font-bold font-display">Employer employee roster</h1>
 				<p className="text-muted-foreground">

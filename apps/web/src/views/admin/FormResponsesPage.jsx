@@ -187,7 +187,7 @@ export default function FormResponsesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" onClick={() => navigate('/admin/form-responses')}>
@@ -223,7 +223,7 @@ export default function FormResponsesPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        <Card className="admin-card-shadow border-none">
+        <Card className="admin-card-shadow w-full border-none">
           <CardHeader>
             <CardTitle>Response timeline</CardTitle>
           </CardHeader>
@@ -240,7 +240,7 @@ export default function FormResponsesPage() {
           </CardContent>
         </Card>
 
-        <Card className="admin-card-shadow border-none">
+        <Card className="admin-card-shadow w-full border-none">
           <CardHeader>
             <CardTitle>Individual submissions</CardTitle>
           </CardHeader>
@@ -307,3 +307,4 @@ export default function FormResponsesPage() {
     </div>
   );
 }
+

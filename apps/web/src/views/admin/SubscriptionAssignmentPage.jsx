@@ -53,14 +53,14 @@ export default function SubscriptionAssignmentPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold font-display">Subscription Assignment</h1>
           <p className="text-muted-foreground">Manage user subscriptions and overrides.</p>
         </div>
       </div>
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardContent className="p-4">
           <DataTable columns={columns} data={data} isLoading={isLoading} page={page} totalPages={totalPages} onPageChange={setPage} />
         </CardContent>
@@ -68,3 +68,4 @@ export default function SubscriptionAssignmentPage() {
     </div>
   );
 }
+

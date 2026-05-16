@@ -21,7 +21,7 @@ export default function SubscriptionsAnalyticsPage() {
   const statusData = Object.entries(breakdown.by_status || {}).map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">Subscription Analytics</h1>
         <p className="text-muted-foreground">Track MRR, churn, and overall subscription health.</p>
@@ -52,3 +52,4 @@ export default function SubscriptionsAnalyticsPage() {
     </div>
   );
 }
+

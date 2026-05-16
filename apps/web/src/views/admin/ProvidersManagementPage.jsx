@@ -160,12 +160,12 @@ export default function ProvidersManagementPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">Providers</h1>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardContent className="p-0">
           <div className="p-4 border-b border-border bg-muted/20">
             <SearchBar placeholder="Search practices..." onSearch={setSearchTerm} className="max-w-md" />
@@ -214,3 +214,4 @@ export default function ProvidersManagementPage() {
     </div>
   );
 }
+

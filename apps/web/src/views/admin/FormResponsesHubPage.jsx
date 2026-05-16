@@ -79,7 +79,7 @@ export default function FormResponsesHubPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Form responses</h1>
@@ -87,7 +87,7 @@ export default function FormResponsesHubPage() {
         </div>
       </div>
 
-      <Card className="border-border/80 shadow-sm">
+      <Card className="w-full border-border/80 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">All forms</CardTitle>
           <div className="relative max-w-md pt-2">
@@ -180,3 +180,4 @@ export default function FormResponsesHubPage() {
     </div>
   );
 }
+

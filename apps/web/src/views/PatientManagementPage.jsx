@@ -154,7 +154,7 @@ export default function PatientManagementPage() {
 	);
 
 	return (
-		<div className="space-y-8 max-w-7xl mx-auto">
+		<div className="w-full space-y-8">
 			<Helmet>
 				<title>Patient Management - PayPill</title>
 			</Helmet>

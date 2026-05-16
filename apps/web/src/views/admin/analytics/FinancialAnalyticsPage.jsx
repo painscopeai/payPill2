@@ -23,7 +23,7 @@ export default function FinancialAnalyticsPage() {
   const methodData = Object.entries(breakdown.by_payment_method || {}).map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">Financial Analytics</h1>
         <p className="text-muted-foreground">Revenue, transactions, and financial health metrics.</p>
@@ -63,3 +63,4 @@ export default function FinancialAnalyticsPage() {
     </div>
   );
 }
+

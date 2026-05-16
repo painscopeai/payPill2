@@ -34,13 +34,13 @@ export default function AILogsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">AI Processing Logs</h1>
         <p className="text-muted-foreground">Monitor AI performance, outputs, and errors.</p>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardContent className="p-4">
           <DataTable columns={columns} data={data} isLoading={isLoading} />
         </CardContent>
@@ -48,3 +48,4 @@ export default function AILogsPage() {
     </div>
   );
 }
+

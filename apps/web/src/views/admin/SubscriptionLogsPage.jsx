@@ -32,12 +32,12 @@ export default function SubscriptionLogsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">Subscription Logs</h1>
         <p className="text-muted-foreground">Audit trail for all subscription changes.</p>
       </div>
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardContent className="p-4">
           <DataTable columns={columns} data={data} isLoading={isLoading} />
         </CardContent>
@@ -45,3 +45,4 @@ export default function SubscriptionLogsPage() {
     </div>
   );
 }
+

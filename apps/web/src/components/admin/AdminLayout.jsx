@@ -9,8 +9,7 @@ export default function AdminLayout({ children }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const { pathname } = useLocation();
-  /** Forms builder & related routes need full main width — max-w-7xl leaves huge gutters and starves the editor at 100% zoom. */
-  const fullWidthStudio =
+  const compactPadding =
     pathname.startsWith('/admin/forms') ||
     pathname.startsWith('/admin/form-responses') ||
     pathname.startsWith('/admin/profile-reference-data');
@@ -32,18 +31,11 @@ export default function AdminLayout({ children }) {
         
         <main
           className={cn(
-            'flex min-h-0 flex-1 flex-col overflow-x-hidden',
-            fullWidthStudio ? 'p-2 sm:p-3 md:p-4 lg:p-5' : 'p-4 lg:p-8',
+            'flex min-h-0 w-full flex-1 flex-col overflow-x-hidden',
+            compactPadding ? 'p-2 sm:p-3 md:p-4 lg:p-5' : 'p-4 lg:p-6',
           )}
         >
-          <div
-            className={cn(
-              'animate-in fade-in duration-500',
-              fullWidthStudio
-                ? 'mx-auto flex min-h-0 w-full max-w-none flex-1 flex-col'
-                : 'mx-auto max-w-7xl',
-            )}
-          >
+          <div className="animate-in fade-in duration-500 flex min-h-0 w-full max-w-none flex-1 flex-col">
             {children}
           </div>
         </main>

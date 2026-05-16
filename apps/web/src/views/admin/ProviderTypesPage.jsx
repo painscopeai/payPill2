@@ -197,7 +197,7 @@ export default function ProviderTypesPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold font-display">Provider Specialties</h1>
@@ -212,7 +212,7 @@ export default function ProviderTypesPage() {
         </Button>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle>All specialties</CardTitle>
           <CardDescription>
@@ -306,3 +306,4 @@ export default function ProviderTypesPage() {
     </div>
   );
 }
+

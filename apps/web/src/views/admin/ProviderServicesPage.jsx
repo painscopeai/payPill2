@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import apiServerClient from '@/lib/apiServerClient';
 import { supabase } from '@/lib/supabaseClient';
-import { adminPagedList } from '@/lib/adminSupabaseList.js';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,6 +43,8 @@ const UNIT_LABEL = {
   monthly: 'Monthly',
 };
 
+const FILTER_ALL = 'all';
+
 export default function ProviderServicesPage() {
   const [searchParams] = useSearchParams();
   const providerIdFromUrl = searchParams.get('providerId')?.trim() || '';
@@ -56,10 +57,14 @@ export default function ProviderServicesPage() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  const [providerSearch, setProviderSearch] = useState('');
-  const [providerRows, setProviderRows] = useState([]);
-  const [providersLoading, setProvidersLoading] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState(null);
+  const [providerOptions, setProviderOptions] = useState([]);
+  const [providersLoading, setProvidersLoading] = useState(true);
+
+  const [filterProviderId, setFilterProviderId] = useState(
+    providerIdFromUrl || FILTER_ALL,
+  );
+  const [filterCategory, setFilterCategory] = useState(FILTER_ALL);
+  const [nameSearch, setNameSearch] = useState('');
 
   const [services, setServices] = useState([]);
   const [servicesLoading, setServicesLoading] = useState(false);
@@ -68,6 +73,7 @@ export default function ProviderServicesPage() {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
+    provider_id: '',
     name: '',
     category: 'service',
     unit: 'per_visit',
@@ -78,77 +84,97 @@ export default function ProviderServicesPage() {
     sort_order: 0,
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      setProvidersLoading(true);
-      try {
-        const { items } = await adminPagedList('providers', 1, 25, {
-          searchColumn: providerSearch ? 'name' : undefined,
-          searchTerm: providerSearch || undefined,
-        });
-        if (!cancelled) setProviderRows(items || []);
-      } catch {
-        if (!cancelled) toast.error('Failed to load providers');
-      } finally {
-        if (!cancelled) setProvidersLoading(false);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [providerSearch]);
-
-  useEffect(() => {
-    if (!providerIdFromUrl || !providerRows.length) return;
-    const match = providerRows.find((r) => r.id === providerIdFromUrl);
-    if (match && selectedProvider?.id !== match.id) {
-      setSelectedProvider(match);
+  const loadProviderOptions = useCallback(async () => {
+    setProvidersLoading(true);
+    try {
+      const res = await apiServerClient.fetch('/admin/bulk/provider-options', {
+        headers: await authHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to load providers');
+      setProviderOptions(data.items || []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load providers');
+      setProviderOptions([]);
+    } finally {
+      setProvidersLoading(false);
     }
-  }, [providerIdFromUrl, providerRows, selectedProvider?.id]);
+  }, []);
 
   const loadServices = useCallback(async () => {
-    if (!selectedProvider?.id) {
-      setServices([]);
-      return;
-    }
     setServicesLoading(true);
     try {
+      const q = new URLSearchParams();
+      if (filterProviderId && filterProviderId !== FILTER_ALL) {
+        q.set('providerId', filterProviderId);
+      }
+      if (filterCategory && filterCategory !== FILTER_ALL) {
+        q.set('category', filterCategory);
+      }
+      const qs = q.toString();
       const res = await apiServerClient.fetch(
-        `/admin/provider-services?providerId=${encodeURIComponent(selectedProvider.id)}`,
+        `/admin/provider-services${qs ? `?${qs}` : ''}`,
         { headers: await authHeaders() },
       );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Failed to load services');
+      if (!res.ok) throw new Error(data?.error || 'Failed to load catalog');
       setServices(Array.isArray(data.items) ? data.items : []);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load services');
+      toast.error(e instanceof Error ? e.message : 'Failed to load catalog');
       setServices([]);
     } finally {
       setServicesLoading(false);
     }
-  }, [selectedProvider]);
+  }, [filterProviderId, filterCategory]);
+
+  useEffect(() => {
+    void loadProviderOptions();
+  }, [loadProviderOptions]);
 
   useEffect(() => {
     void loadServices();
   }, [loadServices]);
 
+  const filteredRows = useMemo(() => {
+    const term = nameSearch.trim().toLowerCase();
+    if (!term) return services;
+    return services.filter((row) => {
+      const hay = [
+        row.name,
+        row.provider_name,
+        row.provider_type,
+        CATEGORY_LABEL[row.category],
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(term);
+    });
+  }, [services, nameSearch]);
+
+  const providerLabel = useCallback(
+    (id) => providerOptions.find((p) => p.id === id)?.name || '—',
+    [providerOptions],
+  );
+
   const openCreate = () => {
-    if (!selectedProvider) {
-      toast.error('Select a provider first');
+    const defaultProvider =
+      filterProviderId && filterProviderId !== FILTER_ALL ? filterProviderId : '';
+    if (!defaultProvider && providerOptions.length === 0) {
+      toast.error('No providers available');
       return;
     }
     setEditing(null);
     setForm({
+      provider_id: defaultProvider,
       name: '',
-      category: 'service',
+      category: filterCategory !== FILTER_ALL ? filterCategory : 'service',
       unit: 'per_visit',
       price: '',
       currency: 'USD',
       notes: '',
       is_active: true,
-      sort_order: services.length,
+      sort_order: 0,
     });
     setDialogOpen(true);
   };
@@ -156,6 +182,7 @@ export default function ProviderServicesPage() {
   const openEdit = (row) => {
     setEditing(row);
     setForm({
+      provider_id: row.provider_id || '',
       name: row.name || '',
       category: row.category || 'service',
       unit: row.unit || 'per_visit',
@@ -169,7 +196,6 @@ export default function ProviderServicesPage() {
   };
 
   const save = async () => {
-    if (!selectedProvider) return;
     const price = Number.parseFloat(String(form.price));
     if (!form.name?.trim()) {
       toast.error('Name is required');
@@ -200,13 +226,17 @@ export default function ProviderServicesPage() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || 'Update failed');
-        toast.success('Service updated');
+        toast.success('Catalog row updated');
       } else {
+        if (!form.provider_id) {
+          toast.error('Select a provider');
+          return;
+        }
         const res = await apiServerClient.fetch('/admin/provider-services', {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            provider_id: selectedProvider.id,
+            provider_id: form.provider_id,
             name: form.name.trim(),
             category: form.category,
             unit: form.unit,
@@ -219,7 +249,7 @@ export default function ProviderServicesPage() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || 'Create failed');
-        toast.success('Service added');
+        toast.success('Catalog row added');
       }
       setDialogOpen(false);
       await loadServices();
@@ -246,15 +276,25 @@ export default function ProviderServicesPage() {
     }
   };
 
+  const activeFilterCount =
+    (filterProviderId !== FILTER_ALL ? 1 : 0) + (filterCategory !== FILTER_ALL ? 1 : 0);
+
   const columns = [
+    {
+      key: 'provider_name',
+      label: 'Provider',
+      render: (r) => (
+        <span className="font-medium">{r.provider_name || providerLabel(r.provider_id)}</span>
+      ),
+    },
     {
       key: 'name',
       label: 'Name',
-      render: (r) => <span className="font-medium">{r.name}</span>,
+      render: (r) => r.name,
     },
     {
       key: 'category',
-      label: 'Category',
+      label: 'Type',
       render: (r) => (
         <Badge variant="outline" className="bg-muted/40">
           {CATEGORY_LABEL[r.category] || r.category}
@@ -297,81 +337,127 @@ export default function ProviderServicesPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold tracking-tight">Service catalog</h1>
-        <p className="mt-1 text-muted-foreground">
-          Manage billable services and pricing per practice. Providers can also add rows during self-serve onboarding.
-        </p>
         <Button variant="link" className="h-auto px-0 pt-2" asChild>
           <Link to="/admin/providers">Back to providers</Link>
         </Button>
       </div>
 
       <Card className="border-[hsl(var(--admin-border))] bg-[hsl(var(--admin-card))] shadow-sm">
-        <CardHeader>
-          <CardTitle>Select provider</CardTitle>
-          <CardDescription>Search by organization or provider name, then pick a row.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <SearchBar placeholder="Search providers…" onSearch={setProviderSearch} />
-          <DataTable
-            columns={[
-              { key: 'name', label: 'Name' },
-              { key: 'email', label: 'Email' },
-              { key: 'type', label: 'Type' },
-            ]}
-            data={providerRows}
-            isLoading={providersLoading}
-            selectedRowId={selectedProvider?.id}
-            onRowClick={(row) => setSelectedProvider(row)}
-          />
-          {selectedProvider ? (
-            <p className="text-sm text-muted-foreground">
-              Selected: <strong>{selectedProvider.name}</strong>
-              <Button type="button" variant="link" className="ml-2 h-auto p-0" onClick={() => setSelectedProvider(null)}>
-                Clear
-              </Button>
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card className="border-[hsl(var(--admin-border))] bg-[hsl(var(--admin-card))] shadow-sm">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
-          <div>
-            <CardTitle>Services &amp; pricing</CardTitle>
-            <CardDescription>
-              {selectedProvider
-                ? `Editing catalog for ${selectedProvider.name}`
-                : 'Select a provider above to view or edit rows.'}
-            </CardDescription>
-          </div>
-          <Button type="button" onClick={openCreate} disabled={!selectedProvider}>
-            <Plus className="mr-2 h-4 w-4" /> Add service
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 pb-4">
+          <CardTitle className="text-lg">All services &amp; drugs</CardTitle>
+          <Button type="button" onClick={openCreate} disabled={providersLoading}>
+            <Plus className="mr-2 h-4 w-4" /> Add row
           </Button>
         </CardHeader>
-        <CardContent>
-          <DataTable columns={columns} data={services} isLoading={servicesLoading} />
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+            <div className="space-y-2 min-w-[200px] flex-1 max-w-xs">
+              <Label>Provider</Label>
+              <Select
+                value={filterProviderId}
+                onValueChange={setFilterProviderId}
+                disabled={providersLoading}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="All providers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={FILTER_ALL}>All providers</SelectItem>
+                  {providerOptions.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 min-w-[160px]">
+              <Label>Type</Label>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={FILTER_ALL}>All types</SelectItem>
+                  <SelectItem value="service">Service</SelectItem>
+                  <SelectItem value="drug">Drug</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[200px] max-w-md">
+              <Label className="sr-only">Search</Label>
+              <SearchBar placeholder="Search name or provider…" onSearch={setNameSearch} />
+            </div>
+            {activeFilterCount > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-muted-foreground"
+                onClick={() => {
+                  setFilterProviderId(FILTER_ALL);
+                  setFilterCategory(FILTER_ALL);
+                }}
+              >
+                Clear filters
+              </Button>
+            ) : null}
+          </div>
+
+          <p className="text-sm text-muted-foreground">
+            {servicesLoading
+              ? 'Loading…'
+              : `${filteredRows.length} row${filteredRows.length === 1 ? '' : 's'}`}
+            {nameSearch.trim() && filteredRows.length !== services.length
+              ? ` (filtered from ${services.length})`
+              : null}
+          </p>
+
+          <DataTable columns={columns} data={filteredRows} isLoading={servicesLoading} />
         </CardContent>
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Edit service' : 'New service'}</DialogTitle>
+            <DialogTitle>{editing ? 'Edit catalog row' : 'New catalog row'}</DialogTitle>
             <DialogDescription>
-              Standard fields: name, category, unit, price, currency, notes.
+              {editing
+                ? `Provider: ${editing.provider_name || providerLabel(editing.provider_id)}`
+                : 'Add a billable service or drug for a practice.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
+            {!editing ? (
+              <div className="space-y-2">
+                <Label>Provider</Label>
+                <Select
+                  value={form.provider_id || undefined}
+                  onValueChange={(v) => setForm((f) => ({ ...f, provider_id: v }))}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providerOptions.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label>Name</Label>
               <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>Type</Label>
                 <Select value={form.category} onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -456,3 +542,5 @@ export default function ProviderServicesPage() {
     </div>
   );
 }
+
+

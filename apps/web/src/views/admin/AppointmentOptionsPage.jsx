@@ -161,7 +161,7 @@ export default function AppointmentOptionsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">Appointment options</h1>
       </div>
@@ -180,7 +180,7 @@ export default function AppointmentOptionsPage() {
         </Button>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle>Visit types</CardTitle>
           <CardDescription>Displayed in the patient “Schedule appointment” form.</CardDescription>
@@ -252,3 +252,4 @@ export default function AppointmentOptionsPage() {
     </div>
   );
 }
+

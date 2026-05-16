@@ -24,7 +24,7 @@ export default function PatientsAnalyticsPage() {
   const ageData = Object.entries(breakdown.by_age_group || {}).map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">Patient Analytics</h1>
         <p className="text-muted-foreground">Comprehensive overview of patient demographics and engagement.</p>
@@ -64,3 +64,4 @@ export default function PatientsAnalyticsPage() {
     </div>
   );
 }
+

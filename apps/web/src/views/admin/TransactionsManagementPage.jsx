@@ -63,7 +63,7 @@ export default function TransactionsManagementPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold font-display">Transactions</h1>
@@ -71,7 +71,7 @@ export default function TransactionsManagementPage() {
         </div>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardContent className="p-0">
           <div className="p-4 border-b border-border flex gap-4 bg-muted/20 items-center">
             <SearchBar placeholder="Search TXN ID..." onSearch={setSearchTerm} className="flex-1 max-w-sm" />
@@ -98,3 +98,4 @@ export default function TransactionsManagementPage() {
     </div>
   );
 }
+

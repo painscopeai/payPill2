@@ -17,7 +17,7 @@ export default function ProvidersAnalyticsPage() {
   const trends = data?.trends || [];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">Provider Analytics</h1>
         <p className="text-muted-foreground">Healthcare provider network performance.</p>
@@ -41,3 +41,4 @@ export default function ProvidersAnalyticsPage() {
     </div>
   );
 }
+

@@ -154,7 +154,7 @@ export default function AdminDashboard() {
   }, [dateRange]);
 
   const KpiCard = ({ title, value, icon: Icon, trend, isCurrency }) => (
-    <Card className="admin-card-shadow border-none">
+    <Card className="admin-card-shadow w-full border-none">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
@@ -219,7 +219,7 @@ export default function AdminDashboard() {
       </div>
 
       <div ref={chartsRef} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="admin-card-shadow border-none">
+        <Card className="admin-card-shadow w-full border-none">
           <CardHeader>
             <CardTitle className="text-lg">Revenue Trend</CardTitle>
           </CardHeader>
@@ -236,7 +236,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="admin-card-shadow border-none">
+        <Card className="admin-card-shadow w-full border-none">
           <CardHeader>
             <CardTitle className="text-lg">User Growth</CardTitle>
           </CardHeader>
@@ -281,3 +281,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

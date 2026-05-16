@@ -203,7 +203,7 @@ export default function EmployersManagementPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-display">Employers Management</h1>
@@ -215,7 +215,7 @@ export default function EmployersManagementPage() {
         </div>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardContent className="p-0">
           <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4 justify-between items-center bg-muted/20">
             <SearchBar
@@ -349,3 +349,4 @@ export default function EmployersManagementPage() {
     </div>
   );
 }
+

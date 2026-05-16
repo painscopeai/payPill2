@@ -31,10 +31,10 @@ export function DataTable({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-[hsl(var(--admin-border))] overflow-hidden bg-[hsl(var(--admin-card))] shadow-sm">
-        <div className="overflow-x-auto">
-          <Table>
+    <div className="w-full space-y-4">
+      <div className="w-full rounded-xl border border-[hsl(var(--admin-border))] overflow-hidden bg-[hsl(var(--admin-card))] shadow-sm">
+        <div className="w-full overflow-x-auto">
+          <Table className="w-full min-w-full">
             <TableHeader className="bg-muted/50">
               <TableRow>
                 {columns.map((col, idx) => (
@@ -116,3 +116,4 @@ export function DataTable({
     </div>
   );
 }
+

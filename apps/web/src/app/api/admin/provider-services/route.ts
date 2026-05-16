@@ -20,30 +20,55 @@ export async function GET(request: NextRequest) {
 
 	const url = new URL(request.url);
 	const providerId = url.searchParams.get('providerId')?.trim() || '';
+	const category = url.searchParams.get('category')?.trim().toLowerCase() || '';
 
-	if (!providerId) {
-		return NextResponse.json({ error: 'providerId is required' }, { status: 400 });
-	}
-	if (!UUID_RE.test(providerId)) {
+	if (providerId && !UUID_RE.test(providerId)) {
 		return NextResponse.json({ error: 'Invalid providerId' }, { status: 400 });
+	}
+	if (category && category !== 'all' && !CATEGORIES.has(category)) {
+		return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
 	}
 
 	const sb = getSupabaseAdmin();
-	const { data, error } = await sb
+	let query = sb
 		.from('provider_services')
 		.select(
-			'id,name,category,unit,price,currency,notes,is_active,sort_order,provider_id,created_at,updated_at',
+			'id,name,category,unit,price,currency,notes,is_active,sort_order,provider_id,created_at,updated_at,providers(id,name,type)',
 		)
-		.eq('provider_id', providerId)
+		.not('provider_id', 'is', null)
 		.order('sort_order', { ascending: true })
-		.order('created_at', { ascending: true });
+		.order('created_at', { ascending: true })
+		.limit(5000);
+
+	if (providerId) {
+		query = query.eq('provider_id', providerId);
+	}
+	if (category && category !== 'all') {
+		query = query.eq('category', category);
+	}
+
+	const { data, error } = await query;
 
 	if (error) {
 		console.error('[admin/provider-services GET]', error.message);
 		return NextResponse.json({ error: 'Failed to load services' }, { status: 500 });
 	}
 
-	return NextResponse.json({ items: data || [] });
+	type ServiceRow = Record<string, unknown> & {
+		providers?: { id?: string; name?: string; type?: string } | null;
+	};
+
+	const items = ((data || []) as ServiceRow[]).map((row) => {
+		const { providers, ...rest } = row;
+		const prov = providers;
+		return {
+			...rest,
+			provider_name: prov?.name ?? null,
+			provider_type: prov?.type ?? null,
+		};
+	});
+
+	return NextResponse.json({ items });
 }
 
 export async function POST(request: NextRequest) {

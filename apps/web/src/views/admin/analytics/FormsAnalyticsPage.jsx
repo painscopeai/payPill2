@@ -17,7 +17,7 @@ export default function FormsAnalyticsPage() {
   const trends = data?.trends || [];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">Forms Analytics</h1>
         <p className="text-muted-foreground">Assessment completion rates and user engagement.</p>
@@ -41,3 +41,4 @@ export default function FormsAnalyticsPage() {
     </div>
   );
 }
+

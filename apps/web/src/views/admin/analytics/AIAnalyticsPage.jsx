@@ -18,7 +18,7 @@ export default function AIAnalyticsPage() {
   const byModel = data?.breakdown?.by_model || {};
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-display">AI Usage Analytics</h1>
         <p className="text-muted-foreground">
@@ -86,3 +86,4 @@ export default function AIAnalyticsPage() {
     </div>
   );
 }
+

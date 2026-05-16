@@ -147,7 +147,7 @@ export default function PatientsManagementPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-display tracking-tight">Patients Management</h1>
@@ -163,10 +163,10 @@ export default function PatientsManagementPage() {
         </div>
       </div>
 
-      <Card className="admin-card-shadow border-none">
+      <Card className="admin-card-shadow w-full border-none">
         <CardContent className="p-0">
           <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4 justify-between items-center bg-muted/20">
-            <div className="relative w-full sm:w-96">
+            <div className="relative w-full sm:max-w-md lg:max-w-lg flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, email or phone..."
@@ -327,3 +327,4 @@ export default function PatientsManagementPage() {
     </div>
   );
 }
+

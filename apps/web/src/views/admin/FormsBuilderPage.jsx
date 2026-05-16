@@ -33,7 +33,7 @@ export default function FormsBuilderPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold font-display">Forms Builder</h1>
@@ -42,7 +42,7 @@ export default function FormsBuilderPage() {
         <Button className="gap-2 bg-primary-gradient"><Plus className="w-4 h-4"/> Create Form</Button>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardContent className="p-4">
           <DataTable columns={columns} data={data} isLoading={isLoading} />
         </CardContent>
@@ -50,3 +50,4 @@ export default function FormsBuilderPage() {
     </div>
   );
 }
+

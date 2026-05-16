@@ -125,7 +125,7 @@ export default function ProviderAppointmentsPage() {
 	);
 
 	return (
-		<div className="space-y-8 max-w-7xl mx-auto">
+		<div className="w-full space-y-8">
 			<Helmet>
 				<title>Schedule - PayPill</title>
 			</Helmet>

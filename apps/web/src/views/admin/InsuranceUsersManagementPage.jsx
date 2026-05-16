@@ -196,7 +196,7 @@ export default function InsuranceUsersManagementPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-display">Insurance Management</h1>
@@ -208,7 +208,7 @@ export default function InsuranceUsersManagementPage() {
         </div>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardContent className="p-0">
           <div className="p-4 border-b border-border bg-muted/20 flex flex-col sm:flex-row gap-4 justify-between items-center">
             <SearchBar
@@ -303,3 +303,4 @@ export default function InsuranceUsersManagementPage() {
     </div>
   );
 }
+

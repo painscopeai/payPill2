@@ -50,7 +50,7 @@ export default function SubscriptionPlansPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold font-display">Subscription Plans</h1>
@@ -59,7 +59,7 @@ export default function SubscriptionPlansPage() {
         <Button className="gap-2 bg-primary-gradient"><Plus className="w-4 h-4"/> Create Plan</Button>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="w-full border-none shadow-sm">
         <CardContent className="p-0">
           <div className="p-4 border-b border-border bg-muted/20">
             <SearchBar placeholder="Search plans..." onSearch={setSearchTerm} className="max-w-md" />
@@ -72,3 +72,4 @@ export default function SubscriptionPlansPage() {
     </div>
   );
 }
+
