@@ -15,6 +15,15 @@ import { toast } from 'sonner';
 import { Calendar, ExternalLink, FileText, User, Trash2, Plus, Pill, FlaskConical } from 'lucide-react';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
+import { MedicationFrequencySelect } from '@/components/provider/MedicationFrequencySelect.jsx';
+import { MEDICATION_ROUTE_OPTIONS, buildPrescriptionSig, drugCatalogToRxLine } from '@/lib/prescriptionMedicationOptions';
 
 function formatDateShort(value) {
 	if (!value) return '—';
@@ -139,11 +148,14 @@ export default function ProviderConsultationWorkspacePage() {
 	const [encounterStatus, setEncounterStatus] = useState('draft');
 
 	const [drugCatalog, setDrugCatalog] = useState([]);
+	const [rxTemplates, setRxTemplates] = useState([]);
 	const [labCatalog, setLabCatalog] = useState([]);
 	const [prescriptionLines, setPrescriptionLines] = useState([]);
 	const [labOrders, setLabOrders] = useState([]);
 
 	const [saving, setSaving] = useState(false);
+	const [formularyPick, setFormularyPick] = useState('');
+	const [templatePick, setTemplatePick] = useState('');
 
 	const loadList = useCallback(async () => {
 		setListLoading(true);
@@ -171,14 +183,17 @@ export default function ProviderConsultationWorkspacePage() {
 		let cancelled = false;
 		(async () => {
 			try {
-				const [dRes, lRes] = await Promise.all([
+				const [dRes, tRes, lRes] = await Promise.all([
 					apiServerClient.fetch('/provider/catalog/drugs'),
+					apiServerClient.fetch('/provider/prescription-templates'),
 					apiServerClient.fetch('/provider/catalog/labs'),
 				]);
 				const dBody = await dRes.json().catch(() => ({}));
+				const tBody = await tRes.json().catch(() => ({}));
 				const lBody = await lRes.json().catch(() => ({}));
 				if (cancelled) return;
 				if (dRes.ok) setDrugCatalog(Array.isArray(dBody.items) ? dBody.items : []);
+				if (tRes.ok) setRxTemplates(Array.isArray(tBody.items) ? tBody.items.filter((t) => t.is_active !== false) : []);
 				if (lRes.ok) setLabCatalog(Array.isArray(lBody.items) ? lBody.items : []);
 			} catch {
 				/* non-blocking */
@@ -344,21 +359,34 @@ export default function ProviderConsultationWorkspacePage() {
 	const addRxFromCatalog = (drugId) => {
 		const d = drugCatalog.find((x) => x.id === drugId);
 		if (!d) return;
-		const sigParts = [d.default_frequency, d.default_strength, d.default_route].filter(Boolean);
+		const line = drugCatalogToRxLine(d, 'rx');
+		setPrescriptionLines((prev) => [...prev, { ...line, id: newId('rx') }]);
+	};
+
+	const applyRxTemplate = (templateId) => {
+		const t = rxTemplates.find((x) => x.id === templateId);
+		if (!t) return;
+		const lines = Array.isArray(t.lines) ? t.lines : [];
+		if (!lines.length) return;
 		setPrescriptionLines((prev) => [
 			...prev,
-			newRxLine({
-				medication_name: d.name,
-				strength: d.default_strength || '',
-				route: d.default_route || 'oral',
-				frequency: d.default_frequency || '',
-				duration_days: d.default_duration_days != null ? String(d.default_duration_days) : '',
-				quantity: d.default_quantity != null ? String(d.default_quantity) : '',
-				refills: d.default_refills != null ? String(d.default_refills) : '0',
-				sig: sigParts.join(' · '),
-				catalog_id: d.id,
+			...lines.map((l) => {
+				const base = newRxLine({
+					medication_name: l.medication_name || '',
+					strength: l.strength || '',
+					dose: l.dose || '',
+					route: l.route || 'oral',
+					frequency: l.frequency || '',
+					duration_days: l.duration_days != null ? String(l.duration_days) : '',
+					quantity: l.quantity != null ? String(l.quantity) : '',
+					refills: l.refills != null ? String(l.refills) : '0',
+					sig: l.sig || buildPrescriptionSig(l),
+					catalog_id: l.catalog_id || null,
+				});
+				return { ...base, id: newId('rx') };
 			}),
 		]);
+		toast.success(`Applied template: ${t.name}`);
 	};
 
 	const addLabFromCatalog = (labId) => {
@@ -633,27 +661,54 @@ export default function ProviderConsultationWorkspacePage() {
 										<h3 className="text-sm font-semibold">Prescriptions</h3>
 									</div>
 									<p className="text-xs text-muted-foreground">
-										Add medications for this visit. Saved with the encounter; configure your formulary under Settings → Drug formulary.
+										Add medications for this visit. Manage your formulary and templates under{' '}
+										<Link to="/provider/prescriptions" className="text-teal-600 underline font-medium">
+											Prescriptions
+										</Link>
+										. You can edit any line below for this patient.
 									</p>
 									<div className="flex flex-wrap gap-2 items-end">
+										{rxTemplates.length > 0 ? (
+											<div className="min-w-[200px] flex-1 space-y-1">
+												<Label className="text-xs">Apply template</Label>
+												<Select
+													value={templatePick}
+													onValueChange={(v) => {
+														if (v) applyRxTemplate(v);
+														setTemplatePick('');
+													}}
+												>
+													<SelectTrigger>
+														<SelectValue placeholder="Select template…" />
+													</SelectTrigger>
+													<SelectContent>
+														{rxTemplates.map((t) => (
+															<SelectItem key={t.id} value={t.id}>
+																{t.name}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+										) : null}
 										<div className="min-w-[200px] flex-1 space-y-1">
 											<Label className="text-xs">From formulary</Label>
-											<select
-												className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-												defaultValue=""
-												onChange={(e) => {
-													const v = e.target.value;
+											<Select
+												onValueChange={(v) => {
 													if (v) addRxFromCatalog(v);
-													e.target.value = '';
 												}}
 											>
-												<option value="">Select medication…</option>
-												{drugCatalog.map((d) => (
-													<option key={d.id} value={d.id}>
-														{d.name}
-													</option>
-												))}
-											</select>
+												<SelectTrigger>
+													<SelectValue placeholder="Select medication…" />
+												</SelectTrigger>
+												<SelectContent>
+													{drugCatalog.map((d) => (
+														<SelectItem key={d.id} value={d.id}>
+															{d.name}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
 										</div>
 										<Button type="button" variant="outline" size="sm" onClick={() => setPrescriptionLines((p) => [...p, newRxLine()])}>
 											<Plus className="h-4 w-4 mr-1" />
@@ -684,13 +739,38 @@ export default function ProviderConsultationWorkspacePage() {
 														</div>
 														<div className="space-y-1">
 															<Label className="text-xs">Route</Label>
-															<Input value={rx.route} onChange={(e) => updateRxLine(rx.id, { route: e.target.value })} />
+															<Select
+																value={rx.route || 'oral'}
+																onValueChange={(v) => {
+																	const next = { route: v };
+																	updateRxLine(rx.id, {
+																		...next,
+																		sig: buildPrescriptionSig({ ...rx, ...next }),
+																	});
+																}}
+															>
+																<SelectTrigger>
+																	<SelectValue />
+																</SelectTrigger>
+																<SelectContent>
+																	{MEDICATION_ROUTE_OPTIONS.map((o) => (
+																		<SelectItem key={o.value} value={o.value}>
+																			{o.label}
+																		</SelectItem>
+																	))}
+																</SelectContent>
+															</Select>
 														</div>
-														<div className="space-y-1">
+														<div className="space-y-1 sm:col-span-2">
 															<Label className="text-xs">Frequency</Label>
-															<Input
+															<MedicationFrequencySelect
 																value={rx.frequency}
-																onChange={(e) => updateRxLine(rx.id, { frequency: e.target.value })}
+																onChange={(v) => {
+																	updateRxLine(rx.id, {
+																		frequency: v,
+																		sig: buildPrescriptionSig({ ...rx, frequency: v }),
+																	});
+																}}
 															/>
 														</div>
 														<div className="space-y-1">

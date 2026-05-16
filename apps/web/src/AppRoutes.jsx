@@ -104,7 +104,7 @@ const ProviderCompliancePage = React.lazy(() => import('./views/ProviderComplian
 const ProviderTeamPage = React.lazy(() => import('./views/ProviderTeamPage.jsx'));
 const ProviderLocationsPage = React.lazy(() => import('./views/ProviderLocationsPage.jsx'));
 const ProviderCommunicationsPage = React.lazy(() => import('./views/ProviderCommunicationsPage.jsx'));
-const ProviderPrescriptionsPage = React.lazy(() => import('./views/ProviderPrescriptionsPage.jsx'));
+import ProviderPrescriptionsPage from './views/ProviderPrescriptionsPage.jsx';
 const ProviderReferralsPage = React.lazy(() => import('./views/ProviderReferralsPage.jsx'));
 const ProviderFormsPage = React.lazy(() => import('./views/ProviderFormsPage.jsx'));
 const ProviderFormBuilderPage = React.lazy(() => import('./views/ProviderFormBuilderPage.jsx'));
@@ -402,7 +402,7 @@ export default function AppRoutes() {
 											<Route path="locations" element={<ProviderLocationsPage />} />
 											<Route path="communications" element={<ProviderCommunicationsPage />} />
 											<Route path="settings/calendar" element={<ProviderCalendarPage />} />
-											<Route path="settings/catalog/drugs" element={<ProviderSettingsCatalogPage />} />
+											<Route path="settings/catalog/drugs" element={<Navigate to="/provider/prescriptions" replace />} />
 											<Route path="settings/catalog/labs" element={<ProviderSettingsCatalogPage />} />
 											<Route path="settings/catalog/services" element={<ProviderSettingsCatalogPage />} />
 											<Route path="settings" element={<ProviderSettingsPage />} />

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -364,12 +363,9 @@ export default function ProviderPharmacyInventory() {
 					) : null}
 				</div>
 				<div className="flex flex-wrap gap-2 shrink-0">
-					<Button type="button" variant="outline" asChild>
-						<Link to="/provider/settings/catalog/drugs">Full drug formulary</Link>
-					</Button>
 					<Button type="button" onClick={openCreate}>
 						<Plus className="h-4 w-4 mr-1.5" />
-						Add product
+						Add item
 					</Button>
 				</div>
 			</div>
@@ -458,8 +454,8 @@ export default function ProviderPharmacyInventory() {
 			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
 				<DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
 					<DialogHeader>
-						<DialogTitle>{editingId ? 'Edit product' : 'Add product'}</DialogTitle>
-						<DialogDescription>Inventory fields sync to the patient pharmacy shop when stock is available.</DialogDescription>
+						<DialogTitle>{editingId ? 'Edit item' : 'Add item'}</DialogTitle>
+						<DialogDescription>Add stock to your pharmacy inventory. Pricing and on-hand quantity sync to the patient shop when in stock.</DialogDescription>
 					</DialogHeader>
 					<div className="grid gap-3 py-2">
 						<div className="space-y-1">
