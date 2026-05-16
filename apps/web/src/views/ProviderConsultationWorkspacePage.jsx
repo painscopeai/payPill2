@@ -1415,15 +1415,11 @@ export default function ProviderConsultationWorkspacePage() {
 									</div>
 								) : (
 									<div className="flex flex-wrap gap-2 pt-2 border-t">
-										{!isFinalizedEncounter ? (
-											<Button type="button" variant="secondary" disabled={saving} onClick={() => void save('draft')}>
-												Save draft
-											</Button>
-										) : (
+										{isFinalizedEncounter ? (
 											<Button type="button" variant="secondary" disabled={saving} onClick={() => void save('draft')}>
 												Save changes
 											</Button>
-										)}
+										) : null}
 										{!isFinalizedEncounter ? (
 											<Button
 												type="button"
