@@ -258,7 +258,7 @@ export default function ProviderPharmacyInventory() {
 		},
 		{
 			key: 'quantity_on_hand',
-			label: 'On hand',
+			label: 'In Stock',
 			sortable: true,
 			render: (row) => <span className="tabular-nums font-medium">{row.quantity_on_hand ?? 0}</span>,
 		},
@@ -488,7 +488,7 @@ export default function ProviderPharmacyInventory() {
 						</div>
 						<div className="grid grid-cols-2 gap-3">
 							<div className="space-y-1">
-								<Label>On hand</Label>
+								<Label>In Stock</Label>
 								<Input
 									inputMode="numeric"
 									value={drugForm.quantity_on_hand}

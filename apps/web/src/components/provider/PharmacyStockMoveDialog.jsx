@@ -112,7 +112,7 @@ export function PharmacyStockMoveDialog({ state, setState, onApplied }) {
 				<DialogHeader>
 					<DialogTitle>{stockMoveDialogTitle(state.mode)}</DialogTitle>
 					<DialogDescription>
-						{state.row?.name ? String(state.row.name) : 'Product'} · current on hand:{' '}
+						{state.row?.name ? String(state.row.name) : 'Product'} · in stock:{' '}
 						<span className="font-medium tabular-nums">{state.row?.quantity_on_hand ?? '—'}</span>
 					</DialogDescription>
 				</DialogHeader>
