@@ -1,11 +1,31 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import apiServerClient from '@/lib/apiServerClient';
 
 export default function ProviderSettingsPage() {
 	const { currentUser } = useAuth();
+	const [practiceSpecialtyLabel, setPracticeSpecialtyLabel] = useState(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			try {
+				const res = await apiServerClient.fetch('/provider/practice-context');
+				const body = await res.json().catch(() => ({}));
+				if (!cancelled && res.ok) {
+					setPracticeSpecialtyLabel(body.provider_type_label || body.provider_type_slug || null);
+				}
+			} catch {
+				if (!cancelled) setPracticeSpecialtyLabel(null);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	return (
 		<div className="space-y-8 max-w-3xl">
@@ -23,7 +43,8 @@ export default function ProviderSettingsPage() {
 						<span className="text-muted-foreground">Email:</span> {currentUser?.email}
 					</p>
 					<p>
-						<span className="text-muted-foreground">Specialty:</span> {currentUser?.specialty || '—'}
+						<span className="text-muted-foreground">Practice specialty:</span>{' '}
+						{practiceSpecialtyLabel || '—'}
 					</p>
 					<p>
 						<span className="text-muted-foreground">NPI:</span> {currentUser?.npi || '—'}
@@ -81,15 +102,15 @@ export default function ProviderSettingsPage() {
 						</li>
 						<li>
 							<Link to="/provider/settings/catalog/labs" className="text-teal-600 font-medium underline">
-								Laboratory test catalog
+								Lab catalog
 							</Link>{' '}
-							— common orders selectable from the consultation workspace.
+							— tests you can order or reference.
 						</li>
 						<li>
 							<Link to="/provider/settings/catalog/services" className="text-teal-600 font-medium underline">
-								Services list
+								Services & pricing
 							</Link>{' '}
-							— append services & pricing in bulk (existing rows are kept).
+							— billable visit types and fees.
 						</li>
 					</ul>
 				</CardContent>

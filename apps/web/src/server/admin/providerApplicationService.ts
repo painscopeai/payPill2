@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { syncPracticeRoleFromProviderType } from '@/server/provider/syncPracticeRoleFromProviderType';
 import { signProviderApplicationInviteToken, verifyProviderApplicationInviteToken } from '@/server/utils/providerApplicationInvite';
 
 export type ProviderApplicationRow = {
@@ -316,6 +317,9 @@ export async function approveProviderApplication(
 	if (insErr) throw insErr;
 
 	const pid = String(provider.id);
+	await syncPracticeRoleFromProviderType(sb(), pid, ty);
+
+	const { data: providerSynced } = await sb().from('providers').select('*').eq('id', pid).single();
 	const { error: svcErr } = await sb()
 		.from('provider_services')
 		.update({ provider_id: pid, updated_at: new Date().toISOString() })
@@ -339,7 +343,10 @@ export async function approveProviderApplication(
 		.single();
 	if (upErr) throw upErr;
 
-	return { application: app as ProviderApplicationRow, provider: provider as Record<string, unknown> };
+	return {
+		application: app as ProviderApplicationRow,
+		provider: (providerSynced || provider) as Record<string, unknown>,
+	};
 }
 
 export async function rejectProviderApplication(

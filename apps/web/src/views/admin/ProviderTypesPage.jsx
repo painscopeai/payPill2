@@ -8,6 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -19,13 +26,25 @@ import { DataTable } from '@/components/admin/DataTable.jsx';
 import { toast } from 'sonner';
 import { Plus, Loader2, Pencil, Ban } from 'lucide-react';
 
+const OPERATIONS_LABELS = {
+  doctor: 'Clinical',
+  pharmacist: 'Pharmacy',
+  laboratory: 'Laboratory',
+};
+
 export default function ProviderTypesPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ slug: '', label: '', sort_order: 0, active: true });
+  const [form, setForm] = useState({
+    slug: '',
+    label: '',
+    sort_order: 0,
+    active: true,
+    operations_profile: 'doctor',
+  });
 
   const authHeaders = async () => {
     const {
@@ -43,7 +62,7 @@ export default function ProviderTypesPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to load provider types');
+        throw new Error(err.error || 'Failed to load provider specialties');
       }
       const data = await res.json();
       setItems(data.items || []);
@@ -60,7 +79,7 @@ export default function ProviderTypesPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ slug: '', label: '', sort_order: 0, active: true });
+    setForm({ slug: '', label: '', sort_order: 0, active: true, operations_profile: 'doctor' });
     setDialogOpen(true);
   };
 
@@ -71,6 +90,7 @@ export default function ProviderTypesPage() {
       label: row.label,
       sort_order: row.sort_order ?? 0,
       active: row.active !== false,
+      operations_profile: row.operations_profile || 'doctor',
     });
     setDialogOpen(true);
   };
@@ -87,13 +107,14 @@ export default function ProviderTypesPage() {
             label: form.label,
             sort_order: Number(form.sort_order) || 0,
             active: form.active,
+            operations_profile: form.operations_profile,
           }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || 'Update failed');
         }
-        toast.success('Provider type updated');
+        toast.success('Provider specialty updated');
       } else {
         const res = await apiServerClient.fetch('/admin/provider-types', {
           method: 'POST',
@@ -103,13 +124,14 @@ export default function ProviderTypesPage() {
             label: form.label,
             sort_order: Number(form.sort_order) || 0,
             active: form.active,
+            operations_profile: form.operations_profile,
           }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || 'Create failed');
         }
-        toast.success('Provider type created');
+        toast.success('Provider specialty created');
       }
       setDialogOpen(false);
       await load();
@@ -131,7 +153,7 @@ export default function ProviderTypesPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Deactivate failed');
       }
-      toast.success('Provider type deactivated');
+      toast.success('Provider specialty deactivated');
       await load();
     } catch (e) {
       toast.error(e.message);
@@ -141,7 +163,11 @@ export default function ProviderTypesPage() {
   const columns = [
     { key: 'slug', label: 'Slug' },
     { key: 'label', label: 'Label' },
-    { key: 'sort_order', label: 'Order' },
+    {
+      key: 'operations_profile',
+      label: 'Operations',
+      render: (r) => OPERATIONS_LABELS[r.operations_profile] || r.operations_profile || '—',
+    },
     {
       key: 'active',
       label: 'Active',
@@ -171,21 +197,21 @@ export default function ProviderTypesPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-display">Provider types</h1>
+          <h1 className="text-3xl font-bold font-display">Provider Specialties</h1>
           <p className="text-muted-foreground">
-            Manage taxonomy used on provider applications and provider records. Slugs are stored in the database;
-            changing labels is safe; deactivating hides a type from new applications.
+            Manage practice specialties used on applications, signup, and provider directory. Operations profile
+            controls pharmacy inventory and patient shop (Pharmacy → pharmacist).
           </p>
         </div>
         <Button onClick={openCreate} className="gap-2">
           <Plus className="w-4 h-4" />
-          Add type
+          Add specialty
         </Button>
       </div>
 
       <Card className="border-none shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle>All types</CardTitle>
+          <CardTitle>All specialties</CardTitle>
           <CardDescription>
             <Link to="/admin/provider-onboarding" className="text-primary underline-offset-4 hover:underline">
               Back to provider onboarding
@@ -200,10 +226,10 @@ export default function ProviderTypesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? 'Edit provider type' : 'New provider type'}</DialogTitle>
+            <DialogTitle>{editing ? 'Edit provider specialty' : 'New provider specialty'}</DialogTitle>
             <DialogDescription>
               {editing
-                ? 'Slug cannot be changed. Update label, display order, or active flag.'
+                ? 'Slug cannot be changed. Update label, operations profile, display order, or active flag.'
                 : 'Slug is permanent (lowercase, letters, numbers, hyphen, underscore).'}
             </DialogDescription>
           </DialogHeader>
@@ -228,7 +254,23 @@ export default function ProviderTypesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Sort order</Label>
+              <Label>Operations profile</Label>
+              <Select
+                value={form.operations_profile}
+                onValueChange={(v) => setForm({ ...form, operations_profile: v })}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="doctor">Clinical (doctor)</SelectItem>
+                  <SelectItem value="pharmacist">Pharmacy (inventory & shop)</SelectItem>
+                  <SelectItem value="laboratory">Laboratory</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Sort order (dropdowns only)</Label>
               <Input
                 type="number"
                 value={form.sort_order}
@@ -244,7 +286,7 @@ export default function ProviderTypesPage() {
                 onChange={(e) => setForm({ ...form, active: e.target.checked })}
                 className="h-4 w-4 rounded border"
               />
-              <Label htmlFor="pt-active">Active (shown in onboarding)</Label>
+              <Label htmlFor="pt-active">Active (shown in signup & onboarding)</Label>
             </div>
           </div>
           <DialogFooter>

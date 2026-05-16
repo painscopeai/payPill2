@@ -41,7 +41,7 @@ export async function PATCH(
 	if (ctx instanceof NextResponse) return ctx;
 	const { id } = await context.params;
 
-	let body: { label?: string; sort_order?: number; active?: boolean };
+	let body: { label?: string; sort_order?: number; active?: boolean; operations_profile?: string };
 	try {
 		body = (await request.json()) as typeof body;
 	} catch {
@@ -53,6 +53,8 @@ export async function PATCH(
 			label: body.label,
 			sort_order: typeof body.sort_order === 'number' ? body.sort_order : undefined,
 			active: typeof body.active === 'boolean' ? body.active : undefined,
+			operations_profile:
+				typeof body.operations_profile === 'string' ? (body.operations_profile as 'doctor' | 'pharmacist' | 'laboratory') : undefined,
 		});
 
 		await auditLog({

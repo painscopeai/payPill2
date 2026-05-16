@@ -36,7 +36,13 @@ export async function POST(request: NextRequest) {
 	const ctx = await requireManageProvidersAdmin(request);
 	if (ctx instanceof NextResponse) return ctx;
 
-	let body: { slug?: string; label?: string; sort_order?: number; active?: boolean };
+	let body: {
+		slug?: string;
+		label?: string;
+		sort_order?: number;
+		active?: boolean;
+		operations_profile?: string;
+	};
 	try {
 		body = (await request.json()) as typeof body;
 	} catch {
@@ -53,6 +59,10 @@ export async function POST(request: NextRequest) {
 			label: body.label,
 			sort_order: typeof body.sort_order === 'number' ? body.sort_order : undefined,
 			active: body.active,
+			operations_profile:
+				typeof body.operations_profile === 'string'
+					? (body.operations_profile as 'doctor' | 'pharmacist' | 'laboratory')
+					: undefined,
 		});
 
 		await auditLog({

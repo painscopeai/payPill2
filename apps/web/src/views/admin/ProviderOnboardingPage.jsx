@@ -485,7 +485,7 @@ export default function ProviderOnboardingPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Provider type</Label>
+              <Label>Practice specialty</Label>
               <Select
                 value={formData.type || undefined}
                 onValueChange={(v) => setFormData({ ...formData, type: v })}
@@ -556,7 +556,7 @@ export default function ProviderOnboardingPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Specialty (optional)</Label>
+              <Label>Clinical focus (optional)</Label>
               <Input
                 value={formData.specialty}
                 onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}

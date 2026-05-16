@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import apiServerClient from '@/lib/apiServerClient';
 import { Stethoscope, Loader2, ArrowLeft } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
@@ -23,9 +31,12 @@ export default function AuthProviderPage() {
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState('');
 
   const [signInData, setSignInData] = useState({ email: '', password: '' });
+  const [providerTypes, setProviderTypes] = useState([]);
+  const [typesLoading, setTypesLoading] = useState(true);
+
   const [signUpData, setSignUpData] = useState({
     practiceName: '',
-    specialty: '',
+    providerType: '',
     npi: '',
     email: '',
     password: '',
@@ -36,6 +47,27 @@ export default function AuthProviderPage() {
   });
 
   const displayError = localError || error;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setTypesLoading(true);
+      try {
+        const res = await apiServerClient.fetch('/public/provider-types');
+        const json = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) {
+          setProviderTypes(json.items || []);
+        }
+      } catch {
+        if (!cancelled) setProviderTypes([]);
+      } finally {
+        if (!cancelled) setTypesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSignIn = async (e) => {
     e.preventDefault();
@@ -64,6 +96,10 @@ export default function AuthProviderPage() {
       setLocalError('Please accept the terms and conditions');
       return;
     }
+    if (!signUpData.providerType) {
+      setLocalError('Please select your practice specialty');
+      return;
+    }
 
     try {
       const nameParts = signUpData.contactName.split(' ');
@@ -80,7 +116,7 @@ export default function AuthProviderPage() {
           phone: signUpData.contactPhone,
           terms_accepted: true,
           privacy_preferences: true,
-          specialty: signUpData.specialty,
+          provider_type: signUpData.providerType,
           npi: signUpData.npi || undefined,
         },
         'provider',
@@ -223,15 +259,23 @@ export default function AuthProviderPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="specialty">Primary specialty</Label>
-                      <Input
-                        id="specialty"
-                        required
-                        className="rounded-xl"
-                        placeholder="e.g. Family medicine"
-                        value={signUpData.specialty}
-                        onChange={(e) => setSignUpData({ ...signUpData, specialty: e.target.value })}
-                      />
+                      <Label htmlFor="providerType">Practice specialty</Label>
+                      <Select
+                        value={signUpData.providerType || undefined}
+                        onValueChange={(v) => setSignUpData({ ...signUpData, providerType: v })}
+                        disabled={typesLoading}
+                      >
+                        <SelectTrigger id="providerType" className="rounded-xl bg-background">
+                          <SelectValue placeholder={typesLoading ? 'Loading…' : 'Select specialty'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {providerTypes.map((t) => (
+                            <SelectItem key={t.slug} value={t.slug}>
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="npi">NPI (optional)</Label>

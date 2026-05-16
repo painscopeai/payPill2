@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireManageProvidersAdmin } from '@/server/auth/requireManageProvidersAdmin';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { syncPracticeRoleFromProviderType } from '@/server/provider/syncPracticeRoleFromProviderType';
 import { auditLog } from '@/server/express-api/middleware/rbac.js';
 
 export const runtime = 'nodejs';
@@ -36,6 +37,8 @@ export async function PATCH(
 
 	let body: {
 		scheduling_url?: string | null;
+		type?: string | null;
+		provider_type_slug?: string | null;
 		practice_role_id?: string | null;
 		practice_role_slug?: string | null;
 	};
@@ -46,14 +49,15 @@ export async function PATCH(
 	}
 
 	const hasScheduling = body.scheduling_url !== undefined;
+	const hasType = body.type !== undefined || body.provider_type_slug !== undefined;
 	const hasRoleId = body.practice_role_id !== undefined;
 	const hasRoleSlug = body.practice_role_slug !== undefined;
 
-	if (!hasScheduling && !hasRoleId && !hasRoleSlug) {
+	if (!hasScheduling && !hasType && !hasRoleId && !hasRoleSlug) {
 		return NextResponse.json(
 			{
 				error:
-					'Provide at least one of: scheduling_url, practice_role_id, practice_role_slug',
+					'Provide at least one of: scheduling_url, type, provider_type_slug, practice_role_id, practice_role_slug',
 			},
 			{ status: 400 },
 		);
@@ -82,7 +86,20 @@ export async function PATCH(
 	try {
 		const sb = getSupabaseAdmin();
 
-		if (hasRoleId) {
+		const { data: existing, error: gErr } = await sb.from('providers').select('id').eq('id', id).maybeSingle();
+		if (gErr) throw gErr;
+		if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+		if (hasType) {
+			const raw = body.type !== undefined ? body.type : body.provider_type_slug;
+			if (raw === null || raw === '') {
+				return NextResponse.json({ error: 'type cannot be cleared; assign an active specialty slug' }, { status: 400 });
+			}
+			const typeSlug = String(raw).trim().toLowerCase();
+			const synced = await syncPracticeRoleFromProviderType(sb, id, typeSlug);
+			changes.type = synced.type;
+			changes.practice_role_id = synced.practice_role_id;
+		} else if (hasRoleId) {
 			if (body.practice_role_id === null) {
 				updates.practice_role_id = null;
 				changes.practice_role_id = null;
@@ -118,17 +135,21 @@ export async function PATCH(
 			}
 		}
 
-		const { data: existing, error: gErr } = await sb.from('providers').select('id').eq('id', id).maybeSingle();
-		if (gErr) throw gErr;
-		if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-		const { data: row, error: uErr } = await sb
-			.from('providers')
-			.update(updates)
-			.eq('id', id)
-			.select('*')
-			.single();
-		if (uErr) throw uErr;
+		let row;
+		if (Object.keys(updates).length > 1) {
+			const { data, error: uErr } = await sb
+				.from('providers')
+				.update(updates)
+				.eq('id', id)
+				.select('*')
+				.single();
+			if (uErr) throw uErr;
+			row = data;
+		} else {
+			const { data, error: uErr } = await sb.from('providers').select('*').eq('id', id).single();
+			if (uErr) throw uErr;
+			row = data;
+		}
 
 		await auditLog({
 			adminId: ctx.adminId,

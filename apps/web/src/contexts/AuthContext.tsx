@@ -229,6 +229,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 					phone: userData.phone,
 					date_of_birth: userData.date_of_birth,
 					specialty: userData.specialty,
+					provider_type: userData.provider_type,
 					npi: userData.npi,
 					terms_accepted: userData.terms_accepted === true || userData.terms_accepted === 'true',
 					privacy_preferences:

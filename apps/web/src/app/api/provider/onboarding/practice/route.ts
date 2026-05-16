@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { syncPracticeRoleFromProviderType } from '@/server/provider/syncPracticeRoleFromProviderType';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,27 @@ type PracticeBody = {
 	practiceName?: string;
 	address?: string | null;
 	phone?: string | null;
+	providerTypeSlug?: string | null;
 };
+
+async function resolveProviderTypeSlug(
+	sb: ReturnType<typeof getSupabaseAdmin>,
+	userId: string,
+	bodySlug: string | null | undefined,
+): Promise<string> {
+	const fromBody = typeof bodySlug === 'string' ? bodySlug.trim().toLowerCase() : '';
+	if (fromBody) return fromBody;
+
+	const { data: authUser, error } = await sb.auth.admin.getUserById(userId);
+	if (!error && authUser?.user?.user_metadata) {
+		const meta = authUser.user.user_metadata as Record<string, unknown>;
+		const fromMeta = String(meta.provider_type || meta.providerType || '').trim().toLowerCase();
+		if (fromMeta) return fromMeta;
+	}
+
+	console.warn('[onboarding/practice] No provider_type in body or signup metadata; defaulting to clinic');
+	return 'clinic';
+}
 
 /** PUT /api/provider/onboarding/practice — create or update directory org + link profile */
 export async function PUT(request: NextRequest) {
@@ -32,6 +53,7 @@ export async function PUT(request: NextRequest) {
 	const sb = getSupabaseAdmin();
 	const address = typeof body.address === 'string' ? body.address.trim() || null : null;
 	const phoneFinal = typeof body.phone === 'string' ? body.phone.trim() || null : null;
+	const typeSlug = await resolveProviderTypeSlug(sb, ctx.userId, body.providerTypeSlug);
 
 	const { data: profile } = await sb
 		.from('profiles')
@@ -54,7 +76,7 @@ export async function PUT(request: NextRequest) {
 				address: address,
 				status: 'pending',
 				verification_status: 'pending',
-				type: 'clinic',
+				type: typeSlug,
 			})
 			.select('id')
 			.single();
@@ -64,9 +86,21 @@ export async function PUT(request: NextRequest) {
 			return NextResponse.json({ error: insErr?.message || 'Failed to create practice' }, { status: 500 });
 		}
 
+		const orgId = inserted.id as string;
+
+		try {
+			await syncPracticeRoleFromProviderType(sb, orgId, typeSlug);
+		} catch (syncErr) {
+			console.error('[onboarding/practice] sync practice role', syncErr);
+			return NextResponse.json(
+				{ error: syncErr instanceof Error ? syncErr.message : 'Invalid practice specialty' },
+				{ status: 400 },
+			);
+		}
+
 		const { error: linkErr } = await sb
 			.from('profiles')
-			.update({ provider_org_id: inserted.id, updated_at: new Date().toISOString() })
+			.update({ provider_org_id: orgId, updated_at: new Date().toISOString() })
 			.eq('id', ctx.userId);
 
 		if (linkErr) {
@@ -74,11 +108,13 @@ export async function PUT(request: NextRequest) {
 			return NextResponse.json({ error: linkErr.message }, { status: 500 });
 		}
 
-		const { data: prov } = await sb.from('providers').select('*').eq('id', inserted.id).maybeSingle();
+		const { data: prov } = await sb.from('providers').select('*').eq('id', orgId).maybeSingle();
 		return NextResponse.json({ ok: true, practice: prov });
 	}
 
-	const { data: updated, error: upErr } = await sb
+	const orgId = profile.provider_org_id as string;
+
+	const { error: upErr } = await sb
 		.from('providers')
 		.update({
 			name: practiceName.slice(0, 500),
@@ -88,14 +124,24 @@ export async function PUT(request: NextRequest) {
 			address,
 			updated_at: new Date().toISOString(),
 		})
-		.eq('id', profile.provider_org_id as string)
-		.select('*')
-		.maybeSingle();
+		.eq('id', orgId);
 
 	if (upErr) {
 		console.error('[onboarding/practice] update', upErr.message);
 		return NextResponse.json({ error: upErr.message }, { status: 500 });
 	}
+
+	try {
+		await syncPracticeRoleFromProviderType(sb, orgId, typeSlug);
+	} catch (syncErr) {
+		console.error('[onboarding/practice] sync practice role', syncErr);
+		return NextResponse.json(
+			{ error: syncErr instanceof Error ? syncErr.message : 'Invalid practice specialty' },
+			{ status: 400 },
+		);
+	}
+
+	const { data: updated } = await sb.from('providers').select('*').eq('id', orgId).maybeSingle();
 
 	return NextResponse.json({ ok: true, practice: updated });
 }

@@ -20,6 +20,13 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { PROVIDER_PENDING_QUEUE_CHANGED_EVENT } from '@/lib/providerApplicationPendingQueue.js';
 
@@ -48,6 +55,42 @@ export default function ProvidersManagementPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [actionBusy, setActionBusy] = useState(null);
 
+  const [typeOptions, setTypeOptions] = useState([]);
+  const [specialtyDialog, setSpecialtyDialog] = useState(false);
+  const [specialtyRow, setSpecialtyRow] = useState(null);
+  const [specialtySlug, setSpecialtySlug] = useState('');
+  const [specialtySaving, setSpecialtySaving] = useState(false);
+
+  const typeLabel = useCallback(
+    (slug) => {
+      if (!slug) return '—';
+      const found = typeOptions.find((t) => t.slug === slug);
+      return found?.label || slug;
+    },
+    [typeOptions],
+  );
+
+  const loadProviderTypes = useCallback(async () => {
+    try {
+      const res = await apiServerClient.fetch('/admin/provider-types', {
+        headers: await authHeaders(),
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      setTypeOptions(json.items || []);
+    } catch {
+      setTypeOptions([]);
+    }
+  }, []);
+
+  const refreshProviders = useCallback(async () => {
+    const { items } = await adminPagedList('providers', 1, 20, {
+      searchColumn: searchTerm ? 'name' : undefined,
+      searchTerm: searchTerm || undefined,
+    });
+    setData(items);
+  }, [searchTerm]);
+
   const fetchApplications = useCallback(async () => {
     setAppsLoading(true);
     try {
@@ -73,11 +116,7 @@ export default function ProvidersManagementPage() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const { items } = await adminPagedList('providers', 1, 20, {
-          searchColumn: searchTerm ? 'name' : undefined,
-          searchTerm: searchTerm || undefined,
-        });
-        setData(items);
+        await refreshProviders();
       } catch (error) {
         toast.error('Failed to fetch providers');
       } finally {
@@ -85,11 +124,15 @@ export default function ProvidersManagementPage() {
       }
     };
     fetchData();
-  }, [searchTerm]);
+  }, [searchTerm, refreshProviders]);
 
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
+
+  useEffect(() => {
+    void loadProviderTypes();
+  }, [loadProviderTypes]);
 
   const handleApprove = async (id) => {
     setActionBusy(id);
@@ -171,11 +214,7 @@ export default function ProvidersManagementPage() {
       toast.success('Scheduling link saved');
       setSchedDialog(false);
       setSchedRow(null);
-      const { items } = await adminPagedList('providers', 1, 20, {
-        searchColumn: searchTerm ? 'name' : undefined,
-        searchTerm: searchTerm || undefined,
-      });
-      setData(items);
+      await refreshProviders();
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -183,8 +222,40 @@ export default function ProvidersManagementPage() {
     }
   };
 
+  const saveSpecialty = async () => {
+    if (!specialtyRow?.id || !specialtySlug) {
+      toast.error('Select a specialty');
+      return;
+    }
+    setSpecialtySaving(true);
+    try {
+      const res = await apiServerClient.fetch(`/admin/providers/${specialtyRow.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ type: specialtySlug }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Update failed');
+      }
+      toast.success('Practice specialty updated');
+      setSpecialtyDialog(false);
+      setSpecialtyRow(null);
+      await refreshProviders();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSpecialtySaving(false);
+    }
+  };
+
   const columns = [
     { key: 'name', label: 'Provider Name' },
+    {
+      key: 'type',
+      label: 'Specialty',
+      render: (r) => typeLabel(r.type),
+    },
     { key: 'category', label: 'Category' },
     { key: 'email', label: 'Email' },
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
@@ -193,25 +264,43 @@ export default function ProvidersManagementPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            setSchedRow(row);
-            setSchedUrl(row.scheduling_url || '');
-            setSchedDialog(true);
-          }}
-        >
-          Scheduling link
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSpecialtyRow(row);
+              setSpecialtySlug(row.type || '');
+              setSpecialtyDialog(true);
+            }}
+          >
+            Assign specialty
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSchedRow(row);
+              setSchedUrl(row.scheduling_url || '');
+              setSchedDialog(true);
+            }}
+          >
+            Scheduling link
+          </Button>
+        </div>
       ),
     },
   ];
 
   const appColumns = [
     { key: 'organization_name', label: 'Organization' },
-    { key: 'type', label: 'Type' },
+    {
+      key: 'type',
+      label: 'Specialty',
+      render: (r) => typeLabel(r.type),
+    },
     { key: 'applicant_email', label: 'Applicant email' },
     {
       key: 'queue_status',
@@ -297,6 +386,42 @@ export default function ProvidersManagementPage() {
               Cancel
             </Button>
             <Button onClick={() => void saveSchedulingUrl()} disabled={schedSaving}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={specialtyDialog} onOpenChange={setSpecialtyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign practice specialty</DialogTitle>
+            <DialogDescription>
+              Sets the organization type and operations profile (e.g. Pharmacy enables inventory and patient shop).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Specialty</Label>
+            <Select value={specialtySlug || undefined} onValueChange={setSpecialtySlug}>
+              <SelectTrigger className="bg-background">
+                <SelectValue placeholder="Select specialty" />
+              </SelectTrigger>
+              <SelectContent>
+                {typeOptions
+                  .filter((t) => t.active !== false)
+                  .map((t) => (
+                    <SelectItem key={t.slug} value={t.slug}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSpecialtyDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void saveSpecialty()} disabled={specialtySaving}>
               Save
             </Button>
           </DialogFooter>
