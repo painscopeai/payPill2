@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,10 +12,14 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function ProviderMessagingPage() {
+	const [searchParams, setSearchParams] = useSearchParams();
+	const patientFromUrl = searchParams.get('patient')?.trim() || null;
+
 	const [threads, setThreads] = useState([]);
 	const [loading, setLoading] = useState(true);
-	const [selectedPatientId, setSelectedPatientId] = useState(null);
+	const [selectedPatientId, setSelectedPatientId] = useState(patientFromUrl);
 	const [threadLoading, setThreadLoading] = useState(false);
+	const [threadError, setThreadError] = useState(null);
 	const [detail, setDetail] = useState(null);
 	const [draft, setDraft] = useState('');
 	const [sending, setSending] = useState(false);
@@ -39,18 +44,45 @@ export default function ProviderMessagingPage() {
 		void loadThreads();
 	}, [loadThreads]);
 
+	/** Open patient from ?patient= (e.g. consultation snapshot → Message patient). */
 	useEffect(() => {
+		if (!patientFromUrl) return;
+		setSelectedPatientId(patientFromUrl);
+	}, [patientFromUrl]);
+
+	const selectPatient = useCallback(
+		(patientUserId) => {
+			const id = patientUserId || null;
+			setSelectedPatientId(id);
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					if (id) next.set('patient', id);
+					else next.delete('patient');
+					return next;
+				},
+				{ replace: true },
+			);
+		},
+		[setSearchParams],
+	);
+
+	/** Default to first thread only when no deep-link patient is requested. */
+	useEffect(() => {
+		if (loading || patientFromUrl) return;
 		if (!selectedPatientId && threads.length > 0 && threads[0]?.patient_user_id) {
-			setSelectedPatientId(threads[0].patient_user_id);
+			selectPatient(threads[0].patient_user_id);
 		}
-	}, [threads, selectedPatientId]);
+	}, [threads, selectedPatientId, patientFromUrl, loading, selectPatient]);
 
 	const loadThread = useCallback(async (patientUserId) => {
 		if (!patientUserId) {
 			setDetail(null);
+			setThreadError(null);
 			return;
 		}
 		setThreadLoading(true);
+		setThreadError(null);
 		setDraft('');
 		try {
 			const res = await apiServerClient.fetch(`/provider/messages/${encodeURIComponent(patientUserId)}`);
@@ -58,8 +90,14 @@ export default function ProviderMessagingPage() {
 			if (!res.ok) throw new Error(body.error || 'Failed to open thread');
 			setDetail(body);
 		} catch (e) {
-			toast.error(e.message || 'Failed to open thread');
+			const msg = e instanceof Error ? e.message : 'Failed to open thread';
+			setThreadError(msg);
 			setDetail(null);
+			if (msg.toLowerCase().includes('messaging channel')) {
+				toast.error('You can message this patient after a scheduled or completed visit with your practice.');
+			} else {
+				toast.error(msg);
+			}
 		} finally {
 			setThreadLoading(false);
 		}
@@ -67,8 +105,28 @@ export default function ProviderMessagingPage() {
 
 	useEffect(() => {
 		if (selectedPatientId) void loadThread(selectedPatientId);
-		else setDetail(null);
+		else {
+			setDetail(null);
+			setThreadError(null);
+		}
 	}, [selectedPatientId, loadThread]);
+
+	const displayThreads = useMemo(() => {
+		if (!selectedPatientId) return threads;
+		if (threads.some((t) => t.patient_user_id === selectedPatientId)) return threads;
+		const label = detail?.patient_label || 'Patient';
+		return [
+			{
+				patient_user_id: selectedPatientId,
+				patient_label: label,
+				preview: threadError ? 'Unable to open' : 'New conversation',
+				last_at: null,
+				unread_for_provider: 0,
+				_isPending: true,
+			},
+			...threads,
+		];
+	}, [threads, selectedPatientId, detail?.patient_label, threadError]);
 
 	const send = async () => {
 		const body = draft.trim();
@@ -118,19 +176,19 @@ export default function ProviderMessagingPage() {
 							<div className="p-8 flex justify-center">
 								<LoadingSpinner />
 							</div>
-						) : threads.length === 0 ? (
+						) : displayThreads.length === 0 && !selectedPatientId ? (
 							<div className="p-8 text-center text-sm text-muted-foreground">
 								No threads yet. When patients message you or you write from their chart, threads appear here.
 							</div>
 						) : (
 							<ul className="divide-y">
-								{threads.map((t) => {
+								{displayThreads.map((t) => {
 									const active = t.patient_user_id === selectedPatientId;
 									return (
 										<li key={t.patient_user_id}>
 											<button
 												type="button"
-												onClick={() => setSelectedPatientId(t.patient_user_id)}
+												onClick={() => selectPatient(t.patient_user_id)}
 												className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-muted/40 transition-colors ${
 													active ? 'bg-primary/10 border-l-4 border-l-primary' : ''
 												}`}
@@ -146,6 +204,10 @@ export default function ProviderMessagingPage() {
 														{t.unread_for_provider > 0 ? (
 															<Badge variant="secondary" className="shrink-0 text-[10px] px-1.5">
 																{t.unread_for_provider}
+															</Badge>
+														) : t._isPending ? (
+															<Badge variant="outline" className="shrink-0 text-[10px] px-1.5">
+																New
 															</Badge>
 														) : null}
 													</div>
@@ -178,31 +240,44 @@ export default function ProviderMessagingPage() {
 							<div className="flex-1 flex items-center justify-center p-8">
 								<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 							</div>
+						) : threadError ? (
+							<div className="flex-1 flex flex-col items-center justify-center text-center p-8 gap-2">
+								<p className="text-sm text-destructive font-medium">{threadError}</p>
+								<p className="text-xs text-muted-foreground max-w-sm">
+									Messaging requires an active care relationship or a non-cancelled appointment with your practice.
+								</p>
+							</div>
 						) : (
 							<>
 								<div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/15 max-h-[calc(100vh-320px)]">
-									{(detail?.messages || []).map((m) => {
-										const pid = detail?.patient_user_id;
-										const mine = Boolean(pid && m.sender_user_id !== pid);
-										return (
-											<div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-												<div
-													className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
-														mine
-															? 'bg-primary text-primary-foreground rounded-br-md'
-															: 'bg-card border rounded-bl-md'
-													}`}
-												>
-													<div className="whitespace-pre-wrap">{m.body}</div>
+									{(detail?.messages || []).length === 0 ? (
+										<p className="text-sm text-muted-foreground text-center py-8">
+											No messages yet. Send the first note below.
+										</p>
+									) : (
+										(detail?.messages || []).map((m) => {
+											const pid = detail?.patient_user_id;
+											const mine = Boolean(pid && m.sender_user_id !== pid);
+											return (
+												<div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
 													<div
-														className={`mt-1 text-[10px] ${mine ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
+														className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
+															mine
+																? 'bg-primary text-primary-foreground rounded-br-md'
+																: 'bg-card border rounded-bl-md'
+														}`}
 													>
-														{m.created_at ? format(new Date(m.created_at), 'MMM d, h:mm a') : ''}
+														<div className="whitespace-pre-wrap">{m.body}</div>
+														<div
+															className={`mt-1 text-[10px] ${mine ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
+														>
+															{m.created_at ? format(new Date(m.created_at), 'MMM d, h:mm a') : ''}
+														</div>
 													</div>
 												</div>
-											</div>
-										);
-									})}
+											);
+										})
+									)}
 								</div>
 								<div className="border-t p-3 flex gap-2 bg-background">
 									<Textarea
@@ -210,6 +285,12 @@ export default function ProviderMessagingPage() {
 										className="min-h-[52px] max-h-32 resize-none"
 										value={draft}
 										onChange={(e) => setDraft(e.target.value)}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter' && !e.shiftKey) {
+												e.preventDefault();
+												if (!sending && draft.trim()) void send();
+											}
+										}}
 									/>
 									<Button
 										type="button"

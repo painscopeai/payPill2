@@ -387,6 +387,7 @@ export default function AppRoutes() {
 											<Route path="patients/:id" element={<ProviderPatientDetailPage />} />
 											<Route path="consultations" element={<ProviderConsultationWorkspacePage />} />
 											<Route path="messaging" element={<ProviderMessagingPage />} />
+											<Route path="messages" element={<ProviderMessagingPage />} />
 											<Route path="billing" element={<ProviderBillingPage />} />
 											<Route path="claims" element={<ProviderClaimsPage />} />
 											<Route path="analytics" element={<ProviderAnalyticsPage />} />

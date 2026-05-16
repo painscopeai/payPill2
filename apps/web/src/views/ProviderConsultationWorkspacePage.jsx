@@ -832,7 +832,7 @@ export default function ProviderConsultationWorkspacePage() {
 												{selectedQueueRow.patient_user_id ? (
 													<Button type="button" variant="outline" className="w-full" asChild>
 														<Link
-															to={`/provider/messages?patient=${encodeURIComponent(selectedQueueRow.patient_user_id)}`}
+															to={`/provider/messaging?patient=${encodeURIComponent(selectedQueueRow.patient_user_id)}`}
 														>
 															<MessageSquare className="h-4 w-4 mr-2" />
 															Message patient
