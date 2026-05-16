@@ -287,13 +287,12 @@ export default function ProfileReferenceDataPage() {
 
   const setColumns = [
     { key: 'key', label: 'Key' },
-    { key: 'label', label: 'Label' },
+    { key: 'label', label: 'Description' },
     {
       key: 'group_slug',
       label: 'Group',
       render: (r) => GROUP_LABELS[r.group_slug] || r.group_slug,
     },
-    { key: 'sort_order', label: 'Order' },
     {
       key: 'active',
       label: 'Active',
@@ -338,9 +337,7 @@ export default function ProfileReferenceDataPage() {
   ];
 
   const valColumns = [
-    { key: 'slug', label: 'Slug' },
-    { key: 'label', label: 'Label' },
-    { key: 'sort_order', label: 'Order' },
+    { key: 'label', label: 'Description' },
     {
       key: 'active',
       label: 'Active',
@@ -553,7 +550,7 @@ export default function ProfileReferenceDataPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Label</Label>
+              <Label>Description</Label>
               <Input
                 value={setForm.label}
                 onChange={(e) => setSetForm({ ...setForm, label: e.target.value })}
@@ -627,7 +624,7 @@ export default function ProfileReferenceDataPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Label</Label>
+              <Label>Description</Label>
               <Input
                 value={valForm.label}
                 onChange={(e) => setValForm({ ...valForm, label: e.target.value })}

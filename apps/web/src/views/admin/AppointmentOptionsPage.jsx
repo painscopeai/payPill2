@@ -121,9 +121,7 @@ export default function AppointmentOptionsPage() {
   };
 
   const vtColumns = [
-    { key: 'slug', label: 'Slug' },
-    { key: 'label', label: 'Label' },
-    { key: 'sort_order', label: 'Order' },
+    { key: 'label', label: 'Description' },
     { key: 'active', label: 'Active', render: (r) => (r.active ? 'Yes' : 'No') },
     {
       key: 'actions',
@@ -210,7 +208,7 @@ export default function AppointmentOptionsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Label</Label>
+              <Label>Description</Label>
               <Input
                 value={vtForm.label}
                 onChange={(e) => setVtForm({ ...vtForm, label: e.target.value })}

@@ -162,8 +162,7 @@ export default function ProviderTypesPage() {
   };
 
   const columns = [
-    { key: 'slug', label: 'Slug' },
-    { key: 'label', label: 'Label' },
+    { key: 'label', label: 'Description' },
     {
       key: 'operations_profile',
       label: 'Operations',
@@ -248,7 +247,7 @@ export default function ProviderTypesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Label</Label>
+              <Label>Description</Label>
               <Input
                 value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })}
