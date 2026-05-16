@@ -121,6 +121,7 @@ export default function PatientManagementPage() {
 				dob_sort: p.patient_date_of_birth || '',
 				last_visit_sort: p.last_visit_date || '',
 				next_visit_sort: p.next_visit_date || '',
+				last_activity_sort: p.last_activity_at || '',
 			})),
 		[patients],
 	);

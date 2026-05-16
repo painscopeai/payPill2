@@ -4,6 +4,11 @@ import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { buildPatientCoverageSummary } from '@/server/patient/buildPatientCoverageSummary';
 import { fetchAppointmentsForPracticeOrg } from '@/server/provider/fetchAppointmentsForPracticeOrg';
+import {
+	compareProviderPatientsByRecency,
+	computeLastActivityAt,
+	buildUserTimestampMap,
+} from '@/server/provider/computeProviderPatientLastActivity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +36,8 @@ type AptRow = {
 	status: string | null;
 	appointment_date: string | null;
 	appointment_time: string | null;
+	created_at?: string | null;
+	updated_at?: string | null;
 };
 
 function utcDateString(): string {
@@ -197,7 +204,7 @@ export async function GET(request: NextRequest) {
 		const { rows: merged, error: aptErr } = await fetchAppointmentsForPracticeOrg(
 			sb,
 			providerOrgId,
-			'id, user_id, status, appointment_date, appointment_time',
+			'id, user_id, status, appointment_date, appointment_time, created_at, updated_at',
 			{ limitDirect: 1500, limitService: 1500 },
 		);
 		if (aptErr) {
@@ -232,10 +239,11 @@ export async function GET(request: NextRequest) {
 
 	const encounterPatientIds = new Set<string>();
 	const draftEncounterPatientIds = new Set<string>();
+	const lastEncounterAt = new Map<string, number>();
 	{
 		const { data: encRows, error: encErr } = await sb
 			.from('provider_consultation_encounters')
-			.select('patient_user_id, status')
+			.select('patient_user_id, status, updated_at, created_at')
 			.eq('provider_user_id', providerId);
 		if (encErr) {
 			if (!/does not exist|schema cache/i.test(encErr.message)) {
@@ -243,16 +251,69 @@ export async function GET(request: NextRequest) {
 			}
 		} else {
 			for (const row of encRows || []) {
-				const r = row as { patient_user_id?: string; status?: string };
+				const r = row as {
+					patient_user_id?: string;
+					status?: string;
+					updated_at?: string;
+					created_at?: string;
+				};
 				if (r.patient_user_id) {
 					encounterPatientIds.add(r.patient_user_id);
 					if (String(r.status || '').toLowerCase() === 'draft') {
 						draftEncounterPatientIds.add(r.patient_user_id);
 					}
+					const t = Math.max(
+						Date.parse(r.updated_at || '') || 0,
+						Date.parse(r.created_at || '') || 0,
+					);
+					if (t > (lastEncounterAt.get(r.patient_user_id) || 0)) {
+						lastEncounterAt.set(r.patient_user_id, t);
+					}
 				}
 			}
 		}
 	}
+
+	const { data: noteRows } = await sb
+		.from('clinical_notes')
+		.select('user_id, date_created')
+		.eq('provider_id', providerId)
+		.limit(3000);
+	const lastClinicalNoteAt = buildUserTimestampMap(
+		(noteRows || []) as Record<string, unknown>[],
+		['date_created'],
+	);
+
+	const { data: teleRows } = await sb
+		.from('telemedicine_sessions')
+		.select('user_id, started_at, created_at')
+		.eq('provider_id', providerId)
+		.limit(3000);
+	const lastTelemedicineAt = buildUserTimestampMap(
+		(teleRows || []) as Record<string, unknown>[],
+		['started_at', 'created_at'],
+	);
+
+	const lastPrescriptionAt = new Map<string, number>();
+	if (providerOrgId) {
+		const { data: rxRows } = await sb
+			.from('prescriptions')
+			.select('user_id, created_at, date_prescribed')
+			.eq('provider_id', providerOrgId)
+			.limit(3000);
+		const rxMap = buildUserTimestampMap((rxRows || []) as Record<string, unknown>[], [
+			'created_at',
+			'date_prescribed',
+		]);
+		for (const [uid, t] of rxMap) lastPrescriptionAt.set(uid, t);
+	}
+
+	const recencyContext = {
+		lastEncounterAt,
+		lastClinicalNoteAt,
+		lastPrescriptionAt,
+		lastTelemedicineAt,
+	};
 
 	const allIds = [
 		...new Set([
@@ -336,7 +397,23 @@ export async function GET(request: NextRequest) {
 					phone?: string | null;
 					date_of_birth?: string | null;
 					gender?: string | null;
+					updated_at?: string | null;
+					created_at?: string | null;
 				} | null;
+				const relCreated =
+					(relationship as { created_at?: string | null } | undefined)?.created_at ?? null;
+				const last_activity_at = computeLastActivityAt(
+					patient_id,
+					{
+						patient_id,
+						patient_activity_kind: activity.patient_activity_kind,
+						next_visit_date: visits.next_visit_date,
+						last_visit_date: visits.last_visit_date,
+						created_at: relCreated,
+						patient_details: prof,
+					},
+					{ aptsForPatient, ...recencyContext },
+				);
 
 				return {
 					...(relationship || {
@@ -360,6 +437,7 @@ export async function GET(request: NextRequest) {
 					next_visit_date: visits.next_visit_date,
 					last_visit_date: visits.last_visit_date,
 					appointments_count: visits.appointments_count,
+					last_activity_at,
 				};
 			} catch (e: unknown) {
 				const msg = e instanceof Error ? e.message : String(e);
@@ -385,7 +463,23 @@ export async function GET(request: NextRequest) {
 					phone?: string | null;
 					date_of_birth?: string | null;
 					gender?: string | null;
+					updated_at?: string | null;
+					created_at?: string | null;
 				} | null;
+				const relCreated =
+					(relationship as { created_at?: string | null } | undefined)?.created_at ?? null;
+				const last_activity_at = computeLastActivityAt(
+					patient_id,
+					{
+						patient_id,
+						patient_activity_kind: activity.patient_activity_kind,
+						next_visit_date: visits.next_visit_date,
+						last_visit_date: visits.last_visit_date,
+						created_at: relCreated,
+						patient_details: prof,
+					},
+					{ aptsForPatient, ...recencyContext },
+				);
 				return {
 					...(relationship || {}),
 					id: (relationship as { id?: string } | undefined)?.id || patient_id,
@@ -402,26 +496,18 @@ export async function GET(request: NextRequest) {
 					next_visit_date: visits.next_visit_date,
 					last_visit_date: visits.last_visit_date,
 					appointments_count: visits.appointments_count,
+					last_activity_at,
 				};
 			}
 		}),
 	);
 
-	patientsWithDetails.sort((a, b) => {
-		type Row = {
-			patient_details?: Parameters<typeof displayNameFromProfile>[0];
-			patient_id: string;
-			coverage_summary?: { full_name?: string } | null;
-		};
-		const ra = a as Row;
-		const rb = b as Row;
-		const na = (ra.coverage_summary?.full_name || displayNameFromProfile(ra.patient_details ?? null)).toLowerCase();
-		const nb = (rb.coverage_summary?.full_name || displayNameFromProfile(rb.patient_details ?? null)).toLowerCase();
-		if (na && nb) return na.localeCompare(nb);
-		if (na) return -1;
-		if (nb) return 1;
-		return String(ra.patient_id).localeCompare(String(rb.patient_id));
-	});
+	patientsWithDetails.sort((a, b) =>
+		compareProviderPatientsByRecency(
+			a as Parameters<typeof compareProviderPatientsByRecency>[0],
+			b as Parameters<typeof compareProviderPatientsByRecency>[1],
+		),
+	);
 
 	return NextResponse.json(patientsWithDetails);
 }

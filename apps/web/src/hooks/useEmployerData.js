@@ -16,7 +16,8 @@ export const useEmployerData = () => {
       const records = await pb.collection('employer_employees').getFullList({
         filter: `employer_id="${currentUser.id}"`,
         expand: 'user_id',
-        $autoCancel: false
+        sort: '-updated_at',
+        $autoCancel: false,
       });
       setEmployees(records);
     } catch (error) {
@@ -33,7 +34,8 @@ export const useEmployerData = () => {
     try {
       const records = await pb.collection('employer_health_metrics').getFullList({
         filter: `employer_id="${currentUser.id}"`,
-        $autoCancel: false
+        sort: '-created_at',
+        $autoCancel: false,
       });
       setMetrics(records);
     } catch (error) {

@@ -13,8 +13,8 @@ export function useHealthGoals() {
     try {
       const records = await pb.collection('health_goals').getFullList({
         filter: `user_id="${currentUser.id}"`,
-        sort: '-created',
-        $autoCancel: false
+        sort: '-created_at',
+        $autoCancel: false,
       });
       setGoals(records);
     } catch (err) {

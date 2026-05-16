@@ -13,7 +13,7 @@ export function useRecommendations() {
     try {
       const records = await pb.collection('recommendations').getFullList({
         filter: `user_id="${currentUser.id}"`,
-        sort: '-created',
+        sort: '-created_at',
         $autoCancel: false
       });
       setRecommendations(records);

@@ -29,12 +29,27 @@ export async function GET(request: NextRequest) {
 	}
 
 	const rowsSorted = [...(rows || [])].sort((a, b) => {
-		const da = String((a as { appointment_date?: string }).appointment_date || '');
-		const db = String((b as { appointment_date?: string }).appointment_date || '');
+		const ra = a as {
+			appointment_date?: string;
+			appointment_time?: string;
+			created_at?: string;
+			updated_at?: string;
+		};
+		const rb = b as {
+			appointment_date?: string;
+			appointment_time?: string;
+			created_at?: string;
+			updated_at?: string;
+		};
+		const da = String(ra.appointment_date || '');
+		const db = String(rb.appointment_date || '');
 		if (da !== db) return db.localeCompare(da);
-		const ta = String((a as { appointment_time?: string }).appointment_time || '');
-		const tb = String((b as { appointment_time?: string }).appointment_time || '');
-		return tb.localeCompare(ta);
+		const ta = String(ra.appointment_time || '');
+		const tb = String(rb.appointment_time || '');
+		if (ta !== tb) return tb.localeCompare(ta);
+		const ca = String(ra.created_at || ra.updated_at || '');
+		const cb = String(rb.created_at || rb.updated_at || '');
+		return cb.localeCompare(ca);
 	});
 
 	const userIds = Array.from(new Set(rowsSorted.map((r: { user_id?: string | null }) => r.user_id).filter(Boolean)));

@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ChevronsUpDown } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { cn } from '@/lib/utils';
+import { maxTimestamp, sortByRecencyDesc } from '@/lib/sortByRecency';
 
 /**
  * Provider-portal datatable: sortable headers, loading row, hover rows (aligned with admin DataTable UX).
@@ -21,7 +22,7 @@ export function ProviderDataTable({
 	defaultSortDesc = false,
 }) {
 	const [sortCol, setSortCol] = useState(defaultSortKey);
-	const [sortDesc, setSortDesc] = useState(defaultSortDesc);
+	const [sortDesc, setSortDesc] = useState(defaultSortDesc ?? !defaultSortKey);
 
 	const handleSort = (key) => {
 		if (!key) return;
@@ -35,7 +36,20 @@ export function ProviderDataTable({
 
 	const sortedData = useMemo(() => {
 		const list = [...(data || [])];
-		if (!sortCol || !list.length) return list;
+		if (!list.length) return list;
+		if (!sortCol) {
+			return sortByRecencyDesc(list, (row) =>
+				maxTimestamp(
+					row.last_activity_at,
+					row.last_activity_sort,
+					row.updated_at,
+					row.created_at,
+					row.appointment_date,
+					row.last_visit_sort,
+					row.next_visit_sort,
+				),
+			);
+		}
 		const mult = sortDesc ? -1 : 1;
 		list.sort((a, b) => {
 			const va = a[sortCol];

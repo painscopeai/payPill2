@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import apiServerClient from '@/lib/apiServerClient';
+import { sortByRecencyDesc, toTimestamp } from '@/lib/sortByRecency';
 
 function mapPatientRow(rel) {
 	const d = rel.patient_details || {};
@@ -20,7 +21,12 @@ function mapPatientRow(rel) {
 		next_visit_date: rel.next_visit_date || null,
 		last_visit_date: rel.last_visit_date || null,
 		appointments_count: rel.appointments_count ?? 0,
+		last_activity_at: rel.last_activity_at ?? null,
 	};
+}
+
+function patientRecencyTimestamp(p) {
+	return toTimestamp(p.last_activity_at) || toTimestamp(p.last_visit_date) || toTimestamp(p.next_visit_date);
 }
 
 export function usePatients() {
@@ -49,7 +55,7 @@ export function usePatients() {
 				return;
 			}
 			const list = Array.isArray(data) ? data : [];
-			setPatients(list.map(mapPatientRow));
+			setPatients(sortByRecencyDesc(list.map(mapPatientRow), patientRecencyTimestamp));
 		} catch (err) {
 			console.error('Error fetching patients:', err);
 			setPatients([]);

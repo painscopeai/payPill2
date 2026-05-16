@@ -65,9 +65,11 @@ function sortToOrder(sort) {
 	const raw = desc ? sort.slice(1) : sort;
 	const colMap = {
 		created: 'created_at',
+		updated: 'updated_at',
 		appointment_date: 'appointment_date',
 		date_tested: 'test_date',
 		activity_date: 'activity_date',
+		requested_at: 'requested_at',
 	};
 	const column = colMap[raw] || toSnake(raw) || 'created_at';
 	return { column, ascending: !desc };

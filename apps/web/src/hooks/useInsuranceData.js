@@ -16,7 +16,8 @@ export const useInsuranceData = () => {
       const records = await pb.collection('insurance_members').getFullList({
         filter: `insurance_id="${currentUser.id}"`,
         expand: 'user_id',
-        $autoCancel: false
+        sort: '-updated_at',
+        $autoCancel: false,
       });
       setMembers(records);
     } catch (error) {
@@ -33,7 +34,8 @@ export const useInsuranceData = () => {
     try {
       const records = await pb.collection('insurance_claims').getFullList({
         filter: `insurance_id="${currentUser.id}"`,
-        $autoCancel: false
+        sort: '-created_at',
+        $autoCancel: false,
       });
       setClaims(records);
     } catch (error) {
