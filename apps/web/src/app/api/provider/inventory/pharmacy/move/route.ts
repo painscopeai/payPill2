@@ -8,11 +8,18 @@ import { notifyLowStockIfNeeded } from '@/server/provider/inventoryLowStock';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type MoveReason = 'restock' | 'adjustment';
+type MoveReason = 'addition' | 'reduction' | 'adjustment' | 'restock';
+
+function normalizeReason(raw: string): MoveReason | null {
+	const r = raw.trim().toLowerCase();
+	if (r === 'restock') return 'addition';
+	if (r === 'addition' || r === 'reduction' || r === 'adjustment') return r;
+	return null;
+}
 
 /**
  * POST /api/provider/inventory/pharmacy/move
- * Adjust on-hand quantity with audit row. `restock` uses positive delta; `adjustment` may be negative.
+ * Record stock change: addition (positive), reduction (negative), or adjustment (signed via adjustment_direction).
  */
 export async function POST(request: NextRequest) {
 	const ctx = await requireProvider(request);
@@ -32,24 +39,39 @@ export async function POST(request: NextRequest) {
 		drug_catalog_id?: string;
 		delta_qty?: number;
 		reason?: string;
+		adjustment_direction?: string;
 		notes?: string | null;
 	};
 
 	const drugId = String(body.drug_catalog_id || '').trim();
 	const delta = typeof body.delta_qty === 'number' && Number.isFinite(body.delta_qty) ? Math.trunc(body.delta_qty) : NaN;
-	const reason = String(body.reason || '').trim() as MoveReason;
+	const reason = normalizeReason(String(body.reason || ''));
 	const notes = body.notes != null ? String(body.notes).trim() || null : null;
+	const adjustmentDirection = String(body.adjustment_direction || 'add').trim().toLowerCase();
 
 	if (!drugId) return NextResponse.json({ error: 'drug_catalog_id is required' }, { status: 400 });
+	if (!reason) {
+		return NextResponse.json(
+			{ error: 'reason must be addition, reduction, or adjustment (restock is accepted as addition)' },
+			{ status: 400 },
+		);
+	}
+
 	if (!Number.isFinite(delta) || delta === 0) {
 		return NextResponse.json({ error: 'delta_qty must be a non-zero integer' }, { status: 400 });
 	}
-	if (reason !== 'restock' && reason !== 'adjustment') {
-		return NextResponse.json({ error: 'reason must be restock or adjustment' }, { status: 400 });
+
+	if (reason === 'addition' && delta < 0) {
+		return NextResponse.json({ error: 'Stock addition must use a positive delta_qty' }, { status: 400 });
 	}
-	if (reason === 'restock' && delta < 0) {
-		return NextResponse.json({ error: 'Restock must use a positive delta_qty' }, { status: 400 });
+	if (reason === 'reduction' && delta > 0) {
+		return NextResponse.json({ error: 'Stock reduction must use a negative delta_qty' }, { status: 400 });
 	}
+	if (reason === 'adjustment' && adjustmentDirection !== 'add' && adjustmentDirection !== 'reduce') {
+		return NextResponse.json({ error: 'adjustment_direction must be add or reduce when reason is adjustment' }, { status: 400 });
+	}
+
+	const storedReason = reason;
 
 	const { data: row, error: gErr } = await sb
 		.from('provider_drug_catalog')
@@ -66,15 +88,22 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Resulting quantity cannot be negative' }, { status: 400 });
 	}
 
+	const movementNotes =
+		reason === 'adjustment' && notes
+			? `[${adjustmentDirection === 'reduce' ? 'Reduction' : 'Addition'}] ${notes}`
+			: reason === 'adjustment'
+				? `[${adjustmentDirection === 'reduce' ? 'Reduction' : 'Addition'}]`
+				: notes;
+
 	const { data: movement, error: mErr } = await sb
 		.from('provider_pharmacy_stock_movements')
 		.insert({
 			provider_org_id: orgId,
 			drug_catalog_id: drugId,
 			delta_qty: delta,
-			reason,
+			reason: storedReason,
 			reference_invoice_id: null,
-			notes,
+			notes: movementNotes,
 			created_by: ctx.userId,
 		})
 		.select('id')

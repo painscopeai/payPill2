@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,19 +13,14 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select';
 import { ProviderDataTable } from '@/components/provider/ProviderDataTable.jsx';
+import { PharmacyStockMoveDialog, usePharmacyStockMoveDialog } from '@/components/provider/PharmacyStockMoveDialog.jsx';
 import { TableRowActionsMenu } from '@/components/TableRowActionsMenu.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { AlertTriangle, Package, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Minus, Package, Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { STOCK_MOVE_REASON, formatMovementReasonLabel } from '@/lib/pharmacyStockMovement';
 
 const API_DRUGS = '/provider/catalog/drugs?manage=1';
 
@@ -58,13 +53,7 @@ export default function ProviderPharmacyInventory() {
 	const [drugForm, setDrugForm] = useState(emptyDrugForm);
 	const [savingForm, setSavingForm] = useState(false);
 
-	const [stockDialog, setStockDialog] = useState({
-		open: false,
-		row: null,
-		mode: 'restock',
-		delta: '',
-		notes: '',
-	});
+	const stockMove = usePharmacyStockMoveDialog();
 
 	const loadCatalog = useCallback(async () => {
 		setLoading(true);
@@ -139,13 +128,15 @@ export default function ProviderPharmacyInventory() {
 				default_route: drugForm.default_route.trim() || null,
 				unit_price: Number.isFinite(up) ? Math.max(0, up) : 0,
 				currency: (drugForm.currency || 'USD').trim().toUpperCase() || 'USD',
-				quantity_on_hand: drugForm.quantity_on_hand ? Number(drugForm.quantity_on_hand) : 0,
 				low_stock_threshold:
 					drugForm.low_stock_threshold === '' || drugForm.low_stock_threshold == null
 						? null
 						: Math.max(0, Math.floor(Number(drugForm.low_stock_threshold))),
 				notes: drugForm.notes.trim() || null,
 			};
+			if (!editingId) {
+				payload.quantity_on_hand = drugForm.quantity_on_hand ? Number(drugForm.quantity_on_hand) : 0;
+			}
 			if (!payload.name) {
 				toast.error('Medication name is required');
 				return;
@@ -193,49 +184,6 @@ export default function ProviderPharmacyInventory() {
 		}
 	};
 
-	const openStockDialog = (row, mode) => {
-		setStockDialog({
-			open: true,
-			row,
-			mode: mode === 'adjustment' ? 'adjustment' : 'restock',
-			delta: mode === 'restock' ? '10' : '-1',
-			notes: '',
-		});
-	};
-
-	const submitStockMove = async () => {
-		const row = stockDialog.row;
-		if (!row?.id) return;
-		const delta = Number(stockDialog.delta);
-		if (!Number.isFinite(delta) || delta === 0) {
-			toast.error('Enter a non-zero change');
-			return;
-		}
-		if (stockDialog.mode === 'restock' && delta < 0) {
-			toast.error('Restock must be positive');
-			return;
-		}
-		try {
-			const res = await apiServerClient.fetch('/provider/inventory/pharmacy/move', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					drug_catalog_id: row.id,
-					delta_qty: stockDialog.mode === 'restock' ? Math.abs(Math.trunc(delta)) : Math.trunc(delta),
-					reason: stockDialog.mode,
-					notes: stockDialog.notes.trim() || null,
-				}),
-			});
-			const body = await res.json().catch(() => ({}));
-			if (!res.ok) throw new Error(body.error || 'Update failed');
-			toast.success('Stock updated');
-			setStockDialog((s) => ({ ...s, open: false, row: null }));
-			await refreshAll();
-		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Update failed');
-		}
-	};
-
 	const columns = [
 		{
 			key: 'name',
@@ -263,20 +211,20 @@ export default function ProviderPharmacyInventory() {
 			key: 'low_stock_threshold',
 			label: 'Low at',
 			sortable: true,
-			render: (row) => (row.low_stock_threshold != null ? row.low_stock_threshold : '—'),
+			render: (row) => (row.low_stock_threshold != null ? row.low_stock_threshold : 'â€”'),
 		},
 		{
 			key: 'unit_price',
 			label: 'Unit price',
 			sortable: true,
 			render: (row) =>
-				row.unit_price != null ? `${row.currency || 'USD'} ${Number(row.unit_price).toFixed(2)}` : '—',
+				row.unit_price != null ? `${row.currency || 'USD'} ${Number(row.unit_price).toFixed(2)}` : 'â€”',
 		},
 		{
 			key: 'default_strength',
 			label: 'Strength',
 			sortable: true,
-			render: (row) => row.default_strength || '—',
+			render: (row) => row.default_strength || 'â€”',
 		},
 		{
 			key: 'actions',
@@ -287,11 +235,21 @@ export default function ProviderPharmacyInventory() {
 				<div className="flex justify-end">
 					<TableRowActionsMenu
 						items={[
-							{ label: 'Restock', icon: Package, onClick: () => openStockDialog(row, 'restock') },
 							{
-								label: 'Adjust stock',
-								icon: Package,
-								onClick: () => openStockDialog(row, 'adjustment'),
+								label: 'Stock addition',
+								icon: Plus,
+								onClick: () => stockMove.open(row, STOCK_MOVE_REASON.ADDITION),
+							},
+							{
+								label: 'Stock reduction',
+								icon: Minus,
+								onClick: () => stockMove.open(row, STOCK_MOVE_REASON.REDUCTION),
+								separatorBefore: true,
+							},
+							{
+								label: 'Stock adjustment',
+								icon: SlidersHorizontal,
+								onClick: () => stockMove.open(row, STOCK_MOVE_REASON.ADJUSTMENT),
 								separatorBefore: true,
 							},
 							{
@@ -322,7 +280,7 @@ export default function ProviderPharmacyInventory() {
 				try {
 					return format(new Date(r.created_at), 'MMM d, yyyy HH:mm');
 				} catch {
-					return '—';
+					return 'â€”';
 				}
 			},
 		},
@@ -336,14 +294,18 @@ export default function ProviderPharmacyInventory() {
 				</span>
 			),
 		},
-		{ key: 'reason', label: 'Type', render: (r) => <span className="capitalize">{r.reason || '—'}</span> },
-		{ key: 'notes', label: 'Note', render: (r) => r.notes || '—' },
+		{
+			key: 'reason',
+			label: 'Type',
+			render: (r) => <span>{formatMovementReasonLabel(r.reason)}</span>,
+		},
+		{ key: 'notes', label: 'Note', render: (r) => r.notes || 'â€”' },
 	];
 
 	return (
 		<div className="space-y-8 w-full max-w-6xl">
 			<Helmet>
-				<title>Pharmacy inventory — Provider</title>
+				<title>Pharmacy inventory â€” Provider</title>
 			</Helmet>
 
 			<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -373,7 +335,9 @@ export default function ProviderPharmacyInventory() {
 			<Card>
 				<CardHeader>
 					<CardTitle>Stock on hand</CardTitle>
-					<CardDescription>Restock, adjust quantities, or edit product details.</CardDescription>
+					<CardDescription>
+						Use stock addition, reduction, or adjustment to change quantities. Edit updates product details only.
+					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					<ProviderDataTable
@@ -402,60 +366,21 @@ export default function ProviderPharmacyInventory() {
 				</CardContent>
 			</Card>
 
-			<Dialog open={stockDialog.open} onOpenChange={(o) => !o && setStockDialog((s) => ({ ...s, open: false, row: null }))}>
-				<DialogContent className="max-w-md">
-					<DialogHeader>
-						<DialogTitle>Update stock</DialogTitle>
-						<DialogDescription>
-							{stockDialog.row?.name ? String(stockDialog.row.name) : 'Product'} · current on hand:{' '}
-							{stockDialog.row?.quantity_on_hand ?? '—'}
-						</DialogDescription>
-					</DialogHeader>
-					<div className="space-y-3 py-2">
-						<div className="space-y-2">
-							<Label>Movement type</Label>
-							<Select
-								value={stockDialog.mode}
-								onValueChange={(v) => setStockDialog((s) => ({ ...s, mode: v === 'adjustment' ? 'adjustment' : 'restock' }))}
-							>
-								<SelectTrigger>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="restock">Restock (add quantity)</SelectItem>
-									<SelectItem value="adjustment">Adjustment (+ or −)</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-						<div className="space-y-1">
-							<Label>{stockDialog.mode === 'restock' ? 'Units to add' : 'Change in units'}</Label>
-							<Input
-								inputMode="numeric"
-								value={stockDialog.delta}
-								onChange={(e) => setStockDialog((s) => ({ ...s, delta: e.target.value }))}
-							/>
-						</div>
-						<div className="space-y-1">
-							<Label>Note (optional)</Label>
-							<Input value={stockDialog.notes} onChange={(e) => setStockDialog((s) => ({ ...s, notes: e.target.value }))} />
-						</div>
-					</div>
-					<DialogFooter>
-						<Button type="button" variant="outline" onClick={() => setStockDialog((s) => ({ ...s, open: false, row: null }))}>
-							Cancel
-						</Button>
-						<Button type="button" className="bg-teal-600 hover:bg-teal-700 text-white" onClick={() => void submitStockMove()}>
-							Apply
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<PharmacyStockMoveDialog
+				state={stockMove.state}
+				setState={stockMove.setState}
+				onApplied={() => void refreshAll()}
+			/>
 
 			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
 				<DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>{editingId ? 'Edit item' : 'Add item'}</DialogTitle>
-						<DialogDescription>Add stock to your pharmacy inventory. Pricing and on-hand quantity sync to the patient shop when in stock.</DialogDescription>
+						<DialogDescription>
+							{editingId
+								? 'Update product details. Change on-hand quantity using Stock addition, reduction, or adjustment from the row menu.'
+								: 'Add stock to your pharmacy inventory. Pricing and on-hand quantity sync to the patient shop when in stock.'}
+						</DialogDescription>
 					</DialogHeader>
 					<div className="grid gap-3 py-2">
 						<div className="space-y-1">
@@ -482,8 +407,16 @@ export default function ProviderPharmacyInventory() {
 								<Input
 									inputMode="numeric"
 									value={drugForm.quantity_on_hand}
+									disabled={Boolean(editingId)}
+									readOnly={Boolean(editingId)}
+									className={editingId ? 'bg-muted cursor-not-allowed opacity-80' : ''}
 									onChange={(e) => setDrugForm((f) => ({ ...f, quantity_on_hand: e.target.value }))}
 								/>
+								{editingId ? (
+									<p className="text-xs text-muted-foreground">
+										Use Stock addition, reduction, or adjustment on the table row to change quantity.
+									</p>
+								) : null}
 							</div>
 							<div className="space-y-1">
 								<Label>Low-stock alert at</Label>
@@ -512,7 +445,7 @@ export default function ProviderPharmacyInventory() {
 							Cancel
 						</Button>
 						<Button type="button" disabled={savingForm} onClick={() => void saveForm()}>
-							{savingForm ? 'Saving…' : 'Save'}
+							{savingForm ? 'Savingâ€¦' : 'Save'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
