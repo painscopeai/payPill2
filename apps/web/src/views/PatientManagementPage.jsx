@@ -1,12 +1,54 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ProviderDataTable from '@/components/provider/ProviderDataTable.jsx';
+import {
+	ProviderTableColumnPicker,
+	loadColumnVisibility,
+	saveColumnVisibility,
+} from '@/components/provider/ProviderTableColumnPicker.jsx';
 import { usePatients } from '@/hooks/usePatients.js';
 import { FileText } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/TableRowActionsMenu.jsx';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
+
+const PATIENT_COLUMNS_STORAGE_KEY = 'paypill_provider_patients_visible_columns';
+
+const TOGGLEABLE_COLUMN_KEYS = [
+	'patient_name',
+	'email_sort',
+	'phone_sort',
+	'dob_sort',
+	'coverage_sort',
+	'patient_activity_status',
+	'last_visit_sort',
+	'next_visit_sort',
+	'appointments_count',
+];
+
+/** Seven data columns visible by default (actions column is always shown). */
+const DEFAULT_VISIBLE_COLUMN_KEYS = [
+	'patient_name',
+	'email_sort',
+	'phone_sort',
+	'dob_sort',
+	'coverage_sort',
+	'patient_activity_status',
+	'last_visit_sort',
+];
+
+const COLUMN_LABELS = {
+	patient_name: 'Patient',
+	email_sort: 'Email',
+	phone_sort: 'Phone',
+	dob_sort: 'Date of birth',
+	coverage_sort: 'Coverage',
+	patient_activity_status: 'Care status',
+	last_visit_sort: 'Last visit',
+	next_visit_sort: 'Next visit',
+	appointments_count: 'Visits',
+};
 
 function activityBadgeVariant(kind) {
 	switch (String(kind || '').toLowerCase()) {
@@ -52,6 +94,23 @@ function formatDobWithAge(dob) {
 export default function PatientManagementPage() {
 	const { patients, loading } = usePatients();
 
+	const [visibleColumnKeys, setVisibleColumnKeys] = useState(() =>
+		loadColumnVisibility(PATIENT_COLUMNS_STORAGE_KEY, DEFAULT_VISIBLE_COLUMN_KEYS, TOGGLEABLE_COLUMN_KEYS),
+	);
+
+	useEffect(() => {
+		saveColumnVisibility(PATIENT_COLUMNS_STORAGE_KEY, visibleColumnKeys);
+	}, [visibleColumnKeys]);
+
+	const handleVisibleColumnsChange = useCallback((keys) => {
+		setVisibleColumnKeys(keys);
+	}, []);
+
+	const columnPickerOptions = useMemo(
+		() => TOGGLEABLE_COLUMN_KEYS.map((key) => ({ key, label: COLUMN_LABELS[key] || key })),
+		[],
+	);
+
 	const rows = useMemo(
 		() =>
 			(patients || []).map((p) => ({
@@ -66,7 +125,7 @@ export default function PatientManagementPage() {
 		[patients],
 	);
 
-	const columns = useMemo(
+	const allColumns = useMemo(
 		() => [
 			{
 				key: 'patient_name',
@@ -190,6 +249,12 @@ export default function PatientManagementPage() {
 		[],
 	);
 
+	const visibleColumns = useMemo(
+		() =>
+			allColumns.filter((col) => col.key === 'actions' || visibleColumnKeys.has(col.key)),
+		[allColumns, visibleColumnKeys],
+	);
+
 	const emptyMessage = (
 		<div className="py-4 px-2 max-w-xl mx-auto text-left">
 			<p className="font-medium text-foreground">No patients found for your practice yet.</p>
@@ -208,12 +273,19 @@ export default function PatientManagementPage() {
 			<h1 className="text-3xl font-bold tracking-tight">Patient management</h1>
 
 			<Card className="shadow-sm border-border/50">
-				<CardHeader>
+				<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<CardTitle>Your patients</CardTitle>
+					<ProviderTableColumnPicker
+						columnOptions={columnPickerOptions}
+						visibleKeys={visibleColumnKeys}
+						onVisibleKeysChange={handleVisibleColumnsChange}
+						defaultKeys={DEFAULT_VISIBLE_COLUMN_KEYS}
+						minVisible={1}
+					/>
 				</CardHeader>
 				<CardContent className="overflow-x-auto">
 					<ProviderDataTable
-						columns={columns}
+						columns={visibleColumns}
 						data={rows}
 						isLoading={loading}
 						emptyMessage={emptyMessage}
