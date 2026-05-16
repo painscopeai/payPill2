@@ -174,6 +174,7 @@ export default function ProviderConsultationWorkspacePage() {
 	const [templatePick, setTemplatePick] = useState('');
 	const [queueFilter, setQueueFilter] = useState('all');
 	const [viewMode, setViewMode] = useState('queue');
+	const queueInitRef = useRef(false);
 
 	const loadList = useCallback(async () => {
 		setListLoading(true);
@@ -316,15 +317,16 @@ export default function ProviderConsultationWorkspacePage() {
 		setViewMode('queue');
 	}, [applyEncounterPayload, searchParams, setSearchParams]);
 
-	/** Without ?appointment= in the URL, keep the queue table full-width with no selection. */
+	/** On first load without ?appointment=, start with a full-width table and no row selected. */
 	useEffect(() => {
-		if (listLoading || appointmentFromUrl) return;
-		if (!selectedId) return;
+		if (listLoading || queueInitRef.current) return;
+		queueInitRef.current = true;
+		if (appointmentFromUrl) return;
 		setSelectedId(null);
 		setAppointment(null);
 		setPatient(null);
 		applyEncounterPayload(null);
-	}, [listLoading, appointmentFromUrl, selectedId, applyEncounterPayload]);
+	}, [listLoading, appointmentFromUrl, applyEncounterPayload]);
 
 	/** Deep-link only: honor ?appointment= in URL, but never auto-select the first row on load. */
 	useEffect(() => {
