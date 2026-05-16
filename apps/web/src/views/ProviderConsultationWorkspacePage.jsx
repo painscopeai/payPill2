@@ -12,7 +12,22 @@ import { Separator } from '@/components/ui/separator';
 import apiServerClient from '@/lib/apiServerClient';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { toast } from 'sonner';
-import { Calendar, ExternalLink, FileText, User, Trash2, Plus, Pill, FlaskConical } from 'lucide-react';
+import {
+	Calendar,
+	ExternalLink,
+	FileText,
+	User,
+	Trash2,
+	Plus,
+	Pill,
+	FlaskConical,
+	Stethoscope,
+	MessageSquare,
+	ArrowLeft,
+	Phone,
+	Mail,
+} from 'lucide-react';
+import DataTable from '@/components/DataTable.jsx';
 import { formatPersonDisplayName } from '@/lib/providerPatientChartFormat';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -156,6 +171,8 @@ export default function ProviderConsultationWorkspacePage() {
 	const [saving, setSaving] = useState(false);
 	const [formularyPick, setFormularyPick] = useState('');
 	const [templatePick, setTemplatePick] = useState('');
+	const [queueFilter, setQueueFilter] = useState('all');
+	const [viewMode, setViewMode] = useState('queue');
 
 	const loadList = useCallback(async () => {
 		setListLoading(true);
@@ -254,42 +271,77 @@ export default function ProviderConsultationWorkspacePage() {
 		[applyEncounterPayload],
 	);
 
-	const selectAppointment = useCallback(
-		(id) => {
+	const selectQueueRow = useCallback(
+		(row, { openEncounter = false } = {}) => {
+			const id = row?.appointment_id;
+			if (!id) return;
 			setSelectedId(id);
 			const next = new URLSearchParams(searchParams);
-			if (id) next.set('appointment', id);
-			else next.delete('appointment');
+			next.set('appointment', id);
+			if (openEncounter) next.set('view', 'encounter');
+			else next.delete('view');
 			setSearchParams(next, { replace: true });
+			setViewMode(openEncounter ? 'encounter' : 'queue');
 			void loadDetail(id);
 		},
 		[loadDetail, searchParams, setSearchParams],
 	);
 
+	const openEncounterForSelected = useCallback(() => {
+		if (!selectedId) return;
+		const next = new URLSearchParams(searchParams);
+		next.set('appointment', selectedId);
+		next.set('view', 'encounter');
+		setSearchParams(next, { replace: true });
+		setViewMode('encounter');
+	}, [selectedId, searchParams, setSearchParams]);
+
+	const backToQueue = useCallback(() => {
+		const next = new URLSearchParams(searchParams);
+		next.delete('view');
+		setSearchParams(next, { replace: true });
+		setViewMode('queue');
+	}, [searchParams, setSearchParams]);
+
 	useEffect(() => {
 		if (listLoading) return;
-		if (!items.length) {
-			return;
-		}
+		if (!items.length) return;
+
 		if (appointmentFromUrl && !items.some((i) => i.appointment_id === appointmentFromUrl)) {
 			const next = new URLSearchParams(searchParams);
 			next.delete('appointment');
+			next.delete('view');
 			setSearchParams(next, { replace: true });
 			return;
 		}
+
+		const urlViewEncounter = searchParams.get('view') === 'encounter';
+
 		if (appointmentFromUrl && items.some((i) => i.appointment_id === appointmentFromUrl)) {
 			if (selectedId !== appointmentFromUrl) {
-				setSelectedId(appointmentFromUrl);
-				void loadDetail(appointmentFromUrl);
+				const row = items.find((i) => i.appointment_id === appointmentFromUrl);
+				if (row) selectQueueRow(row, { openEncounter: urlViewEncounter });
+			} else if (urlViewEncounter && viewMode !== 'encounter') {
+				setViewMode('encounter');
 			}
 			return;
 		}
-		if (!appointmentFromUrl && !selectedId && items.length) {
+
+		if (!appointmentFromUrl && !selectedId) {
 			const firstOpen = items.find((i) => i.encounter_status !== 'finalized');
 			const pick = firstOpen || items[0];
-			selectAppointment(pick.appointment_id);
+			selectQueueRow(pick);
 		}
-	}, [appointmentFromUrl, items, listLoading, loadDetail, selectedId, selectAppointment, searchParams, setSearchParams]);
+	}, [
+		appointmentFromUrl,
+		items,
+		listLoading,
+		selectedId,
+		selectQueueRow,
+		searchParams,
+		setSearchParams,
+		viewMode,
+	]);
 
 	const patientName = useMemo(() => {
 		if (!patient) return 'Patient';
@@ -308,53 +360,110 @@ export default function ProviderConsultationWorkspacePage() {
 		return String(currentUser?.email || '').trim() || 'Licensed prescriber';
 	}, [currentUser]);
 
-	const queueSections = useMemo(() => {
-		function cmpDateDesc(a, b) {
-			const sa = `${a.appointment_date}T${String(a.appointment_time || '00:00:00').slice(0, 8)}`;
-			const sb = `${b.appointment_date}T${String(b.appointment_time || '00:00:00').slice(0, 8)}`;
-			return sb.localeCompare(sa);
-		}
-		const open = [];
-		const finalized = [];
-		for (const row of items) {
-			if (row.encounter_status === 'finalized') finalized.push(row);
-			else open.push(row);
-		}
-		open.sort(cmpDateDesc);
-		finalized.sort(cmpDateDesc);
-		return { open, finalized };
+	const filteredQueueItems = useMemo(() => {
+		if (queueFilter === 'open') return items.filter((i) => i.encounter_status !== 'finalized');
+		if (queueFilter === 'finalized') return items.filter((i) => i.encounter_status === 'finalized');
+		return items;
+	}, [items, queueFilter]);
+
+	const selectedQueueRow = useMemo(
+		() => items.find((i) => i.appointment_id === selectedId) || null,
+		[items, selectedId],
+	);
+
+	const queueCounts = useMemo(() => {
+		const open = items.filter((i) => i.encounter_status !== 'finalized').length;
+		const finalized = items.filter((i) => i.encounter_status === 'finalized').length;
+		return { all: items.length, open, finalized };
 	}, [items]);
 
-	const renderQueueRow = (row) => {
-		const active = row.appointment_id === selectedId;
-		const when = `${formatDateShort(row.appointment_date)}${row.appointment_time ? ` · ${formatTime(row.appointment_time)}` : ''}`;
+	const encounterStatusBadge = (row) => {
+		if (row.encounter_status === 'finalized') return <Badge className="font-normal">Finalized</Badge>;
+		if (row.encounter_status === 'draft') return <Badge variant="outline" className="font-normal">Draft</Badge>;
 		return (
-			<li key={row.appointment_id}>
-				<button
-					type="button"
-					onClick={() => selectAppointment(row.appointment_id)}
-					className={`w-full text-left rounded-lg border px-3 py-2.5 transition-colors ${
-						active ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border hover:bg-muted/50'
-					}`}
-				>
-					<div className="font-medium text-sm line-clamp-1">{row.patient_name}</div>
-					<div className="text-xs text-muted-foreground mt-0.5">{when}</div>
-					<div className="flex flex-wrap gap-1 mt-1.5">
-						<Badge variant="secondary" className="text-xs font-normal">
-							{row.visit_label}
-						</Badge>
-						{row.encounter_status === 'finalized' ? (
-							<Badge className="text-xs font-normal">Finalized</Badge>
-						) : row.encounter_status === 'draft' ? (
-							<Badge variant="outline" className="text-xs font-normal">
-								Draft
-							</Badge>
-						) : null}
-					</div>
-				</button>
-			</li>
+			<Badge variant="secondary" className="font-normal text-amber-800 bg-amber-100 dark:bg-amber-950/50 dark:text-amber-200">
+				To document
+			</Badge>
 		);
 	};
+
+	const queueColumns = useMemo(
+		() => [
+			{
+				header: 'Patient',
+				cell: (row) => (
+					<div className="min-w-[10rem]">
+						<p className="font-medium text-foreground">{row.patient_name}</p>
+						{row.patient_email ? (
+							<p className="text-xs text-muted-foreground truncate max-w-[14rem]">{row.patient_email}</p>
+						) : null}
+					</div>
+				),
+			},
+			{
+				header: 'Visit',
+				cell: (row) => <Badge variant="secondary" className="font-normal">{row.visit_label}</Badge>,
+			},
+			{
+				header: 'Scheduled',
+				cell: (row) => (
+					<span className="whitespace-nowrap text-sm">
+						{formatDateShort(row.appointment_date)}
+						{row.appointment_time ? ` · ${formatTime(row.appointment_time)}` : ''}
+					</span>
+				),
+			},
+			{
+				header: 'Booking',
+				cell: (row) => <span className="capitalize text-sm text-muted-foreground">{row.status || 'scheduled'}</span>,
+			},
+			{
+				header: 'Documentation',
+				cell: (row) => encounterStatusBadge(row),
+			},
+			{
+				header: 'Reason',
+				cell: (row) => (
+					<span className="text-sm text-muted-foreground line-clamp-2 max-w-[12rem]">{row.reason || '—'}</span>
+				),
+			},
+			{
+				header: 'Confirmation',
+				cell: (row) => (
+					<span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+						{row.confirmation_number ? `#${row.confirmation_number}` : '—'}
+					</span>
+				),
+			},
+		],
+		[],
+	);
+
+	const previewPatient = patient || (selectedQueueRow
+		? {
+				id: selectedQueueRow.patient_user_id,
+				first_name: null,
+				last_name: null,
+				email: selectedQueueRow.patient_email,
+				phone: selectedQueueRow.patient_phone,
+				date_of_birth: selectedQueueRow.patient_date_of_birth,
+				gender: selectedQueueRow.patient_gender,
+				name: selectedQueueRow.patient_name,
+			}
+		: null);
+
+	const previewPatientName = useMemo(() => {
+		if (!previewPatient) return selectedQueueRow?.patient_name || 'Patient';
+		return (
+			formatPersonDisplayName(
+				[previewPatient.first_name, previewPatient.last_name].filter(Boolean).join(' ').trim() ||
+					String(previewPatient.name || '').trim() ||
+					String(previewPatient.email || '').trim() ||
+					selectedQueueRow?.patient_name ||
+					'Patient',
+			) || 'Patient'
+		);
+	}, [previewPatient, selectedQueueRow]);
 
 	const addRxFromCatalog = (drugId) => {
 		const d = drugCatalog.find((x) => x.id === drugId);
@@ -459,84 +568,236 @@ export default function ProviderConsultationWorkspacePage() {
 	};
 
 	return (
-		<div className="space-y-6 max-w-7xl mx-auto">
+		<div className="flex flex-col gap-4 min-h-[calc(100dvh-6.5rem)] max-w-[100rem] w-full">
 			<Helmet>
 				<title>Consultations — PayPill</title>
 			</Helmet>
-			<div>
-				<h1 className="text-3xl font-bold tracking-tight">Consultation workspace</h1>
-				<p className="text-muted-foreground mt-1 max-w-3xl">
-					Consultation and follow-up bookings from your schedule appear here. Open a visit to document in SOAP
-					format and jump to the full patient chart when needed.
-				</p>
+			<div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 shrink-0">
+				<div>
+					<h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Consultation workspace</h1>
+					<p className="text-muted-foreground mt-1 max-w-3xl text-sm">
+						{viewMode === 'queue'
+							? 'Select a patient from the queue to preview demographics and start documentation.'
+							: 'SOAP documentation for the selected visit. Return to the queue anytime.'}
+					</p>
+				</div>
+				{viewMode === 'encounter' ? (
+					<Button type="button" variant="outline" size="sm" onClick={backToQueue} className="shrink-0">
+						<ArrowLeft className="h-4 w-4 mr-2" />
+						Back to queue
+					</Button>
+				) : null}
 			</div>
 
 			{message && !listError ? (
-				<div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+				<div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100 shrink-0">
 					{message}
 				</div>
 			) : null}
 
-			<div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[480px]">
-				<Card className="lg:col-span-4 flex flex-col overflow-hidden">
-					<CardHeader className="pb-3">
-						<CardTitle className="text-lg flex items-center gap-2">
-							<Calendar className="h-5 w-5 text-muted-foreground" />
-							Queue
-						</CardTitle>
-						<CardDescription>Open visits and finalized encounters (most recent first within each group)</CardDescription>
-					</CardHeader>
-					<CardContent className="pt-0 flex-1 min-h-0 flex flex-col">
-						{listLoading ? (
-							<LoadingSpinner />
-						) : listError ? (
-							<p className="text-sm text-destructive">{listError}</p>
-						) : items.length === 0 ? (
-							<p className="text-sm text-muted-foreground">
-								No consultation or follow-up bookings yet. When patients choose those visit types during
-								booking, they will appear here automatically.
-							</p>
-						) : (
-							<ScrollArea className="h-[min(60vh,520px)] pr-3">
-								<div className="space-y-5">
-									<div>
-										<h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-											To document
-										</h3>
-										{queueSections.open.length === 0 ? (
-											<p className="text-xs text-muted-foreground py-1">No open visits in the queue.</p>
-										) : (
-											<ul className="space-y-2">{queueSections.open.map((row) => renderQueueRow(row))}</ul>
-										)}
-									</div>
-									<div>
-										<h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-											Finalized
-										</h3>
-										{queueSections.finalized.length === 0 ? (
-											<p className="text-xs text-muted-foreground py-1">No finalized encounters yet.</p>
-										) : (
-											<ul className="space-y-2">{queueSections.finalized.map((row) => renderQueueRow(row))}</ul>
-										)}
-									</div>
+			{viewMode === 'queue' ? (
+				<div className="flex flex-1 min-h-0 rounded-xl border border-border/80 bg-card shadow-sm overflow-hidden">
+					<div className="flex flex-col flex-1 min-w-0 min-h-0">
+						<div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border/60 bg-muted/20 shrink-0">
+							<div className="flex items-center gap-2">
+								<Calendar className="h-5 w-5 text-teal-600" />
+								<div>
+									<h2 className="font-semibold text-sm">Visit queue</h2>
+									<p className="text-xs text-muted-foreground">
+										{queueCounts.all} booking{queueCounts.all === 1 ? '' : 's'} · most recent first
+									</p>
+								</div>
+							</div>
+							<div className="flex flex-wrap gap-1.5">
+								{[
+									{ key: 'all', label: `All (${queueCounts.all})` },
+									{ key: 'open', label: `To document (${queueCounts.open})` },
+									{ key: 'finalized', label: `Finalized (${queueCounts.finalized})` },
+								].map(({ key, label }) => (
+									<Button
+										key={key}
+										type="button"
+										size="sm"
+										variant={queueFilter === key ? 'default' : 'outline'}
+										className={queueFilter === key ? 'bg-teal-600 hover:bg-teal-700 text-white' : ''}
+										onClick={() => setQueueFilter(key)}
+									>
+										{label}
+									</Button>
+								))}
+							</div>
+						</div>
+						<div className="flex-1 min-h-0 p-4 pt-3">
+							{listError ? (
+								<p className="text-sm text-destructive">{listError}</p>
+							) : (
+								<DataTable
+									columns={queueColumns}
+									data={filteredQueueItems}
+									loading={listLoading}
+									stickyHeader
+									className="h-full border-0 rounded-lg"
+									getRowId={(row) => row.appointment_id}
+									selectedRowId={selectedId}
+									onRowClick={(row) => selectQueueRow(row)}
+									emptyMessage={
+										items.length === 0
+											? 'No consultation or follow-up bookings yet. When patients book those visit types, they appear here automatically.'
+											: 'No visits match this filter.'
+									}
+								/>
+							)}
+						</div>
+					</div>
+
+					{selectedQueueRow ? (
+						<aside className="w-full sm:w-[22rem] lg:w-[24rem] shrink-0 border-l border-border/80 bg-muted/10 flex flex-col min-h-0">
+							<div className="px-4 py-3 border-b border-border/60 bg-background/80 shrink-0">
+								<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Patient snapshot</p>
+							</div>
+							<ScrollArea className="flex-1 min-h-0">
+								<div className="p-4 space-y-4">
+									{detailLoading && !previewPatient ? (
+										<div className="py-8 flex justify-center">
+											<LoadingSpinner />
+										</div>
+									) : (
+										<>
+											<div className="rounded-lg border bg-card p-4 space-y-3 shadow-sm">
+												<div className="flex items-start gap-3">
+													<div className="h-11 w-11 rounded-full bg-teal-600/10 flex items-center justify-center shrink-0">
+														<User className="h-5 w-5 text-teal-700" />
+													</div>
+													<div className="min-w-0 flex-1">
+														<p className="font-semibold text-lg leading-tight truncate">{previewPatientName}</p>
+														<div className="flex flex-wrap gap-1.5 mt-1.5">
+															{encounterStatusBadge(selectedQueueRow)}
+															<Badge variant="secondary" className="font-normal">
+																{selectedQueueRow.visit_label}
+															</Badge>
+														</div>
+													</div>
+												</div>
+												<Separator />
+												<dl className="grid gap-2.5 text-sm">
+													{previewPatient?.date_of_birth || selectedQueueRow.patient_date_of_birth ? (
+														<div className="flex justify-between gap-2">
+															<dt className="text-muted-foreground">DOB</dt>
+															<dd className="font-medium">
+																{formatDateShort(
+																	previewPatient?.date_of_birth || selectedQueueRow.patient_date_of_birth,
+																)}
+															</dd>
+														</div>
+													) : null}
+													{previewPatient?.gender || selectedQueueRow.patient_gender ? (
+														<div className="flex justify-between gap-2">
+															<dt className="text-muted-foreground">Gender</dt>
+															<dd className="font-medium capitalize">
+																{previewPatient?.gender || selectedQueueRow.patient_gender}
+															</dd>
+														</div>
+													) : null}
+													{(previewPatient?.phone || selectedQueueRow.patient_phone) && (
+														<div className="flex justify-between gap-2">
+															<dt className="text-muted-foreground flex items-center gap-1">
+																<Phone className="h-3.5 w-3.5" />
+																Phone
+															</dt>
+															<dd className="font-medium text-right">
+																{previewPatient?.phone || selectedQueueRow.patient_phone}
+															</dd>
+														</div>
+													)}
+													{(previewPatient?.email || selectedQueueRow.patient_email) && (
+														<div className="flex justify-between gap-2">
+															<dt className="text-muted-foreground flex items-center gap-1">
+																<Mail className="h-3.5 w-3.5" />
+																Email
+															</dt>
+															<dd className="font-medium text-right truncate max-w-[11rem]">
+																{previewPatient?.email || selectedQueueRow.patient_email}
+															</dd>
+														</div>
+													)}
+												</dl>
+											</div>
+
+											<div className="rounded-lg border bg-card p-3 text-sm space-y-1.5">
+												<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Visit</p>
+												<p className="font-medium">
+													{formatDateShort(selectedQueueRow.appointment_date)}
+													{selectedQueueRow.appointment_time
+														? ` · ${formatTime(selectedQueueRow.appointment_time)}`
+														: ''}
+												</p>
+												{selectedQueueRow.reason ? (
+													<p className="text-muted-foreground">
+														<span className="font-medium text-foreground">Reason: </span>
+														{selectedQueueRow.reason}
+													</p>
+												) : null}
+												{selectedQueueRow.confirmation_number ? (
+													<p className="text-xs text-muted-foreground font-mono">
+														#{selectedQueueRow.confirmation_number}
+													</p>
+												) : null}
+											</div>
+
+											<div className="space-y-2">
+												<Button
+													type="button"
+													className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+													onClick={openEncounterForSelected}
+												>
+													<Stethoscope className="h-4 w-4 mr-2" />
+													{selectedQueueRow.encounter_status === 'finalized'
+														? 'Review encounter'
+														: 'Document encounter'}
+												</Button>
+												{selectedQueueRow.patient_user_id ? (
+													<Button type="button" variant="outline" className="w-full" asChild>
+														<Link to={`/provider/patients/${encodeURIComponent(selectedQueueRow.patient_user_id)}`}>
+															<ExternalLink className="h-4 w-4 mr-2" />
+															Full patient chart
+														</Link>
+													</Button>
+												) : null}
+												{selectedQueueRow.patient_user_id ? (
+													<Button type="button" variant="outline" className="w-full" asChild>
+														<Link
+															to={`/provider/messages?patient=${encodeURIComponent(selectedQueueRow.patient_user_id)}`}
+														>
+															<MessageSquare className="h-4 w-4 mr-2" />
+															Message patient
+														</Link>
+													</Button>
+												) : null}
+												<Button type="button" variant="ghost" className="w-full text-muted-foreground" asChild>
+													<Link to="/provider/appointments">View schedule</Link>
+												</Button>
+											</div>
+										</>
+									)}
 								</div>
 							</ScrollArea>
-						)}
-					</CardContent>
-				</Card>
-
-				<Card className="lg:col-span-8 flex flex-col">
-					<CardHeader>
+						</aside>
+					) : (
+						<aside className="hidden lg:flex w-[18rem] shrink-0 border-l border-dashed border-border/60 items-center justify-center p-6 text-center">
+							<p className="text-sm text-muted-foreground">Select a row to preview the patient and start documentation.</p>
+						</aside>
+					)}
+				</div>
+			) : (
+				<Card className="flex flex-col flex-1 min-h-0 overflow-hidden">
+					<CardHeader className="shrink-0 pb-3">
 						<CardTitle className="text-lg flex items-center gap-2">
 							<FileText className="h-5 w-5 text-muted-foreground" />
-							Encounter
+							Encounter documentation
 						</CardTitle>
-						<CardDescription>Structured documentation (SOAP) for the selected visit</CardDescription>
+						<CardDescription>Structured SOAP note for {previewPatientName}</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-6">
-						{!selectedId && !listLoading && items.length > 0 ? (
-							<p className="text-sm text-muted-foreground">Select a visit from the queue.</p>
-						) : null}
+					<CardContent className="space-y-6 overflow-y-auto flex-1 min-h-0 pb-8">
 						{detailLoading ? (
 							<LoadingSpinner />
 						) : detailError ? (
@@ -1046,7 +1307,7 @@ export default function ProviderConsultationWorkspacePage() {
 						) : null}
 					</CardContent>
 				</Card>
-			</div>
+			)}
 		</div>
 	);
 }

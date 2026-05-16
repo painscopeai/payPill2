@@ -59,9 +59,22 @@ export async function GET(request: NextRequest) {
 	});
 
 	const userIds = [...new Set(filtered.map((r) => (r as { user_id?: string }).user_id).filter(Boolean))] as string[];
-	let profileById = new Map<string, { first_name?: string | null; last_name?: string | null; email?: string | null }>();
+	let profileById = new Map<
+		string,
+		{
+			first_name?: string | null;
+			last_name?: string | null;
+			email?: string | null;
+			phone?: string | null;
+			date_of_birth?: string | null;
+			gender?: string | null;
+		}
+	>();
 	if (userIds.length) {
-		const { data: profs } = await sb.from('profiles').select('id, first_name, last_name, email').in('id', userIds);
+		const { data: profs } = await sb
+			.from('profiles')
+			.select('id, first_name, last_name, email, phone, date_of_birth, gender')
+			.in('id', userIds);
 		profileById = new Map((profs || []).map((p: { id: string }) => [p.id, p]));
 	}
 
@@ -108,6 +121,10 @@ export async function GET(request: NextRequest) {
 			appointment_id: r.id,
 			patient_user_id: r.user_id,
 			patient_name: patientName,
+			patient_email: p?.email || null,
+			patient_phone: p?.phone || null,
+			patient_date_of_birth: p?.date_of_birth || null,
+			patient_gender: p?.gender || null,
 			visit_slug: slug,
 			visit_label: visitLabel,
 			appointment_date: r.appointment_date,
