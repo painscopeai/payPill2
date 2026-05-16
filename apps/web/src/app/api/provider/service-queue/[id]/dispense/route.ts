@@ -4,6 +4,7 @@ import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { getPharmacyAccessForOrg } from '@/server/provider/practiceRole';
 import { notifyLowStockIfNeeded } from '@/server/provider/inventoryLowStock';
+import { completeLinkedFulfillmentAppointments } from '@/server/provider/completeLinkedFulfillmentAppointments';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -130,5 +131,11 @@ export async function POST(
 
 	await notifyLowStockIfNeeded(sb, orgId, [drugId]);
 
-	return NextResponse.json({ item: updated, drug: { ...drug, quantity_on_hand: next } });
+	const linked = await completeLinkedFulfillmentAppointments(sb, queueItem, orgId);
+
+	return NextResponse.json({
+		item: updated,
+		drug: { ...drug, quantity_on_hand: next },
+		completed_appointment_ids: linked.appointmentIds,
+	});
 }

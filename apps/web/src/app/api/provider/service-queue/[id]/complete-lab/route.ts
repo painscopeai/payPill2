@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { getProviderPortalAccess } from '@/server/provider/providerPortalAccess';
+import { completeLinkedFulfillmentAppointments } from '@/server/provider/completeLinkedFulfillmentAppointments';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -95,5 +96,11 @@ export async function POST(
 		.single();
 	if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
 
-	return NextResponse.json({ item: updated, health_record_id: healthRow?.id || null });
+	const linked = await completeLinkedFulfillmentAppointments(sb, queueItem, ctx.providerOrgId);
+
+	return NextResponse.json({
+		item: updated,
+		health_record_id: healthRow?.id || null,
+		completed_appointment_ids: linked.appointmentIds,
+	});
 }
