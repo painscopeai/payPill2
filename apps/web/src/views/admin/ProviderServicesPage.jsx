@@ -299,7 +299,7 @@ export default function ProviderServicesPage() {
           Manage billable services and pricing per practice. Providers can also add rows during self-serve onboarding.
         </p>
         <Button variant="link" className="h-auto px-0 pt-2" asChild>
-          <Link to="/admin/providers">Back to provider directory</Link>
+          <Link to="/admin/providers">Back to providers</Link>
         </Button>
       </div>
 

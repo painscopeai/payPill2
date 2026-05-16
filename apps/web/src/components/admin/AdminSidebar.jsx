@@ -31,7 +31,7 @@ const sections = [
   {
     title: 'Provider Management',
     items: [
-      { title: 'Provider Directory', path: '/admin/providers', icon: Building2 },
+      { title: 'Providers', path: '/admin/providers', icon: Building2 },
       { title: 'Provider Specialties', path: '/admin/provider-types', icon: Tags },
       { title: 'Appointment Types', path: '/admin/appointment-options', icon: CalendarClock },
       { title: 'Service Catalog', path: '/admin/provider-services', icon: ListChecks },

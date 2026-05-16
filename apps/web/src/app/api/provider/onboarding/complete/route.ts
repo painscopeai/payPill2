@@ -80,5 +80,19 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: upErr.message }, { status: 500 });
 	}
 
+	const { error: provErr } = await sb
+		.from('providers')
+		.update({
+			status: 'active',
+			verification_status: 'verified',
+			approved_at: new Date().toISOString(),
+			updated_at: new Date().toISOString(),
+		})
+		.eq('id', orgId);
+
+	if (provErr) {
+		console.error('[onboarding/complete] provider status', provErr.message);
+	}
+
 	return NextResponse.json({ ok: true });
 }

@@ -86,7 +86,7 @@ export function FormTemplatesModal({
 													navigate('/admin/providers');
 												}}
 											>
-												Provider directory
+												Providers
 											</Button>
 											<Button
 												variant="outline"

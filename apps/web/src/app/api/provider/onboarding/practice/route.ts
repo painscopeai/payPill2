@@ -74,8 +74,8 @@ export async function PUT(request: NextRequest) {
 				email: displayEmail || null,
 				phone: phoneFinal,
 				address: address,
-				status: 'pending',
-				verification_status: 'pending',
+				status: 'active',
+				verification_status: 'verified',
 				type: typeSlug,
 			})
 			.select('id')
@@ -122,6 +122,8 @@ export async function PUT(request: NextRequest) {
 			email: displayEmail || null,
 			phone: phoneFinal,
 			address,
+			status: 'active',
+			verification_status: 'verified',
 			updated_at: new Date().toISOString(),
 		})
 		.eq('id', orgId);
