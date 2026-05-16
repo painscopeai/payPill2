@@ -26,15 +26,21 @@ export const PROVIDER_BASE_NAV = [
 	{ label: 'Analytics', icon: Activity, path: '/provider/analytics' },
 ];
 
+const CLINICAL_CONSULTATIONS_NAV = {
+	label: 'Consultations',
+	icon: FileText,
+	path: '/provider/consultations',
+};
+
+const PHARMACY_DISPENSING_NAV = {
+	label: 'Dispensing',
+	icon: Pill,
+	path: '/provider/dispensing',
+};
+
 const ROLE_EXTENSION_NAV = {
-	doctor: [
-		{ label: 'Consultations', icon: FileText, path: '/provider/consultations' },
-		{ label: 'Forms', icon: ClipboardList, path: '/provider/forms' },
-	],
-	pharmacist: [
-		{ label: 'Inventory', icon: Package, path: '/provider/inventory' },
-		{ label: 'Dispensing', icon: Pill, path: '/provider/dispensing' },
-	],
+	doctor: [{ label: 'Forms', icon: ClipboardList, path: '/provider/forms' }],
+	pharmacist: [{ label: 'Inventory', icon: Package, path: '/provider/inventory' }],
 	laboratory: [
 		{ label: 'Lab orders', icon: FlaskConical, path: '/provider/lab-orders' },
 		{ label: 'Lab catalog', icon: ClipboardList, path: '/provider/settings/catalog/labs' },
@@ -56,6 +62,31 @@ export function normalizeProviderPortalProfile(operationsProfile, practiceRoleSl
 
 export function getProviderNavItems(portalProfile) {
 	const profile = PROVIDER_PORTAL_PROFILES.includes(portalProfile) ? portalProfile : 'doctor';
+
+	if (profile === 'doctor') {
+		const [dashboard, appointments, ...restBase] = PROVIDER_BASE_NAV;
+		return [
+			dashboard,
+			appointments,
+			CLINICAL_CONSULTATIONS_NAV,
+			...restBase,
+			...ROLE_EXTENSION_NAV.doctor,
+			SETTINGS_NAV,
+		];
+	}
+
+	if (profile === 'pharmacist') {
+		const [dashboard, appointments, ...restBase] = PROVIDER_BASE_NAV;
+		return [
+			dashboard,
+			appointments,
+			PHARMACY_DISPENSING_NAV,
+			...restBase,
+			...ROLE_EXTENSION_NAV.pharmacist,
+			SETTINGS_NAV,
+		];
+	}
+
 	const extensions = ROLE_EXTENSION_NAV[profile] || ROLE_EXTENSION_NAV.doctor;
 	return [...PROVIDER_BASE_NAV, ...extensions, SETTINGS_NAV];
 }
