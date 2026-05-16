@@ -16,19 +16,24 @@ function formatDateLabel(raw) {
 	return d.toLocaleDateString();
 }
 
+function appointmentDateTimeKey(apt) {
+	const d = String(apt?.appointment_date || '');
+	const t = String(apt?.appointment_time || '00:00:00').slice(0, 8);
+	return `${d}T${t}`;
+}
+
 export default function ProviderAppointmentsPage() {
 	const { appointments, loading } = useAppointments();
 
-	const rows = useMemo(
-		() =>
-			(appointments || []).map((apt) => ({
-				...apt,
-				visit_type: apt.appointment_type || apt.type || 'consultation',
-				patient_sort: apt.patient_name || 'Patient',
-				reason_sort: (apt.reason && String(apt.reason).trim()) || '—',
-			})),
-		[appointments],
-	);
+	const rows = useMemo(() => {
+		const mapped = (appointments || []).map((apt) => ({
+			...apt,
+			visit_type: apt.appointment_type || apt.type || 'consultation',
+			patient_sort: apt.patient_name || 'Patient',
+			reason_sort: (apt.reason && String(apt.reason).trim()) || '—',
+		}));
+		return mapped.sort((a, b) => appointmentDateTimeKey(b).localeCompare(appointmentDateTimeKey(a)));
+	}, [appointments]);
 
 	const columns = useMemo(
 		() => [
@@ -142,6 +147,8 @@ export default function ProviderAppointmentsPage() {
 						isLoading={loading}
 						emptyMessage={emptyMessage}
 						getRowId={(r) => String(r.id ?? '')}
+						defaultSortKey="appointment_date"
+						defaultSortDesc
 					/>
 				</CardContent>
 			</Card>

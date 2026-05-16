@@ -17,9 +17,11 @@ export function ProviderDataTable({
 	isLoading,
 	emptyMessage = 'No results found',
 	getRowId = (row) => String(row.id ?? row.patient_id ?? ''),
+	defaultSortKey = null,
+	defaultSortDesc = false,
 }) {
-	const [sortCol, setSortCol] = useState(null);
-	const [sortDesc, setSortDesc] = useState(false);
+	const [sortCol, setSortCol] = useState(defaultSortKey);
+	const [sortDesc, setSortDesc] = useState(defaultSortDesc);
 
 	const handleSort = (key) => {
 		if (!key) return;

@@ -31,10 +31,10 @@ export async function GET(request: NextRequest) {
 	const rowsSorted = [...(rows || [])].sort((a, b) => {
 		const da = String((a as { appointment_date?: string }).appointment_date || '');
 		const db = String((b as { appointment_date?: string }).appointment_date || '');
-		if (da !== db) return da.localeCompare(db);
-		return String((a as { appointment_time?: string }).appointment_time || '').localeCompare(
-			String((b as { appointment_time?: string }).appointment_time || ''),
-		);
+		if (da !== db) return db.localeCompare(da);
+		const ta = String((a as { appointment_time?: string }).appointment_time || '');
+		const tb = String((b as { appointment_time?: string }).appointment_time || '');
+		return tb.localeCompare(ta);
 	});
 
 	const userIds = Array.from(new Set(rowsSorted.map((r: { user_id?: string | null }) => r.user_id).filter(Boolean)));
