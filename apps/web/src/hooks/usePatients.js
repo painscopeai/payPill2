@@ -10,9 +10,16 @@ function mapPatientRow(rel) {
 		id: rel.id,
 		patient_id: rel.patient_id,
 		patient_name: name,
+		patient_email: rel.patient_email ?? d.email ?? null,
+		patient_phone: rel.patient_phone ?? d.phone ?? null,
+		patient_date_of_birth: rel.patient_date_of_birth ?? d.date_of_birth ?? null,
+		patient_gender: rel.patient_gender ?? d.gender ?? null,
 		linked_via: Array.isArray(rel.linked_via) ? rel.linked_via : [],
 		patient_activity_status: rel.patient_activity_status || '',
 		patient_activity_kind: rel.patient_activity_kind || '',
+		next_visit_date: rel.next_visit_date || null,
+		last_visit_date: rel.last_visit_date || null,
+		appointments_count: rel.appointments_count ?? 0,
 	};
 }
 

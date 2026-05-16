@@ -1,9 +1,7 @@
 import React, { useMemo } from 'react';
 import { Helmet } from 'react-helmet';
-import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import ProviderDataTable from '@/components/provider/ProviderDataTable.jsx';
 import { usePatients } from '@/hooks/usePatients.js';
 import { FileText } from 'lucide-react';
@@ -31,16 +29,24 @@ function coverageLine(cov) {
 	return parts.join(' · ');
 }
 
-function linkedBadges(linked) {
-	const l = Array.isArray(linked) ? linked : [];
-	const items = [];
-	if (l.includes('relationship')) items.push({ key: 'ct', label: 'Care team', variant: 'secondary' });
-	if (l.includes('appointment')) items.push({ key: 'bk', label: 'Booked', variant: 'outline', className: 'border-teal-500/40' });
-	if (l.includes('clinical_note')) items.push({ key: 'nt', label: 'Notes', variant: 'outline' });
-	if (l.includes('prescription')) items.push({ key: 'rx', label: 'Rx', variant: 'outline' });
-	if (l.includes('telemedicine')) items.push({ key: 'tm', label: 'Video', variant: 'outline' });
-	if (l.includes('consultation_encounter')) items.push({ key: 'cn', label: 'Consult', variant: 'outline' });
-	return items;
+function formatDateShort(value) {
+	if (!value) return '—';
+	const d = /^\d{4}-\d{2}-\d{2}/.test(String(value))
+		? new Date(`${String(value).slice(0, 10)}T12:00:00`)
+		: new Date(value);
+	return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString();
+}
+
+function formatDobWithAge(dob) {
+	if (!dob) return '—';
+	const d = /^\d{4}-\d{2}-\d{2}/.test(String(dob))
+		? new Date(`${String(dob).slice(0, 10)}T12:00:00`)
+		: new Date(dob);
+	if (Number.isNaN(d.getTime())) return String(dob);
+	const label = d.toLocaleDateString();
+	const age = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+	if (age >= 0 && age < 130) return `${label} (${age} yr)`;
+	return label;
 }
 
 export default function PatientManagementPage() {
@@ -51,7 +57,11 @@ export default function PatientManagementPage() {
 			(patients || []).map((p) => ({
 				...p,
 				coverage_sort: coverageLine(p.coverage_summary),
-				activity_sort: [...(Array.isArray(p.linked_via) ? p.linked_via : [])].sort().join(','),
+				email_sort: p.patient_email || '',
+				phone_sort: p.patient_phone || '',
+				dob_sort: p.patient_date_of_birth || '',
+				last_visit_sort: p.last_visit_date || '',
+				next_visit_sort: p.next_visit_date || '',
 			})),
 		[patients],
 	);
@@ -70,25 +80,61 @@ export default function PatientManagementPage() {
 							<div className="h-10 w-10 rounded-full bg-teal-500/15 flex items-center justify-center text-teal-800 dark:text-teal-200 font-semibold text-xs shrink-0">
 								{initials}
 							</div>
-							<span className="font-medium text-foreground truncate">{name || 'Patient'}</span>
+							<div className="min-w-0">
+								<span className="font-medium text-foreground truncate block">{name || 'Patient'}</span>
+								{row.patient_gender ? (
+									<span className="text-xs text-muted-foreground capitalize">{row.patient_gender}</span>
+								) : null}
+							</div>
 						</div>
 					);
 				},
 			},
 			{
+				key: 'email_sort',
+				label: 'Email',
+				sortable: true,
+				render: (row) => (
+					<span className="text-sm text-muted-foreground truncate max-w-[14rem] block">
+						{row.patient_email || '—'}
+					</span>
+				),
+			},
+			{
+				key: 'phone_sort',
+				label: 'Phone',
+				sortable: true,
+				render: (row) => (
+					<span className="text-sm whitespace-nowrap">{row.patient_phone || '—'}</span>
+				),
+			},
+			{
+				key: 'dob_sort',
+				label: 'Date of birth',
+				sortable: true,
+				render: (row) => (
+					<span className="text-sm whitespace-nowrap">{formatDobWithAge(row.patient_date_of_birth)}</span>
+				),
+			},
+			{
+				key: 'coverage_sort',
+				label: 'Coverage',
+				sortable: true,
+				render: (row) => (
+					<p className="text-sm text-muted-foreground max-w-[12rem] line-clamp-2">{coverageLine(row.coverage_summary)}</p>
+				),
+			},
+			{
 				key: 'patient_activity_status',
-				label: 'Status',
+				label: 'Care status',
 				sortable: true,
 				render: (row) => {
-					const linked = row.linked_via || [];
-					const showBooked = linked.includes('appointment');
-					const label =
-						row.patient_activity_status || (showBooked ? 'Has appointments' : 'Patient');
+					const label = row.patient_activity_status || 'Patient';
 					const kind = row.patient_activity_kind || '';
 					return (
 						<Badge
 							variant={activityBadgeVariant(kind)}
-							className="text-[11px] font-medium whitespace-normal text-left h-auto py-1 px-2 max-w-[220px]"
+							className="text-[11px] font-medium whitespace-normal text-left h-auto py-1 px-2 max-w-[200px]"
 						>
 							{label}
 						</Badge>
@@ -96,36 +142,37 @@ export default function PatientManagementPage() {
 				},
 			},
 			{
-				key: 'coverage_sort',
-				label: 'Coverage',
+				key: 'last_visit_sort',
+				label: 'Last visit',
 				sortable: true,
 				render: (row) => (
-					<p className="text-sm text-muted-foreground max-w-xs line-clamp-2">{coverageLine(row.coverage_summary)}</p>
+					<span className="text-sm whitespace-nowrap">{formatDateShort(row.last_visit_date)}</span>
 				),
 			},
 			{
-				key: 'activity_sort',
-				label: 'Activity',
+				key: 'next_visit_sort',
+				label: 'Next visit',
 				sortable: true,
 				render: (row) => (
-					<div className="flex flex-wrap gap-1">
-						{linkedBadges(row.linked_via).map((b) => (
-							<Badge
-								key={b.key}
-								variant={b.variant}
-								className={`text-[10px] font-medium uppercase tracking-wide ${b.className || ''}`}
-							>
-								{b.label}
-							</Badge>
-						))}
-					</div>
+					<span className="text-sm whitespace-nowrap font-medium">
+						{row.next_visit_date ? formatDateShort(row.next_visit_date) : '—'}
+					</span>
+				),
+			},
+			{
+				key: 'appointments_count',
+				label: 'Visits',
+				sortable: true,
+				className: 'w-[4.5rem]',
+				render: (row) => (
+					<span className="text-sm tabular-nums text-muted-foreground">{row.appointments_count ?? 0}</span>
 				),
 			},
 			{
 				key: 'actions',
 				label: '',
 				sortable: false,
-				className: 'w-[140px]',
+				className: 'w-[72px]',
 				render: (row) => (
 					<TableRowActionsMenu
 						items={[

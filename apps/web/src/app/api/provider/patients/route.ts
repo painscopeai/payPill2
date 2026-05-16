@@ -113,6 +113,36 @@ function computeActivity(args: {
 	return { patient_activity_status: 'Connected', patient_activity_kind: 'linked' };
 }
 
+function computeVisitSummary(
+	aptsForPatient: AptRow[],
+	today: string,
+): { next_visit_date: string | null; last_visit_date: string | null; appointments_count: number } {
+	const count = aptsForPatient.length;
+	if (!count) {
+		return { next_visit_date: null, last_visit_date: null, appointments_count: 0 };
+	}
+	const sorted = [...aptsForPatient].sort((a, b) => {
+		const da = String(a.appointment_date || '');
+		const db = String(b.appointment_date || '');
+		if (da !== db) return da.localeCompare(db);
+		return String(a.appointment_time || '00:00:00').localeCompare(String(b.appointment_time || '00:00:00'));
+	});
+	const open = sorted.filter((a) => appointmentOpen(a.status));
+	const next = open.find((a) => String(a.appointment_date || '') >= today);
+	const past = open
+		.filter((a) => String(a.appointment_date || '') < today)
+		.sort((a, b) => String(b.appointment_date || '').localeCompare(String(a.appointment_date || '')));
+	const allPast = [...sorted]
+		.filter((a) => String(a.appointment_date || '') < today)
+		.sort((a, b) => String(b.appointment_date || '').localeCompare(String(a.appointment_date || '')));
+	const last = past[0]?.appointment_date || allPast[0]?.appointment_date || null;
+	return {
+		next_visit_date: next?.appointment_date || null,
+		last_visit_date: last,
+		appointments_count: count,
+	};
+}
+
 async function collectUserIdsFromColumn(
 	sb: ReturnType<typeof getSupabaseAdmin>,
 	table: string,
@@ -292,13 +322,21 @@ export async function GET(request: NextRequest) {
 				if (prescriptionPatientIds.has(patient_id)) linked_via.push('prescription');
 				if (encounterPatientIds.has(patient_id)) linked_via.push('consultation_encounter');
 
+				const aptsForPatient = aptsByUser.get(patient_id) || [];
 				const activity = computeActivity({
 					patientId: patient_id,
-					aptsForPatient: aptsByUser.get(patient_id) || [],
+					aptsForPatient,
 					draftEncounterPatientIds,
 					today,
 					linkedVia: linked_via,
 				});
+				const visits = computeVisitSummary(aptsForPatient, today);
+				const prof = user as {
+					email?: string | null;
+					phone?: string | null;
+					date_of_birth?: string | null;
+					gender?: string | null;
+				} | null;
 
 				return {
 					...(relationship || {
@@ -310,11 +348,18 @@ export async function GET(request: NextRequest) {
 					id: (relationship as { id?: string } | undefined)?.id || patient_id,
 					patient_id,
 					patient_details: user,
+					patient_email: prof?.email || null,
+					patient_phone: prof?.phone || null,
+					patient_date_of_birth: prof?.date_of_birth || null,
+					patient_gender: prof?.gender || null,
 					health_summary,
 					coverage_summary,
 					linked_via,
 					patient_activity_status: activity.patient_activity_status,
 					patient_activity_kind: activity.patient_activity_kind,
+					next_visit_date: visits.next_visit_date,
+					last_visit_date: visits.last_visit_date,
+					appointments_count: visits.appointments_count,
 				};
 			} catch (e: unknown) {
 				const msg = e instanceof Error ? e.message : String(e);
@@ -326,22 +371,37 @@ export async function GET(request: NextRequest) {
 				if (telemedicinePatientIds.has(patient_id)) linked_via.push('telemedicine');
 				if (prescriptionPatientIds.has(patient_id)) linked_via.push('prescription');
 				if (encounterPatientIds.has(patient_id)) linked_via.push('consultation_encounter');
+				const aptsForPatient = aptsByUser.get(patient_id) || [];
 				const activity = computeActivity({
 					patientId: patient_id,
-					aptsForPatient: aptsByUser.get(patient_id) || [],
+					aptsForPatient,
 					draftEncounterPatientIds,
 					today,
 					linkedVia: linked_via,
 				});
+				const visits = computeVisitSummary(aptsForPatient, today);
+				const prof = user as {
+					email?: string | null;
+					phone?: string | null;
+					date_of_birth?: string | null;
+					gender?: string | null;
+				} | null;
 				return {
 					...(relationship || {}),
 					id: (relationship as { id?: string } | undefined)?.id || patient_id,
 					patient_id,
 					provider_id: providerId,
 					patient_details: user,
+					patient_email: prof?.email || null,
+					patient_phone: prof?.phone || null,
+					patient_date_of_birth: prof?.date_of_birth || null,
+					patient_gender: prof?.gender || null,
 					linked_via,
 					patient_activity_status: activity.patient_activity_status,
 					patient_activity_kind: activity.patient_activity_kind,
+					next_visit_date: visits.next_visit_date,
+					last_visit_date: visits.last_visit_date,
+					appointments_count: visits.appointments_count,
 				};
 			}
 		}),
