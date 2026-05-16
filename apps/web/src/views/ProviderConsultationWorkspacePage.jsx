@@ -435,21 +435,9 @@ export default function ProviderConsultationWorkspacePage() {
 				cell: (row) => <span className="capitalize text-sm text-muted-foreground">{row.status || 'scheduled'}</span>,
 			},
 			{
-				header: 'Documentation',
-				cell: (row) => encounterStatusBadge(row),
-			},
-			{
 				header: 'Reason',
 				cell: (row) => (
 					<span className="text-sm text-muted-foreground line-clamp-2 max-w-[12rem]">{row.reason || '—'}</span>
-				),
-			},
-			{
-				header: 'Confirmation',
-				cell: (row) => (
-					<span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-						{row.confirmation_number ? `#${row.confirmation_number}` : '—'}
-					</span>
 				),
 			},
 		],
