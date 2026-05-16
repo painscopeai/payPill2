@@ -11,6 +11,7 @@ import {
 	isBookableFulfillmentOrg,
 	type FulfillmentPartnerKind,
 } from '@/server/provider/listFulfillmentPartners';
+import { assignPendingActionToProvider } from '@/server/patient/assignPendingActionToProvider';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,13 @@ export async function POST(request: NextRequest) {
 	const uid = await getBearerUserId(request);
 	if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-	let body: { fulfillment_org_id?: string; queue_item_ids?: string[]; kind?: FulfillmentPartnerKind };
+	let body: {
+		fulfillment_org_id?: string;
+		queue_item_ids?: string[];
+		kind?: FulfillmentPartnerKind;
+		consultation_action_item_id?: string;
+		booking_appointment_id?: string;
+	};
 	try {
 		body = (await request.json()) as typeof body;
 	} catch {
@@ -34,11 +41,35 @@ export async function POST(request: NextRequest) {
 
 	const fulfillmentOrgId = typeof body.fulfillment_org_id === 'string' ? body.fulfillment_org_id.trim() : '';
 	const kind = body.kind;
+	const consultationActionItemId =
+		typeof body.consultation_action_item_id === 'string' ? body.consultation_action_item_id.trim() : '';
 	if (!fulfillmentOrgId) {
 		return NextResponse.json({ error: 'fulfillment_org_id is required' }, { status: 400 });
 	}
 	if (kind !== 'pharmacy' && kind !== 'laboratory') {
 		return NextResponse.json({ error: 'kind must be pharmacy or laboratory' }, { status: 400 });
+	}
+
+	const sb = getSupabaseAdmin();
+
+	if (consultationActionItemId) {
+		try {
+			const result = await assignPendingActionToProvider(sb, {
+				patientUserId: uid,
+				fulfillmentOrgId,
+				consultationActionItemId,
+				bookingAppointmentId: body.booking_appointment_id || null,
+			});
+			return NextResponse.json({
+				ok: true,
+				assigned: result.assigned ? 1 : 0,
+				fulfillment_org_id: fulfillmentOrgId,
+				queue_item_id: result.queue_item_id,
+			});
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Failed to assign action';
+			return NextResponse.json({ error: msg }, { status: 400 });
+		}
 	}
 
 	const bookable = await isBookableFulfillmentOrg(fulfillmentOrgId, kind);
@@ -51,7 +82,6 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Provider specialty does not match order type' }, { status: 400 });
 	}
 
-	const sb = getSupabaseAdmin();
 	const routedTo = KIND_TO_ROUTED[kind];
 	const ids = Array.isArray(body.queue_item_ids)
 		? body.queue_item_ids.filter((id) => typeof id === 'string' && id.trim())

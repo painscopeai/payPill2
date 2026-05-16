@@ -239,8 +239,8 @@ export default function BookingPage() {
     };
   }, [currentUser?.id, fulfillmentKind]);
 
-  const assignPendingFulfillment = async (providerOrgId, action = selectedPendingAction) => {
-    if (!fulfillmentKind || !providerOrgId || !action?.needs_fulfillment_assign || !action.queue_item_id) {
+  const assignPendingFulfillment = async (providerOrgId, action = selectedPendingAction, bookingAppointmentId = null) => {
+    if (!fulfillmentKind || !providerOrgId || !action?.action_item_id) {
       return true;
     }
     setAssigningFulfillment(true);
@@ -251,7 +251,8 @@ export default function BookingPage() {
         body: JSON.stringify({
           fulfillment_org_id: providerOrgId,
           kind: fulfillmentKind,
-          queue_item_ids: [action.queue_item_id],
+          consultation_action_item_id: action.action_item_id,
+          ...(bookingAppointmentId ? { booking_appointment_id: bookingAppointmentId } : {}),
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -326,11 +327,6 @@ export default function BookingPage() {
       toast.error('Enter a valid preferred time.');
       return;
     }
-    if (selectedPendingAction?.needs_fulfillment_assign && formData.providerId) {
-      const linked = await assignPendingFulfillment(formData.providerId, selectedPendingAction);
-      if (!linked) return;
-    }
-
     setLoading(true);
     try {
       const pname =
@@ -367,6 +363,9 @@ export default function BookingPage() {
       }
 
       const data = await response.json();
+      if (selectedPendingAction && formData.providerId) {
+        await assignPendingFulfillment(formData.providerId, selectedPendingAction, data.id);
+      }
       setConfirmation(data);
       setStep(2);
       toast.success('Appointment booked successfully!');
@@ -478,9 +477,7 @@ export default function BookingPage() {
                               {selectedPendingAction ? (
                                 <p className="text-xs text-muted-foreground">
                                   {selectedPendingAction.subtitle || selectedPendingAction.plan_label}
-                                  {selectedPendingAction.needs_fulfillment_assign
-                                    ? ' — choose a provider below to route this order.'
-                                    : ' — then choose a provider for your appointment.'}
+                                  {' — choose a provider below to send this order to their dispensary queue.'}
                                 </p>
                               ) : (
                                 <p className="text-xs text-muted-foreground">
@@ -502,7 +499,7 @@ export default function BookingPage() {
                             const action =
                               pendingActions.items.find((a) => a.action_item_id === selectedPendingActionId) ||
                               null;
-                            if (action?.needs_fulfillment_assign) {
+                            if (action) {
                               await assignPendingFulfillment(v, action);
                             }
                           }}

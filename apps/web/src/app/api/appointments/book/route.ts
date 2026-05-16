@@ -10,6 +10,8 @@ import { sendBookingConfirmationEmails } from '@/server/email/bookingConfirmatio
 import { normalizeAppointmentTime } from '@/lib/appointmentDateTime';
 import { getPatientBookingSlotsForDate } from '@/server/provider/patientBookingDaySlots';
 import { resolvePatientCoverage } from '@/server/patient/resolvePatientCoverage';
+import { assignPendingActionToProvider } from '@/server/patient/assignPendingActionToProvider';
+import { fulfillmentOrgKind } from '@/server/provider/listFulfillmentPartners';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -107,6 +109,7 @@ export async function POST(request: NextRequest) {
 		insuranceOptionId?: string;
 		copayAmount?: number;
 		providerServiceId?: string | null;
+		consultationActionItemId?: string;
 	};
 	try {
 		body = (await request.json()) as typeof body;
@@ -398,6 +401,25 @@ export async function POST(request: NextRequest) {
 	});
 
 	const apt = appointment as { id: string };
+
+	const consultationActionItemId =
+		typeof body.consultationActionItemId === 'string' ? body.consultationActionItemId.trim() : '';
+	if (consultationActionItemId) {
+		const orgKind = await fulfillmentOrgKind(providerId);
+		if (orgKind === 'pharmacy' || orgKind === 'laboratory') {
+			try {
+				await assignPendingActionToProvider(sb, {
+					patientUserId: uid,
+					fulfillmentOrgId: providerId,
+					consultationActionItemId,
+					bookingAppointmentId: apt.id,
+				});
+			} catch (e) {
+				console.error('[appointments/book] assign pending action', e);
+			}
+		}
+	}
+
 	return NextResponse.json(
 		{
 			id: apt.id,
