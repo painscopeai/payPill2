@@ -694,8 +694,10 @@ export default function ProviderConsultationWorkspacePage() {
 										<div className="min-w-[200px] flex-1 space-y-1">
 											<Label className="text-xs">From formulary</Label>
 											<Select
+												value={formularyPick}
 												onValueChange={(v) => {
 													if (v) addRxFromCatalog(v);
+													setFormularyPick('');
 												}}
 											>
 												<SelectTrigger>
