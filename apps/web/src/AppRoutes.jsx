@@ -99,7 +99,7 @@ const ProviderClaimsPage = React.lazy(() => import('./views/ProviderClaimsPage.j
 const ProviderSettingsPage = React.lazy(() => import('./views/ProviderSettingsPage.jsx'));
 const ProviderSettingsCatalogPage = React.lazy(() => import('./views/ProviderSettingsCatalogPage.jsx'));
 const ProviderIntegrationsPage = React.lazy(() => import('./views/ProviderIntegrationsPage.jsx'));
-const ProviderInventoryPage = React.lazy(() => import('./views/ProviderInventoryPage.jsx'));
+import ProviderInventoryPage from './views/ProviderInventoryPage.jsx';
 const ProviderCompliancePage = React.lazy(() => import('./views/ProviderCompliancePage.jsx'));
 const ProviderTeamPage = React.lazy(() => import('./views/ProviderTeamPage.jsx'));
 const ProviderLocationsPage = React.lazy(() => import('./views/ProviderLocationsPage.jsx'));

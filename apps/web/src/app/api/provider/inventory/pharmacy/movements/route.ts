@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
-import { getPracticeRoleSlugForOrg, isPharmacyPracticeRole } from '@/server/provider/practiceRole';
+import { getPharmacyAccessForOrg } from '@/server/provider/practiceRole';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
 	}
 
 	const sb = getSupabaseAdmin();
-	const roleSlug = await getPracticeRoleSlugForOrg(sb, orgId);
-	if (!isPharmacyPracticeRole(roleSlug)) {
+	const access = await getPharmacyAccessForOrg(sb, orgId);
+	if (!access.isPharmacy) {
 		return NextResponse.json({ error: 'Pharmacy inventory is only available for pharmacy practices.' }, { status: 403 });
 	}
 

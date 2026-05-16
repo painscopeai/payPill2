@@ -7,8 +7,15 @@ import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
+function isPharmacyHint(slug, label) {
+	const s = (slug || '').trim().toLowerCase();
+	if (s === 'pharmacy' || s === 'pharmacist' || s.includes('pharmacy')) return true;
+	return (label || '').trim().toLowerCase().includes('pharmacy');
+}
+
 export default function ProviderInventoryPage() {
-	const { loading, isPharmacy, providerTypeLabel } = useProviderPracticeContext();
+	const { loading, isPharmacy, providerTypeLabel, providerTypeSlug } = useProviderPracticeContext();
+	const canUseInventory = isPharmacy || isPharmacyHint(providerTypeSlug, providerTypeLabel);
 
 	if (loading) {
 		return (
@@ -18,7 +25,7 @@ export default function ProviderInventoryPage() {
 		);
 	}
 
-	if (!isPharmacy) {
+	if (!canUseInventory) {
 		return (
 			<div className="max-w-lg space-y-4">
 				<Helmet>
