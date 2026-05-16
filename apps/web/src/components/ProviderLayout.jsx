@@ -18,7 +18,6 @@ import {
 	Package,
 	Building2,
 	Pill,
-	Share2,
 	ClipboardList,
 	Stethoscope,
 } from 'lucide-react';
@@ -38,7 +37,6 @@ const allNavItems = [
 	{ label: 'Claims', icon: Shield, path: '/provider/claims' },
 	{ label: 'Analytics', icon: Activity, path: '/provider/analytics' },
 	{ label: 'Prescriptions', icon: Pill, path: '/provider/prescriptions' },
-	{ label: 'Referrals', icon: Share2, path: '/provider/referrals' },
 	{ label: 'Forms', icon: ClipboardList, path: '/provider/forms' },
 	{ label: 'Insurance payers', icon: Building2, path: '/provider/insurance-payers' },
 	{ label: 'Inventory', icon: Package, path: '/provider/inventory' },
