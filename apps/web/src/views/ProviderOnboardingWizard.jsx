@@ -19,10 +19,6 @@ import {
 } from '@/components/ui/select';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { LogOut, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
-import {
-	createEmptyServiceRow,
-	ServicesPricingFields,
-} from '@/components/provider-onboarding/ServicesPricingFields.jsx';
 
 const DAY_ORDER = [
 	{ key: 'mon', label: 'Monday' },
@@ -72,21 +68,6 @@ function hasWeeklyWindows(wh) {
 	return DAY_ORDER.some(({ key }) => Array.isArray(wh[key]) && wh[key].length > 0);
 }
 
-function serviceRowsFromApi(items) {
-	if (!Array.isArray(items) || items.length === 0) {
-		return [createEmptyServiceRow(0)];
-	}
-	return items.map((row, i) => ({
-		clientKey: row.id || `srv-${i}-${row.name}`,
-		name: row.name || '',
-		category: row.category || 'service',
-		unit: row.unit || 'per_visit',
-		price: row.price != null ? String(row.price) : '',
-		currency: row.currency || 'USD',
-		notes: row.notes || '',
-	}));
-}
-
 export default function ProviderOnboardingWizard() {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
@@ -102,13 +83,11 @@ export default function ProviderOnboardingWizard() {
 	const [address, setAddress] = useState('');
 	const [practicePhone, setPracticePhone] = useState('');
 
-	const [serviceRows, setServiceRows] = useState(() => [createEmptyServiceRow(0)]);
-
 	const [timezone, setTimezone] = useState('UTC');
 	const [slotDuration, setSlotDuration] = useState('30');
 	const [weeklyHours, setWeeklyHours] = useState(() => ({ ...EMPTY_WEEKLY(), ...DEFAULT_WEEKLY }));
 
-	const progress = useMemo(() => Math.round((step / 4) * 100), [step]);
+	const progress = useMemo(() => Math.round((step / 3) * 100), [step]);
 
 	const load = useCallback(async () => {
 		setLoading(true);
@@ -127,8 +106,6 @@ export default function ProviderOnboardingWizard() {
 			);
 			setAddress((practice && practice.address) || '');
 			setPracticePhone((practice && practice.phone) || currentUser?.phone || '');
-
-			setServiceRows(serviceRowsFromApi(body.services));
 
 			const sched = body.schedule || {};
 			setTimezone(typeof sched.timezone === 'string' && sched.timezone ? sched.timezone : 'UTC');
@@ -159,18 +136,6 @@ export default function ProviderOnboardingWizard() {
 	useEffect(() => {
 		void load();
 	}, [load]);
-
-	const updateServiceRow = (idx, patch) => {
-		setServiceRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
-	};
-
-	const addServiceRow = () => {
-		setServiceRows((prev) => [...prev, createEmptyServiceRow(prev.length)]);
-	};
-
-	const removeServiceRow = (idx) => {
-		setServiceRows((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
-	};
 
 	const setDayEnabled = (key, enabled) => {
 		setWeeklyHours((prev) => ({
@@ -212,41 +177,6 @@ export default function ProviderOnboardingWizard() {
 		return true;
 	};
 
-	const saveServices = async () => {
-		const items = serviceRows
-			.filter((r) => String(r.name || '').trim())
-			.map((r, i) => ({
-				name: String(r.name).trim(),
-				category: r.category,
-				unit: r.unit,
-				price: r.price === '' ? 0 : Number.parseFloat(String(r.price)),
-				currency: r.currency || 'USD',
-				notes: r.notes?.trim() || null,
-				sort_order: i,
-			}));
-		if (items.length === 0) {
-			toast.error('Add at least one service or drug with a name and price');
-			return false;
-		}
-		for (const row of items) {
-			if (!Number.isFinite(row.price) || row.price < 0) {
-				toast.error('Each service needs a valid price (0 or greater)');
-				return false;
-			}
-		}
-		const res = await apiServerClient.fetch('/provider/onboarding/services', {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ items }),
-		});
-		const body = await res.json().catch(() => ({}));
-		if (!res.ok) {
-			toast.error(body.error || 'Could not save services');
-			return false;
-		}
-		return true;
-	};
-
 	const saveSchedule = async () => {
 		if (!hasWeeklyWindows(weeklyHours)) {
 			toast.error('Turn on at least one weekday with start and end times');
@@ -281,15 +211,9 @@ export default function ProviderOnboardingWizard() {
 				return;
 			}
 			if (step === 2) {
-				const ok = await saveServices();
-				if (!ok) return;
-				setStep(3);
-				return;
-			}
-			if (step === 3) {
 				const ok = await saveSchedule();
 				if (!ok) return;
-				setStep(4);
+				setStep(3);
 				return;
 			}
 		} finally {
@@ -353,7 +277,7 @@ export default function ProviderOnboardingWizard() {
 			<main className="flex-1 max-w-2xl w-full mx-auto px-4 py-8">
 				<div className="mb-6 space-y-2">
 					<div className="flex items-center justify-between text-sm">
-						<span className="font-medium text-teal-800 dark:text-teal-200">Step {step} of 4</span>
+						<span className="font-medium text-teal-800 dark:text-teal-200">Step {step} of 3</span>
 						{completedFlag && isEdit ? (
 							<span className="text-muted-foreground flex items-center gap-1">
 								<CheckCircle2 className="h-4 w-4 text-teal-600" /> Editing saved practice
@@ -402,24 +326,6 @@ export default function ProviderOnboardingWizard() {
 				) : null}
 
 				{step === 2 ? (
-					<Card>
-						<CardHeader>
-							<CardTitle>Services & pricing</CardTitle>
-							<CardDescription>List visits, procedures, or medications you bill for.</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<ServicesPricingFields
-								rows={serviceRows}
-								readOnly={false}
-								onUpdateRow={updateServiceRow}
-								onAddRow={addServiceRow}
-								onRemoveRow={removeServiceRow}
-							/>
-						</CardContent>
-					</Card>
-				) : null}
-
-				{step === 3 ? (
 					<Card>
 						<CardHeader>
 							<CardTitle>Weekly availability</CardTitle>
@@ -508,7 +414,7 @@ export default function ProviderOnboardingWizard() {
 					</Card>
 				) : null}
 
-				{step === 4 ? (
+				{step === 3 ? (
 					<Card>
 						<CardHeader>
 							<CardTitle>Review & finish</CardTitle>
@@ -518,12 +424,6 @@ export default function ProviderOnboardingWizard() {
 							<p>
 								<span className="text-muted-foreground">Practice:</span>{' '}
 								<strong>{practiceName.trim() || '—'}</strong>
-							</p>
-							<p>
-								<span className="text-muted-foreground">Services:</span>{' '}
-								<strong>
-									{serviceRows.filter((r) => String(r.name || '').trim()).length} item(s) saved
-								</strong>
 							</p>
 							<p>
 								<span className="text-muted-foreground">Schedule:</span>{' '}
@@ -539,7 +439,7 @@ export default function ProviderOnboardingWizard() {
 					<Button type="button" variant="outline" onClick={handleBack} disabled={step === 1 || saving}>
 						<ChevronLeft className="h-4 w-4 mr-1" /> Back
 					</Button>
-					{step < 4 ? (
+					{step < 3 ? (
 						<Button type="button" onClick={() => void handleNext()} disabled={saving}>
 							{saving ? 'Saving…' : 'Continue'}
 							<ChevronRight className="h-4 w-4 ml-1" />

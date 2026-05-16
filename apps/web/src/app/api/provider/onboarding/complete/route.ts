@@ -34,24 +34,6 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: 'Practice must be saved before completing onboarding.' }, { status: 400 });
 	}
 
-	const { count, error: cErr } = await sb
-		.from('provider_services')
-		.select('id', { count: 'exact', head: true })
-		.eq('provider_id', orgId)
-		.eq('is_active', true);
-
-	if (cErr) {
-		console.error('[onboarding/complete] count services', cErr.message);
-		return NextResponse.json({ error: 'Failed to validate services' }, { status: 500 });
-	}
-
-	if (!count || count < 1) {
-		return NextResponse.json(
-			{ error: 'Add at least one active service or drug with pricing before finishing.' },
-			{ status: 400 },
-		);
-	}
-
 	const { data: sched } = await sb
 		.from('provider_schedule_settings')
 		.select('weekly_hours')

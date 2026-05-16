@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '@/server/supabase/admin';
-import { listProviderTypes } from '@/server/admin/providerTypeService';
+import { listProviderTypes, slugFromLabel } from '@/server/admin/providerTypeService';
 
 function sb() {
 	return getSupabaseAdmin();
@@ -62,22 +62,52 @@ export async function getVisitType(id: string): Promise<VisitTypeRow | null> {
 	return (data as VisitTypeRow) || null;
 }
 
+async function nextVisitTypeSortOrder(): Promise<number> {
+	const { data, error } = await sb()
+		.from('visit_types')
+		.select('sort_order')
+		.order('sort_order', { ascending: false })
+		.limit(1)
+		.maybeSingle();
+	if (error) throw error;
+	const row = data as { sort_order?: number } | null;
+	return (typeof row?.sort_order === 'number' ? row.sort_order : 0) + 1;
+}
+
+async function ensureUniqueVisitTypeSlug(base: string): Promise<string> {
+	let candidate = base;
+	let n = 2;
+	for (;;) {
+		assertValidSlug(candidate);
+		const { data, error } = await sb().from('visit_types').select('id').eq('slug', candidate).maybeSingle();
+		if (error) throw error;
+		if (!data) return candidate;
+		const suffix = `_${n}`;
+		candidate = `${base.slice(0, Math.max(1, 48 - suffix.length))}${suffix}`;
+		n += 1;
+	}
+}
+
 export async function createVisitType(input: {
-	slug: string;
+	slug?: string;
 	label: string;
 	sort_order?: number;
 	active?: boolean;
 }): Promise<VisitTypeRow> {
-	const slug = normalizeSlug(input.slug);
-	assertValidSlug(slug);
 	const label = input.label.trim();
 	if (!label) {
 		throw Object.assign(new Error('label is required'), { status: 400 });
 	}
+	const slugBase = input.slug?.trim() ? normalizeSlug(input.slug) : slugFromLabel(label);
+	const slug = await ensureUniqueVisitTypeSlug(slugBase);
+	const sort_order =
+		typeof input.sort_order === 'number' && Number.isFinite(input.sort_order)
+			? input.sort_order
+			: await nextVisitTypeSortOrder();
 	const row = {
 		slug,
 		label,
-		sort_order: input.sort_order ?? 0,
+		sort_order,
 		active: input.active !== false,
 		updated_at: new Date().toISOString(),
 	};

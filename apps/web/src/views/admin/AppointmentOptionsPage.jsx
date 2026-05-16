@@ -34,7 +34,7 @@ export default function AppointmentOptionsPage() {
   const [vtDialog, setVtDialog] = useState(false);
   const [vtSaving, setVtSaving] = useState(false);
   const [vtEditing, setVtEditing] = useState(null);
-  const [vtForm, setVtForm] = useState({ slug: '', label: '', sort_order: 0, active: true });
+  const [vtForm, setVtForm] = useState({ label: '', active: true });
 
   const loadVisitTypes = useCallback(async () => {
     setVtLoading(true);
@@ -69,7 +69,6 @@ export default function AppointmentOptionsPage() {
           headers,
           body: JSON.stringify({
             label: vtForm.label,
-            sort_order: Number(vtForm.sort_order) || 0,
             active: vtForm.active,
           }),
         });
@@ -83,9 +82,7 @@ export default function AppointmentOptionsPage() {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            slug: vtForm.slug,
             label: vtForm.label,
-            sort_order: Number(vtForm.sort_order) || 0,
             active: vtForm.active,
           }),
         });
@@ -138,9 +135,7 @@ export default function AppointmentOptionsPage() {
               onClick: () => {
                 setVtEditing(row);
                 setVtForm({
-                  slug: row.slug,
                   label: row.label,
-                  sort_order: row.sort_order ?? 0,
                   active: row.active !== false,
                 });
                 setVtDialog(true);
@@ -173,7 +168,7 @@ export default function AppointmentOptionsPage() {
         <Button
           onClick={() => {
             setVtEditing(null);
-            setVtForm({ slug: '', label: '', sort_order: 0, active: true });
+            setVtForm({ label: '', active: true });
             setVtDialog(true);
           }}
           className="gap-2"
@@ -211,35 +206,18 @@ export default function AppointmentOptionsPage() {
           <DialogHeader>
             <DialogTitle>{vtEditing ? 'Edit visit type' : 'New visit type'}</DialogTitle>
             <DialogDescription>
-              {vtEditing ? 'Slug cannot be changed.' : 'Slug is permanent (lowercase, letters, numbers, hyphen).'}
+              {vtEditing
+                ? 'Update how this visit type appears in the patient booking form.'
+                : 'Shown in the patient “Schedule appointment” form.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="space-y-2">
-              <Label>Slug</Label>
-              <Input
-                value={vtForm.slug}
-                onChange={(e) => setVtForm({ ...vtForm, slug: e.target.value })}
-                disabled={!!vtEditing}
-                placeholder="e.g. follow-up"
-                className="bg-background"
-              />
-            </div>
             <div className="space-y-2">
               <Label>Description</Label>
               <Input
                 value={vtForm.label}
                 onChange={(e) => setVtForm({ ...vtForm, label: e.target.value })}
-                placeholder="Display name"
-                className="bg-background"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Sort order</Label>
-              <Input
-                type="number"
-                value={vtForm.sort_order}
-                onChange={(e) => setVtForm({ ...vtForm, sort_order: e.target.value })}
+                placeholder="e.g. Pharmacy, Follow-up visit"
                 className="bg-background"
               />
             </div>
@@ -268,4 +246,3 @@ export default function AppointmentOptionsPage() {
     </div>
   );
 }
-
