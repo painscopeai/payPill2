@@ -94,7 +94,15 @@ export async function GET(request: NextRequest) {
 		pharmacy = { catalogItems: (catalogRows || []).length, lowStockCount };
 	}
 
-	let services: { total: number; active: number; recent: { id: string; name: string; price: number; unit: string; is_active: boolean }[] } | undefined;
+	type ServiceSummaryRow = {
+		id: string;
+		name: string;
+		price: number;
+		unit: string;
+		is_active: boolean;
+	};
+
+	let services: { total: number; active: number; recent: ServiceSummaryRow[] } | undefined;
 	if (orgId) {
 		const { data: svcRows, error: svcErr } = await sb
 			.from('provider_services')
@@ -106,20 +114,25 @@ export async function GET(request: NextRequest) {
 		if (svcErr) {
 			console.error('[api/provider/dashboard/summary] services', svcErr.message);
 		} else {
-			const rows = svcRows || [];
+			const rows = (svcRows || []) as {
+				id: string;
+				name: string;
+				price: number;
+				unit: string;
+				is_active?: boolean | null;
+			}[];
 			services = {
 				total: rows.length,
-				active: rows.filter((r) => (r as { is_active?: boolean }).is_active !== false).length,
-				recent: rows.slice(0, 8).map((r) => {
-					const row = r as { id: string; name: string; price: number; unit: string; is_active: boolean };
-					return {
-						id: row.id,
-						name: row.name,
-						price: Number(row.price) || 0,
-						unit: row.unit || 'per_visit',
-						is_active: row.is_active !== false,
-					};
-				}),
+				active: rows.filter((r) => r.is_active !== false).length,
+				recent: rows.slice(0, 8).map(
+					(r): ServiceSummaryRow => ({
+						id: r.id,
+						name: r.name,
+						price: Number(r.price) || 0,
+						unit: r.unit || 'per_visit',
+						is_active: r.is_active !== false,
+					}),
+				),
 			};
 		}
 	}

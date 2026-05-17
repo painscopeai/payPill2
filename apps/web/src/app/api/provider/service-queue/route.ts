@@ -28,6 +28,11 @@ export async function GET(request: NextRequest) {
 		});
 	}
 
+	const orgId = ctx.providerOrgId;
+	if (!orgId) {
+		return NextResponse.json({ items: [], message: 'Link your practice first.' });
+	}
+
 	const url = new URL(request.url);
 	const status = url.searchParams.get('status') || 'pending';
 	const statuses =
@@ -36,7 +41,7 @@ export async function GET(request: NextRequest) {
 	await backfillServiceQueueFromPendingActions(sb, routedTo);
 
 	const { data, error } = await listOrgServiceQueueItems(sb, {
-		orgId: ctx.providerOrgId,
+		orgId,
 		routedTo,
 		statuses,
 	});
