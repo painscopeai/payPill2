@@ -4,6 +4,9 @@ import { ChevronsUpDown } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { cn } from '@/lib/utils';
 import { maxTimestamp, sortByRecencyDesc } from '@/lib/sortByRecency';
+import { DataTablePagination } from '@/components/DataTablePagination.jsx';
+import { useClientDataTablePagination } from '@/hooks/useClientDataTablePagination';
+import { DEFAULT_PAGE_SIZE } from '@/lib/dataTablePagination';
 
 /**
  * Provider-portal datatable: sortable headers, loading row, hover rows (aligned with admin DataTable UX).
@@ -20,6 +23,7 @@ export function ProviderDataTable({
 	getRowId = (row) => String(row.id ?? row.patient_id ?? ''),
 	defaultSortKey = null,
 	defaultSortDesc = false,
+	pageSize: initialPageSize = DEFAULT_PAGE_SIZE,
 }) {
 	const [sortCol, setSortCol] = useState(defaultSortKey);
 	const [sortDesc, setSortDesc] = useState(defaultSortDesc ?? !defaultSortKey);
@@ -67,6 +71,9 @@ export function ProviderDataTable({
 		return list;
 	}, [data, sortCol, sortDesc]);
 
+	const { page, pageSize, totalPages, totalCount, pagedRows, onPageChange, onPageSizeChange } =
+		useClientDataTablePagination(sortedData, initialPageSize);
+
 	return (
 		<div className="w-full space-y-4">
 			<div className="w-full rounded-xl border border-border/60 overflow-hidden bg-card shadow-sm">
@@ -99,14 +106,14 @@ export function ProviderDataTable({
 										<LoadingSpinner size="md" />
 									</TableCell>
 								</TableRow>
-							) : sortedData.length === 0 ? (
+							) : totalCount === 0 ? (
 								<TableRow>
 									<TableCell colSpan={columns.length} className="min-h-32 py-8 text-center text-muted-foreground align-top">
 										{emptyMessage}
 									</TableCell>
 								</TableRow>
 							) : (
-								sortedData.map((row, rIdx) => (
+								pagedRows.map((row, rIdx) => (
 									<TableRow key={getRowId(row) || rIdx} className="transition-colors hover:bg-muted/40">
 										{columns.map((col, cIdx) => (
 											<TableCell key={col.key || cIdx} className="align-middle py-3">
@@ -120,6 +127,16 @@ export function ProviderDataTable({
 					</Table>
 				</div>
 			</div>
+			{!isLoading ? (
+				<DataTablePagination
+					page={page}
+					totalPages={totalPages}
+					totalCount={totalCount}
+					pageSize={pageSize}
+					onPageChange={onPageChange}
+					onPageSizeChange={onPageSizeChange}
+				/>
+			) : null}
 		</div>
 	);
 }

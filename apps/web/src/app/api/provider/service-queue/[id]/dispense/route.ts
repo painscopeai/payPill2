@@ -5,6 +5,10 @@ import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { getPharmacyAccessForOrg } from '@/server/provider/practiceRole';
 import { notifyLowStockIfNeeded } from '@/server/provider/inventoryLowStock';
 import { completeLinkedFulfillmentAppointments } from '@/server/provider/completeLinkedFulfillmentAppointments';
+import {
+	claimServiceQueueItemForOrg,
+	fetchOrgServiceQueueItem,
+} from '@/server/provider/serviceQueueOrgAccess';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,16 +49,20 @@ export async function POST(
 		return NextResponse.json({ error: 'drug_catalog_id is required' }, { status: 400 });
 	}
 
-	const { data: queueItem, error: qErr } = await sb
-		.from('provider_service_queue_items')
-		.select('*')
-		.eq('id', id)
-		.eq('routed_to', 'pharmacist')
-		.eq('assignment_mode', 'assigned')
-		.eq('fulfillment_org_id', orgId)
-		.maybeSingle();
-	if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
+	let queueItem;
+	try {
+		queueItem = await fetchOrgServiceQueueItem(sb, { id, orgId, routedTo: 'pharmacist' });
+	} catch (qErr) {
+		const msg = qErr instanceof Error ? qErr.message : 'Failed to load queue item';
+		return NextResponse.json({ error: msg }, { status: 500 });
+	}
 	if (!queueItem) return NextResponse.json({ error: 'Queue item not found' }, { status: 404 });
+	try {
+		await claimServiceQueueItemForOrg(sb, queueItem, orgId);
+	} catch (claimErr) {
+		const msg = claimErr instanceof Error ? claimErr.message : 'Cannot fulfill this order';
+		return NextResponse.json({ error: msg }, { status: 403 });
+	}
 	if (queueItem.status === 'completed') {
 		return NextResponse.json({ error: 'Already dispensed' }, { status: 400 });
 	}

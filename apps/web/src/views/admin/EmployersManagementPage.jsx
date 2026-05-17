@@ -10,6 +10,7 @@ import { FilterPanel } from '@/components/admin/FilterPanel.jsx';
 import { StatusBadge } from '@/components/admin/StatusBadge.jsx';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useServerTablePagination } from '@/hooks/useServerTablePagination';
 import { Building2, Eye, Ban, CheckCircle, Trash2, Save, UserPlus } from 'lucide-react';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
@@ -27,8 +28,16 @@ export default function EmployersManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const {
+    page,
+    setPage,
+    pageSize,
+    totalPages,
+    setTotalPages,
+    totalCount,
+    setTotalCount,
+    onPageSizeChange,
+  } = useServerTablePagination();
   const [selectedEmployer, setSelectedEmployer] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [editForm, setEditForm] = useState({ company_name: '', phone: '', subscription_plan: '' });
@@ -40,7 +49,7 @@ export default function EmployersManagementPage() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const q = new URLSearchParams({ role: 'employer', page: String(page), pageSize: '10' });
+      const q = new URLSearchParams({ role: 'employer', page: String(page), pageSize: String(pageSize) });
       if (searchTerm) q.set('search', searchTerm);
       if (statusFilter !== 'all') q.set('status', statusFilter);
       const res = await apiServerClient.fetch(`/admin/users?${q.toString()}`);
@@ -48,13 +57,14 @@ export default function EmployersManagementPage() {
       if (!res.ok) throw new Error(body.error || 'Failed to load employers');
       setData(body.items || []);
       setTotalPages(body.totalPages || 1);
+      setTotalCount(body.total ?? 0);
     } catch (error) {
       console.error(error);
       toast.error(error.message || 'Failed to fetch employers');
     } finally {
       setIsLoading(false);
     }
-  }, [page, searchTerm, statusFilter]);
+  }, [page, pageSize, searchTerm, statusFilter]);
 
   useEffect(() => { void fetchData(); }, [fetchData]);
 
@@ -253,7 +263,10 @@ export default function EmployersManagementPage() {
               isLoading={isLoading}
               page={page}
               totalPages={totalPages}
+              totalCount={totalCount}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={onPageSizeChange}
               selectable
               onDeleteRows={handleDeleteRows}
               getRowDeleteLabel={(r) => employerLabel(r)}

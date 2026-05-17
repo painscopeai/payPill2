@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 	const search = String(url.searchParams.get('search') ?? '').trim();
 	const status = String(url.searchParams.get('status') ?? '').trim();
 	const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
-	const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get('pageSize')) || 10));
+	const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get('pageSize')) || 20));
 
 	if (role && !ALLOWED_ROLES.has(role)) {
 		return NextResponse.json({ error: 'Invalid role filter' }, { status: 400 });

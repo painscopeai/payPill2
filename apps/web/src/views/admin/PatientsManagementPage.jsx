@@ -12,6 +12,8 @@ import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 import { removeRowsFromState } from '@/lib/adminDataDelete.js';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { toast } from 'sonner';
+import { DEFAULT_PAGE_SIZE } from '@/lib/dataTablePagination';
+import { DataTablePagination } from '@/components/DataTablePagination.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
@@ -39,7 +41,9 @@ export default function PatientsManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({ first_name: '', last_name: '', email: '', password: '' });
@@ -50,7 +54,7 @@ export default function PatientsManagementPage() {
       const q = new URLSearchParams({
         role: 'individual',
         page: String(page),
-        pageSize: '10',
+        pageSize: String(pageSize),
       });
       if (searchTerm) q.set('search', searchTerm);
       if (statusFilter && statusFilter !== 'all') q.set('status', statusFilter);
@@ -59,13 +63,14 @@ export default function PatientsManagementPage() {
       if (!res.ok) throw new Error(body.error || 'Failed to load patients');
       setPatients(body.items || []);
       setTotalPages(body.totalPages || 1);
+      setTotalCount(body.total ?? 0);
     } catch (error) {
       console.error("Error fetching patients:", error);
       toast.error(error.message || 'Failed to load patients');
     } finally {
       setIsLoading(false);
     }
-  }, [page, searchTerm, statusFilter]);
+  }, [page, pageSize, searchTerm, statusFilter]);
 
   useEffect(() => {
     const t = setTimeout(() => { void fetchPatients(); }, 300);
@@ -272,31 +277,21 @@ export default function PatientsManagementPage() {
             </table>
           </div>
 
-          {!isLoading && totalPages > 1 && (
-            <div className="p-4 border-t border-border flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
+          {!isLoading ? (
+            <div className="p-4 border-t border-border">
+              <DataTablePagination
+                page={page}
+                totalPages={totalPages}
+                totalCount={totalCount}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(next) => {
+                  setPageSize(next);
+                  setPage(1);
+                }}
+              />
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

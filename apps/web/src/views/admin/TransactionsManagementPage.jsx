@@ -10,19 +10,28 @@ import { StatusBadge } from '@/components/admin/StatusBadge.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useServerTablePagination } from '@/hooks/useServerTablePagination';
 
 export default function TransactionsManagementPage() {
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const {
+    page,
+    setPage,
+    pageSize,
+    totalPages,
+    setTotalPages,
+    totalCount,
+    setTotalCount,
+    onPageSizeChange,
+  } = useServerTablePagination();
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const { items, totalPages: tp } = await adminPagedList('transactions', page, 15, {
+      const { items, totalPages: tp, total } = await adminPagedList('transactions', page, pageSize, {
         orIlike: searchTerm
           ? { columns: ['transaction_type', 'user_type', 'status'], term: searchTerm }
           : undefined,
@@ -31,6 +40,7 @@ export default function TransactionsManagementPage() {
       });
       setData(items);
       setTotalPages(tp);
+      setTotalCount(total ?? 0);
     } catch (error) {
       toast.error('Failed to fetch transactions');
     } finally {
@@ -40,7 +50,7 @@ export default function TransactionsManagementPage() {
 
   useEffect(() => {
     fetchData();
-  }, [searchTerm, typeFilter, page]);
+  }, [searchTerm, typeFilter, page, pageSize]);
 
   const handleDeleteRows = async (rows) => {
     try {
@@ -110,7 +120,10 @@ export default function TransactionsManagementPage() {
               isLoading={isLoading}
               page={page}
               totalPages={totalPages}
+              totalCount={totalCount}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={onPageSizeChange}
               selectable
               onDeleteRows={handleDeleteRows}
               getRowDeleteLabel={(r) => r.id?.substring(0, 8) || 'transaction'}

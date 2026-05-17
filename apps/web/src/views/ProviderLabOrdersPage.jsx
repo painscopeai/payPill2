@@ -149,7 +149,7 @@ export default function ProviderLabOrdersPage() {
 					) : items.length === 0 ? (
 						<p className="p-8 text-center text-muted-foreground text-sm">
 							{filter === 'open'
-								? 'No lab orders in queue. Tests appear when a doctor finalizes a visit with laboratory orders.'
+								? 'No lab orders in queue. Tests appear when a doctor finalizes a visit with laboratory orders, or when a patient has a pending lab action from a consultation.'
 								: 'No completed lab orders in this view.'}
 						</p>
 					) : (
@@ -176,6 +176,11 @@ export default function ProviderLabOrdersPage() {
 												<p className="text-xs text-muted-foreground mt-1">Ordered {formatDateShort(row.created_at)}</p>
 											</div>
 											<div className="flex flex-col items-end gap-2">
+												{row.assignment_mode === 'patient_choice' && !row.fulfillment_org_id ? (
+													<Badge variant="secondary" className="text-xs">
+														Unassigned — claim on complete
+													</Badge>
+												) : null}
 												{statusBadge(row.status)}
 												{patientId ? (
 													<Button variant="ghost" size="sm" className="h-8" asChild>

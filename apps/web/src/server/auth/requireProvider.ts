@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
+import { resolveProviderOrgId } from '@/server/provider/resolveProviderOrgId';
 
 export type ProviderContext = {
 	/** Logged-in profile id (role provider or admin). */
@@ -44,10 +45,17 @@ export async function requireProvider(request: NextRequest): Promise<ProviderCon
 		return NextResponse.json({ error: 'Profile inactive' }, { status: 403 });
 	}
 
+	const email = (profile.email as string) || userData.user.email || null;
+	const providerOrgId = await resolveProviderOrgId(sb, {
+		userId: uid,
+		email,
+		linkedOrgId: (profile.provider_org_id as string | null) ?? null,
+	});
+
 	return {
 		userId: uid,
-		providerOrgId: (profile.provider_org_id as string | null) ?? null,
-		email: (profile.email as string) || userData.user.email || null,
+		providerOrgId,
+		email,
 		providerOnboardingCompleted: profile.provider_onboarding_completed === true,
 	};
 }

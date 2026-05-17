@@ -29,8 +29,20 @@ import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx'
 import { deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 import { deleteAdminProvider, removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { ListChecks, Tags } from 'lucide-react';
+import { useServerTablePagination } from '@/hooks/useServerTablePagination';
 
 export default function ProvidersManagementPage() {
+  const {
+    page,
+    setPage,
+    pageSize,
+    totalPages,
+    setTotalPages,
+    totalCount,
+    setTotalCount,
+    onPageSizeChange,
+  } = useServerTablePagination();
+
   const authHeaders = async () => {
     const {
       data: { session },
@@ -72,12 +84,14 @@ export default function ProvidersManagementPage() {
   }, []);
 
   const refreshProviders = useCallback(async () => {
-    const { items } = await adminPagedList('providers', 1, 50, {
+    const { items, totalPages: tp, total } = await adminPagedList('providers', page, pageSize, {
       searchColumn: searchTerm ? 'name' : undefined,
       searchTerm: searchTerm || undefined,
     });
     setData(items);
-  }, [searchTerm]);
+    setTotalPages(tp);
+    setTotalCount(total ?? 0);
+  }, [searchTerm, page, pageSize]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -91,7 +105,7 @@ export default function ProvidersManagementPage() {
       }
     };
     void fetchData();
-  }, [searchTerm, refreshProviders]);
+  }, [searchTerm, page, pageSize, refreshProviders]);
 
   useEffect(() => {
     void loadProviderTypes();
@@ -209,6 +223,12 @@ export default function ProvidersManagementPage() {
               columns={columns}
               data={data}
               isLoading={isLoading}
+              page={page}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={onPageSizeChange}
               selectable
               onDeleteRows={handleDeleteRows}
               getRowDeleteLabel={(r) => r.name || r.email || 'provider'}

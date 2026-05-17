@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, CheckSquare, MessageSquare, Users, FileText } from 'lucide-react';
+import { Calendar, CheckSquare, MessageSquare, Users, FileText, ListChecks } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePatients } from '@/hooks/usePatients.js';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +9,7 @@ import PatientCard from '@/components/PatientCard.jsx';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import { ProviderDashboardShell, ProviderKpiCard } from '@/components/provider/ProviderDashboardShell.jsx';
+import { ProviderServicesSidePanel } from '@/components/provider/ProviderServicesSidePanel.jsx';
 import { getProviderBranding } from '@/lib/providerPortalConfig.js';
 
 export default function ClinicalProviderDashboard() {
@@ -38,6 +39,7 @@ export default function ClinicalProviderDashboard() {
 		currentUser?.last_name != null && String(currentUser.last_name).trim()
 			? `Welcome back, Dr. ${currentUser.last_name}`
 			: 'Welcome back';
+	const services = summary?.services;
 
 	return (
 		<>
@@ -99,11 +101,19 @@ export default function ClinicalProviderDashboard() {
 						iconClassName="text-secondary"
 						chipClassName="bg-secondary/10"
 					/>,
+					<ProviderKpiCard
+						key="services"
+						icon={ListChecks}
+						label="Billable services"
+						value={services?.active ?? 0}
+						iconClassName="text-teal-600"
+						chipClassName="bg-teal-500/10"
+					/>,
 				]}
 				quickActions={[
 					{ label: 'Open consultations', onClick: () => navigate('/provider/consultations') },
 					{ label: 'Schedule', onClick: () => navigate('/provider/appointments') },
-					{ label: 'Messages', onClick: () => navigate('/provider/messaging') },
+					{ label: 'Services catalog', onClick: () => navigate('/provider/settings/catalog/services') },
 					{ label: 'Billing', onClick: () => navigate('/provider/billing') },
 				]}
 				mainPanel={
@@ -129,20 +139,26 @@ export default function ClinicalProviderDashboard() {
 					</Card>
 				}
 				sidePanel={
-					<Card className="shadow-sm border-border/50">
-						<CardHeader className="pb-3 border-b">
-							<CardTitle className="text-lg flex items-center gap-2">
-								<FileText className="h-4 w-4" />
-								Clinical workflow
-							</CardTitle>
-						</CardHeader>
-						<CardContent className="p-4 text-sm text-muted-foreground space-y-2">
-							<p>Document visits with SOAP notes, e-prescribing, and lab orders from the consultation workspace.</p>
-							<p className="text-xs">
-								Finalized encounters sync action items to the patient chart and support claims-ready documentation.
-							</p>
-						</CardContent>
-					</Card>
+					<div className="space-y-4">
+						<ProviderServicesSidePanel
+							services={services}
+							onManage={() => navigate('/provider/settings/catalog/services')}
+						/>
+						<Card className="shadow-sm border-border/50">
+							<CardHeader className="pb-3 border-b">
+								<CardTitle className="text-lg flex items-center gap-2">
+									<FileText className="h-4 w-4" />
+									Clinical workflow
+								</CardTitle>
+							</CardHeader>
+							<CardContent className="p-4 text-sm text-muted-foreground space-y-2">
+								<p>Document visits with SOAP notes, e-prescribing, and lab orders from the consultation workspace.</p>
+								<p className="text-xs">
+									Finalized encounters sync action items to the patient chart and support claims-ready documentation.
+								</p>
+							</CardContent>
+						</Card>
+					</div>
 				}
 			/>
 		</>

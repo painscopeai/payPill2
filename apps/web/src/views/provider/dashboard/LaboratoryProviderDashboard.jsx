@@ -8,6 +8,7 @@ import PatientCard from '@/components/PatientCard.jsx';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import { ProviderDashboardShell, ProviderKpiCard } from '@/components/provider/ProviderDashboardShell.jsx';
+import { ProviderServicesSidePanel } from '@/components/provider/ProviderServicesSidePanel.jsx';
 import { getProviderBranding } from '@/lib/providerPortalConfig.js';
 import { useProviderPracticeContext } from '@/hooks/useProviderPracticeContext';
 
@@ -18,6 +19,7 @@ export default function LaboratoryProviderDashboard() {
 	const [summary, setSummary] = useState(null);
 	const brand = getProviderBranding('laboratory');
 	const lab = summary?.laboratory || {};
+	const services = summary?.services;
 
 	useEffect(() => {
 		let cancelled = false;
@@ -81,8 +83,8 @@ export default function LaboratoryProviderDashboard() {
 				]}
 				quickActions={[
 					{ label: 'Lab order queue', onClick: () => navigate('/provider/lab-orders') },
+					{ label: 'Services catalog', onClick: () => navigate('/provider/settings/catalog/services') },
 					{ label: 'Lab test catalog', onClick: () => navigate('/provider/settings/catalog/labs') },
-					{ label: 'Patient charts', onClick: () => navigate('/provider/patients') },
 					{ label: 'Messages', onClick: () => navigate('/provider/messaging') },
 				]}
 				mainPanel={
@@ -108,18 +110,24 @@ export default function LaboratoryProviderDashboard() {
 					</Card>
 				}
 				sidePanel={
-					<Card className="shadow-sm border-border/50">
-						<CardHeader className="pb-3 border-b">
-							<CardTitle className="text-lg flex items-center gap-2">
-								<FlaskConical className="h-4 w-4" />
-								Lab workflow
-							</CardTitle>
-						</CardHeader>
-						<CardContent className="p-4 text-sm text-muted-foreground space-y-2">
-							<p>Process orders placed during clinical visits. Finalize encounters to release results to the patient chart.</p>
-							<p className="text-xs">Maintain your lab catalog for standardized test names, codes, and list pricing.</p>
-						</CardContent>
-					</Card>
+					<div className="space-y-4">
+						<ProviderServicesSidePanel
+							services={services}
+							onManage={() => navigate('/provider/settings/catalog/services')}
+						/>
+						<Card className="shadow-sm border-border/50">
+							<CardHeader className="pb-3 border-b">
+								<CardTitle className="text-lg flex items-center gap-2">
+									<FlaskConical className="h-4 w-4" />
+									Lab workflow
+								</CardTitle>
+							</CardHeader>
+							<CardContent className="p-4 text-sm text-muted-foreground space-y-2">
+								<p>Process orders placed during clinical visits. Finalize encounters to release results to the patient chart.</p>
+								<p className="text-xs">Maintain your lab catalog for standardized test names, codes, and list pricing.</p>
+							</CardContent>
+						</Card>
+					</div>
 				}
 			/>
 		</>

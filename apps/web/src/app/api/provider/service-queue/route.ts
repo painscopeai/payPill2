@@ -4,6 +4,10 @@ import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { getProviderPortalAccess } from '@/server/provider/providerPortalAccess';
 import { enrichQueueItemsWithPatients, type ServiceQueueRow } from '@/server/provider/serviceQueueHelpers';
+import {
+	backfillServiceQueueFromPendingActions,
+	listOrgServiceQueueItems,
+} from '@/server/provider/serviceQueueOrgAccess';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,17 +33,13 @@ export async function GET(request: NextRequest) {
 	const statuses =
 		status === 'all' ? ['pending', 'in_progress', 'completed'] : status === 'open' ? ['pending', 'in_progress'] : [status];
 
-	const query = sb
-		.from('provider_service_queue_items')
-		.select('*')
-		.eq('routed_to', routedTo)
-		.eq('assignment_mode', 'assigned')
-		.eq('fulfillment_org_id', ctx.providerOrgId)
-		.in('status', statuses)
-		.order('created_at', { ascending: false })
-		.limit(200);
+	await backfillServiceQueueFromPendingActions(sb, routedTo);
 
-	const { data, error } = await query;
+	const { data, error } = await listOrgServiceQueueItems(sb, {
+		orgId: ctx.providerOrgId,
+		routedTo,
+		statuses,
+	});
 
 	if (error) {
 		if (/does not exist|schema cache/i.test(error.message)) {

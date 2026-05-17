@@ -1,5 +1,5 @@
-
-import React, { useCallback, useMemo, useState } from 'react';
+﻿
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -10,11 +10,14 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronLeft, ChevronRight, ChevronsUpDown, Trash2 } from 'lucide-react';
+import { ChevronsUpDown, Trash2 } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import { TableRowActionsMenu } from '@/components/admin/TableRowActionsMenu.jsx';
 import { confirmDeleteRecord, deleteMenuItem } from '@/lib/adminDeleteMenu.js';
 import { cn } from '@/lib/utils';
+import { DataTablePagination } from '@/components/DataTablePagination.jsx';
+import { useClientDataTablePagination } from '@/hooks/useClientDataTablePagination';
+import { clampPage, DEFAULT_PAGE_SIZE, totalPagesForCount } from '@/lib/dataTablePagination';
 
 function rowKeyOf(row, index, getRowId) {
   const id = getRowId ? getRowId(row) : row?.id;
@@ -26,9 +29,12 @@ export function DataTable({
   data,
   isLoading,
   onSort,
-  page = 1,
-  totalPages = 1,
-  onPageChange,
+  page: controlledPage = 1,
+  totalPages: controlledTotalPages,
+  totalCount: controlledTotalCount,
+  pageSize: controlledPageSize = DEFAULT_PAGE_SIZE,
+  onPageChange: controlledOnPageChange,
+  onPageSizeChange: controlledOnPageSizeChange,
   selectedRowId,
   onRowClick,
   selectable = false,
@@ -36,6 +42,32 @@ export function DataTable({
   getRowDeleteLabel,
   getRowId,
 }) {
+  const serverPaginated = typeof controlledOnPageChange === 'function';
+  const clientPagination = useClientDataTablePagination(
+    serverPaginated ? [] : data || [],
+    controlledPageSize,
+  );
+
+  const page = serverPaginated ? controlledPage : clientPagination.page;
+  const pageSize = serverPaginated ? controlledPageSize : clientPagination.pageSize;
+  const totalCount = serverPaginated
+    ? (controlledTotalCount ?? (data || []).length)
+    : clientPagination.totalCount;
+  const totalPages = serverPaginated
+    ? (controlledTotalPages ?? totalPagesForCount(totalCount, pageSize))
+    : clientPagination.totalPages;
+  const onPageChange = serverPaginated ? controlledOnPageChange : clientPagination.onPageChange;
+  const onPageSizeChange = serverPaginated
+    ? controlledOnPageSizeChange
+    : clientPagination.onPageSizeChange;
+
+  const displayData = serverPaginated ? data || [] : clientPagination.pagedRows;
+
+  useEffect(() => {
+    if (!serverPaginated) return;
+    const tp = totalPagesForCount(totalCount, pageSize);
+    if (page > tp) controlledOnPageChange(clampPage(page, tp));
+  }, [serverPaginated, page, pageSize, totalCount, controlledOnPageChange]);
   const [sortCol, setSortCol] = useState(null);
   const [sortDesc, setSortDesc] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState(() => new Set());
@@ -44,8 +76,8 @@ export function DataTable({
   const showSelection = selectable && canDelete;
 
   const keyedRows = useMemo(
-    () => (data || []).map((row, index) => ({ row, key: rowKeyOf(row, index, getRowId) })),
-    [data, getRowId],
+    () => displayData.map((row, index) => ({ row, key: rowKeyOf(row, index, getRowId) })),
+    [displayData, getRowId],
   );
 
   const allSelected =
@@ -226,31 +258,16 @@ export function DataTable({
         </div>
       </div>
 
-      {!isLoading && totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Page {page} of {totalPages}
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange(Math.max(1, page - 1))}
-              disabled={page === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-              disabled={page === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      {!isLoading ? (
+        <DataTablePagination
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange ?? clientPagination.onPageSizeChange}
+        />
+      ) : null}
     </div>
   );
 }

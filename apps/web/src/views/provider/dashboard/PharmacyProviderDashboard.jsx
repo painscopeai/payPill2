@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, MessageSquare, Package, Pill, AlertTriangle } from 'lucide-react';
+import { Calendar, ListChecks, MessageSquare, Package, Pill, AlertTriangle } from 'lucide-react';
 import { usePatients } from '@/hooks/usePatients.js';
 import { useNavigate } from 'react-router-dom';
 import PatientCard from '@/components/PatientCard.jsx';
 import LoadingSpinner from '@/components/LoadingSpinner.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 import { ProviderDashboardShell, ProviderKpiCard } from '@/components/provider/ProviderDashboardShell.jsx';
+import { ProviderServicesSidePanel } from '@/components/provider/ProviderServicesSidePanel.jsx';
 import { getProviderBranding } from '@/lib/providerPortalConfig.js';
 import { useProviderPracticeContext } from '@/hooks/useProviderPracticeContext';
 
@@ -18,6 +19,7 @@ export default function PharmacyProviderDashboard() {
 	const [summary, setSummary] = useState(null);
 	const brand = getProviderBranding('pharmacist');
 	const pharmacy = summary?.pharmacy || {};
+	const services = summary?.services;
 
 	useEffect(() => {
 		let cancelled = false;
@@ -93,11 +95,19 @@ export default function PharmacyProviderDashboard() {
 						iconClassName="text-secondary"
 						chipClassName="bg-secondary/10"
 					/>,
+					<ProviderKpiCard
+						key="services"
+						icon={ListChecks}
+						label="Billable services"
+						value={services?.active ?? 0}
+						iconClassName="text-violet-600"
+						chipClassName="bg-violet-500/10"
+					/>,
 				]}
 				quickActions={[
 					{ label: 'Inventory & stock moves', onClick: () => navigate('/provider/inventory') },
 					{ label: 'Dispensing queue', onClick: () => navigate('/provider/dispensing') },
-					{ label: 'Patient roster', onClick: () => navigate('/provider/patients') },
+					{ label: 'Services catalog', onClick: () => navigate('/provider/settings/catalog/services') },
 					{ label: 'Billing', onClick: () => navigate('/provider/billing') },
 				]}
 				mainPanel={
@@ -123,20 +133,26 @@ export default function PharmacyProviderDashboard() {
 					</Card>
 				}
 				sidePanel={
-					<Card className="shadow-sm border-border/50">
-						<CardHeader className="pb-3 border-b">
-							<CardTitle className="text-lg flex items-center gap-2">
-								<Pill className="h-4 w-4" />
-								Pharmacy operations
-							</CardTitle>
-						</CardHeader>
-						<CardContent className="p-4 text-sm text-muted-foreground space-y-2">
-							<p>Track on-hand quantity with stock additions, reductions, and adjustments. Use CSV import for bulk catalog updates.</p>
-							<p className="text-xs">
-								Clinical prescribing is handled by affiliated providers; your team focuses on fulfillment and inventory accuracy.
-							</p>
-						</CardContent>
-					</Card>
+					<div className="space-y-4">
+						<ProviderServicesSidePanel
+							services={services}
+							onManage={() => navigate('/provider/settings/catalog/services')}
+						/>
+						<Card className="shadow-sm border-border/50">
+							<CardHeader className="pb-3 border-b">
+								<CardTitle className="text-lg flex items-center gap-2">
+									<Pill className="h-4 w-4" />
+									Pharmacy operations
+								</CardTitle>
+							</CardHeader>
+							<CardContent className="p-4 text-sm text-muted-foreground space-y-2">
+								<p>Track on-hand quantity with stock additions, reductions, and adjustments. Use CSV import for bulk catalog updates.</p>
+								<p className="text-xs">
+									Clinical prescribing is handled by affiliated providers; your team focuses on fulfillment and inventory accuracy.
+								</p>
+							</CardContent>
+						</Card>
+					</div>
 				}
 			/>
 		</>

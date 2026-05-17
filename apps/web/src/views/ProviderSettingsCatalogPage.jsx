@@ -129,7 +129,7 @@ export default function ProviderSettingsCatalogPage() {
 		kind === 'labs' ? 'Laboratory test catalog' : kind === 'services' ? 'Services catalog' : 'Drug formulary';
 	const description =
 		kind === 'labs'
-			? 'Tests your clinicians can order during consultations. Add rows manually or import JSON.'
+			? 'Tests your clinicians can order during consultations. Add rows manually or import CSV.'
 			: kind === 'services'
 				? 'Billable services for your practice. Add manually or bulk-import JSON (append).'
 				: 'Medications for quick-pick during consultations. Add manually, import JSON, or replace the whole list.';
@@ -756,12 +756,13 @@ export default function ProviderSettingsCatalogPage() {
 				</CardContent>
 			</Card>
 
-			<Card>
+			{kind === 'services' ? (
+				<Card>
 				<CardHeader>
 					<CardTitle>Bulk upload (JSON)</CardTitle>
 					<CardDescription>
-						Paste a JSON array of objects. Download a starter file, edit offline, then import here.
-						{kind !== 'services' ? ' Replace all clears existing rows for this catalog before insert.' : ' Service imports always append.'}
+						Paste a JSON array of objects. Download a starter file, edit offline, then import here. Service imports always
+						append.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
@@ -771,14 +772,6 @@ export default function ProviderSettingsCatalogPage() {
 							Download template
 						</Button>
 					</div>
-					{kind !== 'services' ? (
-						<div className="flex items-center gap-2">
-							<Checkbox id="replace" checked={replaceAll} onCheckedChange={(v) => setReplaceAll(v === true)} />
-							<Label htmlFor="replace" className="text-sm font-normal cursor-pointer">
-								Replace entire catalog (dangerous — removes current rows for {kind === 'labs' ? 'lab tests' : 'drugs'})
-							</Label>
-						</div>
-					) : null}
 					<div className="space-y-2">
 						<Label htmlFor="bulk">JSON array</Label>
 						<Textarea
@@ -796,16 +789,24 @@ export default function ProviderSettingsCatalogPage() {
 					</Button>
 				</CardContent>
 			</Card>
+			) : null}
 
 			{kind !== 'services' ? (
 				<Card>
 					<CardHeader>
 						<CardTitle>Bulk upload (CSV)</CardTitle>
 						<CardDescription>
-							Same columns as admin bulk templates. Uses the same replace-all option as JSON import above.
+							Download a template, fill in your {kind === 'labs' ? 'lab tests' : 'drugs'}, then upload. Optional replace
+							clears existing rows before import.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
+						<div className="flex items-center gap-2">
+							<Checkbox id="replace" checked={replaceAll} onCheckedChange={(v) => setReplaceAll(v === true)} />
+							<Label htmlFor="replace" className="text-sm font-normal cursor-pointer">
+								Replace entire catalog (dangerous — removes current rows for {kind === 'labs' ? 'lab tests' : 'drugs'})
+							</Label>
+						</div>
 						<div className="flex flex-wrap gap-2">
 							<Button type="button" variant="outline" size="sm" onClick={downloadCsvTemplate}>
 								<Download className="h-4 w-4 mr-1.5" />

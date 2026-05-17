@@ -16,6 +16,7 @@ import { removeRowsFromState } from '@/lib/adminDataDelete.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useServerTablePagination } from '@/hooks/useServerTablePagination';
 
 function insLabel(p) {
   return p.company_name || p.name || [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email || p.id;
@@ -26,8 +27,16 @@ export default function InsuranceUsersManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const {
+    page,
+    setPage,
+    pageSize,
+    totalPages,
+    setTotalPages,
+    totalCount,
+    setTotalCount,
+    onPageSizeChange,
+  } = useServerTablePagination();
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ company_name: '', phone: '' });
   const [saving, setSaving] = useState(false);
@@ -38,7 +47,7 @@ export default function InsuranceUsersManagementPage() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const q = new URLSearchParams({ role: 'insurance', page: String(page), pageSize: '10' });
+      const q = new URLSearchParams({ role: 'insurance', page: String(page), pageSize: String(pageSize) });
       if (searchTerm) q.set('search', searchTerm);
       if (statusFilter !== 'all') q.set('status', statusFilter);
       const res = await apiServerClient.fetch(`/admin/users?${q.toString()}`);
@@ -46,13 +55,14 @@ export default function InsuranceUsersManagementPage() {
       if (!res.ok) throw new Error(body.error || 'Failed to load insurance partners');
       setData(body.items || []);
       setTotalPages(body.totalPages || 1);
+      setTotalCount(body.total ?? 0);
     } catch (e) {
       console.error(e);
       toast.error(e.message || 'Failed to fetch insurance partners');
     } finally {
       setIsLoading(false);
     }
-  }, [page, searchTerm, statusFilter]);
+  }, [page, pageSize, searchTerm, statusFilter]);
 
   useEffect(() => { void fetchData(); }, [fetchData]);
 
@@ -244,7 +254,10 @@ export default function InsuranceUsersManagementPage() {
               isLoading={isLoading}
               page={page}
               totalPages={totalPages}
+              totalCount={totalCount}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={onPageSizeChange}
               selectable
               onDeleteRows={handleDeleteRows}
               getRowDeleteLabel={(r) => insLabel(r)}

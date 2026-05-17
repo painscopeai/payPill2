@@ -4,6 +4,10 @@ import { requireProvider } from '@/server/auth/requireProvider';
 import { getSupabaseAdmin } from '@/server/supabase/admin';
 import { fetchAppointmentsForPracticeOrg } from '@/server/provider/fetchAppointmentsForPracticeOrg';
 import { getPharmacyAccessForOrg } from '@/server/provider/practiceRole';
+import {
+	backfillServiceQueueFromPendingActions,
+	countOrgServiceQueueItems,
+} from '@/server/provider/serviceQueueOrgAccess';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -90,25 +94,58 @@ export async function GET(request: NextRequest) {
 		pharmacy = { catalogItems: (catalogRows || []).length, lowStockCount };
 	}
 
+	let services: { total: number; active: number; recent: { id: string; name: string; price: number; unit: string; is_active: boolean }[] } | undefined;
+	if (orgId) {
+		const { data: svcRows, error: svcErr } = await sb
+			.from('provider_services')
+			.select('id, name, price, unit, is_active, sort_order')
+			.eq('provider_id', orgId)
+			.order('sort_order', { ascending: true })
+			.order('name', { ascending: true })
+			.limit(200);
+		if (svcErr) {
+			console.error('[api/provider/dashboard/summary] services', svcErr.message);
+		} else {
+			const rows = svcRows || [];
+			services = {
+				total: rows.length,
+				active: rows.filter((r) => (r as { is_active?: boolean }).is_active !== false).length,
+				recent: rows.slice(0, 8).map((r) => {
+					const row = r as { id: string; name: string; price: number; unit: string; is_active: boolean };
+					return {
+						id: row.id,
+						name: row.name,
+						price: Number(row.price) || 0,
+						unit: row.unit || 'per_visit',
+						is_active: row.is_active !== false,
+					};
+				}),
+			};
+		}
+	}
+
 	let laboratory: { openLabOrders: number; draftEncounters: number } | undefined;
-	if (access.isLaboratory) {
+	if (access.isLaboratory && orgId) {
+		await backfillServiceQueueFromPendingActions(sb, 'laboratory');
+		let openLabOrders = 0;
+		try {
+			openLabOrders = await countOrgServiceQueueItems(sb, {
+				orgId,
+				routedTo: 'laboratory',
+				statuses: ['pending', 'in_progress'],
+			});
+		} catch (e) {
+			console.error('[api/provider/dashboard/summary] lab queue count', e);
+		}
 		const { data: encRows, error: encErr } = await sb
 			.from('provider_consultation_encounters')
-			.select('lab_orders, status')
+			.select('status')
 			.eq('provider_user_id', uid)
 			.limit(300);
 		if (encErr) console.error('[api/provider/dashboard/summary] lab encounters', encErr.message);
-		let openLabOrders = 0;
 		let draftEncounters = 0;
 		for (const row of encRows || []) {
-			const status = String((row as { status?: string }).status || '');
-			if (status === 'draft') draftEncounters += 1;
-			const labs = (row as { lab_orders?: unknown }).lab_orders;
-			const arr = Array.isArray(labs) ? labs : [];
-			const hasLab = arr.some(
-				(l) => l && typeof l === 'object' && String((l as { test_name?: string }).test_name || '').trim(),
-			);
-			if (hasLab && status !== 'finalized') openLabOrders += 1;
+			if (String((row as { status?: string }).status || '') === 'draft') draftEncounters += 1;
 		}
 		laboratory = { openLabOrders, draftEncounters };
 	}
@@ -120,6 +157,7 @@ export async function GET(request: NextRequest) {
 		unreadMessages,
 		providerOrgLinked: Boolean(orgId),
 		operations_profile: access.operationsProfile,
+		...(services ? { services } : {}),
 		...(pharmacy ? { pharmacy } : {}),
 		...(laboratory ? { laboratory } : {}),
 	});

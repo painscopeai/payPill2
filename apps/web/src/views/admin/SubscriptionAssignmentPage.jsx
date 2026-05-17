@@ -8,24 +8,34 @@ import { SearchBar } from '@/components/admin/SearchBar.jsx';
 import { StatusBadge } from '@/components/admin/StatusBadge.jsx';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useServerTablePagination } from '@/hooks/useServerTablePagination';
 
 export default function SubscriptionAssignmentPage() {
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const {
+    page,
+    setPage,
+    pageSize,
+    totalPages,
+    setTotalPages,
+    totalCount,
+    setTotalCount,
+    onPageSizeChange,
+  } = useServerTablePagination();
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const { items, totalPages: tp } = await adminPagedList('subscriptions', page, 15, {
+      const { items, totalPages: tp, total } = await adminPagedList('subscriptions', page, pageSize, {
         orIlike: searchTerm
           ? { columns: ['user_id', 'plan_id', 'status'], term: searchTerm }
           : undefined,
       });
       setData(items);
       setTotalPages(tp);
+      setTotalCount(total ?? 0);
     } catch (error) {
       toast.error('Failed to fetch assignments');
     } finally {
@@ -35,7 +45,7 @@ export default function SubscriptionAssignmentPage() {
 
   useEffect(() => {
     fetchData();
-  }, [searchTerm, page]);
+  }, [searchTerm, page, pageSize]);
 
   const handleDeleteRows = async (rows) => {
     try {
@@ -81,7 +91,10 @@ export default function SubscriptionAssignmentPage() {
             isLoading={isLoading}
             page={page}
             totalPages={totalPages}
+            totalCount={totalCount}
+            pageSize={pageSize}
             onPageChange={setPage}
+            onPageSizeChange={onPageSizeChange}
             selectable
             onDeleteRows={handleDeleteRows}
             getRowDeleteLabel={(r) => r.user_id?.substring(0, 8) || 'subscription'}

@@ -8,6 +8,7 @@ import {
 } from '@/server/admin/providerTypeService';
 import { syncPracticeRoleFromProviderType } from '@/server/provider/syncPracticeRoleFromProviderType';
 import type { OperationsProfile } from '@/server/provider/syncPracticeRoleFromProviderType';
+import { findProviderOrgByEmail } from '@/server/provider/resolveProviderOrgId';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -116,27 +117,51 @@ export async function PUT(request: NextRequest) {
 	const displayEmail = (profile.email as string) || ctx.email || '';
 
 	if (!profile.provider_org_id) {
-		const { data: inserted, error: insErr } = await sb
-			.from('providers')
-			.insert({
-				name: practiceName.slice(0, 500),
-				provider_name: practiceName.slice(0, 500),
-				email: displayEmail || null,
-				phone: phoneFinal,
-				address: address,
-				status: 'active',
-				verification_status: 'verified',
-				type: typeSlug,
-			})
-			.select('id')
-			.single();
+		const existingOrg = await findProviderOrgByEmail(sb, displayEmail);
+		let orgId: string;
 
-		if (insErr || !inserted?.id) {
-			console.error('[onboarding/practice] insert provider', insErr?.message);
-			return NextResponse.json({ error: insErr?.message || 'Failed to create practice' }, { status: 500 });
+		if (existingOrg) {
+			orgId = existingOrg.id;
+			const { error: upExistingErr } = await sb
+				.from('providers')
+				.update({
+					name: practiceName.slice(0, 500),
+					provider_name: practiceName.slice(0, 500),
+					email: displayEmail || null,
+					phone: phoneFinal,
+					address,
+					status: 'active',
+					verification_status: 'verified',
+					type: typeSlug,
+					updated_at: new Date().toISOString(),
+				})
+				.eq('id', orgId);
+			if (upExistingErr) {
+				console.error('[onboarding/practice] update existing provider', upExistingErr.message);
+				return NextResponse.json({ error: upExistingErr.message }, { status: 500 });
+			}
+		} else {
+			const { data: inserted, error: insErr } = await sb
+				.from('providers')
+				.insert({
+					name: practiceName.slice(0, 500),
+					provider_name: practiceName.slice(0, 500),
+					email: displayEmail || null,
+					phone: phoneFinal,
+					address: address,
+					status: 'active',
+					verification_status: 'verified',
+					type: typeSlug,
+				})
+				.select('id')
+				.single();
+
+			if (insErr || !inserted?.id) {
+				console.error('[onboarding/practice] insert provider', insErr?.message);
+				return NextResponse.json({ error: insErr?.message || 'Failed to create practice' }, { status: 500 });
+			}
+			orgId = inserted.id as string;
 		}
-
-		const orgId = inserted.id as string;
 
 		try {
 			await syncPracticeRoleFromProviderType(sb, orgId, typeSlug);

@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { exportToCSV } from '@/lib/csvExport';
 import { publicFormUrl } from '@/lib/publicFormUrl';
+import { useServerTablePagination } from '@/hooks/useServerTablePagination';
 
 function parseResponsesJson(row) {
   const raw = row.responses_json;
@@ -69,8 +70,16 @@ export default function FormResponsesPage() {
   const [responses, setResponses] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const {
+    page,
+    setPage,
+    pageSize,
+    totalPages,
+    setTotalPages,
+    totalCount,
+    setTotalCount,
+    onPageSizeChange,
+  } = useServerTablePagination();
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState(null);
 
@@ -86,7 +95,7 @@ export default function FormResponsesPage() {
       const formData = await formRes.json();
       setForm(formData);
 
-      const respRes = await apiServerClient.fetch(`/forms/${formId}/responses?page=${page}&limit=15`);
+      const respRes = await apiServerClient.fetch(`/forms/${formId}/responses?page=${page}&limit=${pageSize}`);
       if (!respRes.ok) {
         const err = await respRes.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to load responses');
@@ -94,13 +103,14 @@ export default function FormResponsesPage() {
       const respData = await respRes.json();
       setResponses(respData.items || []);
       setTotalPages(respData.totalPages || 1);
+      setTotalCount(respData.totalItems ?? respData.total ?? (respData.items || []).length);
       setAnalytics(respData.analytics || {});
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load responses');
     } finally {
       setIsLoading(false);
     }
-  }, [formId, page]);
+  }, [formId, page, pageSize]);
 
   useEffect(() => {
     void fetchData();
@@ -278,7 +288,10 @@ export default function FormResponsesPage() {
                 isLoading={isLoading}
                 page={page}
                 totalPages={totalPages}
+                totalCount={totalCount}
+                pageSize={pageSize}
                 onPageChange={setPage}
+                onPageSizeChange={onPageSizeChange}
                 selectable
                 onDeleteRows={handleDeleteRows}
                 getRowDeleteLabel={(r) => r.respondent_email || 'response'}
