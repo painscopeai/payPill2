@@ -68,7 +68,7 @@ export async function resolveProviderOrgId(
 	opts: { userId: string; email: string | null | undefined; linkedOrgId: string | null | undefined },
 ): Promise<string | null> {
 	const { userId, email } = opts;
-	let linkedOrgId = opts.linkedOrgId?.trim() || null;
+	const linkedOrgId = opts.linkedOrgId?.trim() || null;
 
 	const emailMatch = await findProviderOrgByEmail(sb, email);
 	if (!emailMatch) return linkedOrgId;

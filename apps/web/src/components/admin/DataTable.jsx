@@ -61,7 +61,10 @@ export function DataTable({
     ? controlledOnPageSizeChange
     : clientPagination.onPageSizeChange;
 
-  const displayData = serverPaginated ? data || [] : clientPagination.pagedRows;
+  const displayData = useMemo(
+    () => (serverPaginated ? data || [] : clientPagination.pagedRows),
+    [serverPaginated, data, clientPagination.pagedRows],
+  );
 
   useEffect(() => {
     if (!serverPaginated) return;
