@@ -1,18 +1,14 @@
+import { patientOnboardingPath } from '@/lib/patientPostAuthPath.js';
+
 /**
  * First URL after successful self-service sign-up (immediate Supabase session or after email verification).
  *
- * Intended funnel (patients):
- *   1. Sign up
- *   2. Receive verification code (email)
- *   3. Enter code → session established
- *   4. Land here → health profile / onboarding (`/patient/onboarding`), then Dashboard and other routes once complete
- *
- * Other roles: company/account settings or onboarding paths as appropriate.
+ * Walk-in patient funnel: Sign up → Profile data form → Dashboard (see patientPostAuthPath.js).
  */
 export function postSignupProfilePath(role) {
 	switch (role) {
 		case 'individual':
-			return '/patient/onboarding';
+			return patientOnboardingPath();
 		case 'employer':
 			return '/employer/settings';
 		case 'insurance':
@@ -22,6 +18,6 @@ export function postSignupProfilePath(role) {
 		case 'admin':
 			return '/admin/dashboard';
 		default:
-			return '/patient/onboarding';
+			return patientOnboardingPath();
 	}
 }

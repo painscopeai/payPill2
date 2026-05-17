@@ -8,9 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
+import { useAuth } from '@/contexts/AuthContext';
+import { resolvePatientPostAuthPath } from '@/lib/patientPostAuthPath.js';
 
 export default function AuthResetPasswordRequiredPage() {
 	const navigate = useNavigate();
+	const { refreshProfile } = useAuth();
 	const [password, setPassword] = useState('');
 	const [confirm, setConfirm] = useState('');
 	const [submitting, setSubmitting] = useState(false);
@@ -35,12 +38,26 @@ export default function AuthResetPasswordRequiredPage() {
 			const { error: refreshErr } = await supabase.auth.refreshSession();
 			if (refreshErr) console.warn('[AuthResetPasswordRequired] refreshSession:', refreshErr);
 			toast.success('Password updated. You can continue.');
+			await refreshProfile();
 			const {
 				data: { session },
 			} = await supabase.auth.getSession();
 			const role = session?.user?.user_metadata?.role || 'individual';
 			if (role === 'individual' || role === 'patient') {
-				navigate('/patient/dashboard', { replace: true });
+				const userId = session?.user?.id;
+				if (!userId) throw new Error('Session missing after password update.');
+				const { data: profile } = await supabase
+					.from('profiles')
+					.select('onboarding_completed')
+					.eq('id', userId)
+					.maybeSingle();
+				navigate(
+					resolvePatientPostAuthPath({
+						onboardingCompleted: profile?.onboarding_completed === true,
+						passwordChangeRequired: false,
+					}),
+					{ replace: true },
+				);
 			} else if (role === 'employer') {
 				navigate('/employer/dashboard', { replace: true });
 			} else if (role === 'insurance') {

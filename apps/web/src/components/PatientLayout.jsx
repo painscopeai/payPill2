@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
+import { patientMustCompleteOnboarding, patientOnboardingPath } from '@/lib/patientPostAuthPath.js';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -21,9 +22,13 @@ const ALL_PATIENT_NAV_ITEMS = [
 ];
 
 export default function PatientLayout({ children }) {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, passwordChangeRequired } = useAuth();
   const location = useLocation();
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+
+  const onboardingGateActive = patientMustCompleteOnboarding(currentUser);
+  const mustFinishHealthProfile =
+    onboardingGateActive && !location.pathname.startsWith(patientOnboardingPath());
 
   const handleLogout = () => {
     void logout();
@@ -74,16 +79,26 @@ export default function PatientLayout({ children }) {
     return String(unreadMessageCount);
   }, [unreadMessageCount]);
 
-  const showOnboardingReminder =
-    currentUser?.role === 'individual' &&
-    currentUser?.onboarding_completed !== true &&
-    !location.pathname.startsWith('/patient/onboarding');
+  const navItemsForRender = onboardingGateActive
+    ? navItems.filter((item) => item.path === patientOnboardingPath())
+    : navItems;
+
+  if (passwordChangeRequired) {
+    return <Navigate to="/auth/reset-password-required" replace />;
+  }
+
+  if (mustFinishHealthProfile) {
+    return <Navigate to={patientOnboardingPath()} replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       {/* Mobile Top Bar */}
       <header className="md:hidden sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur flex items-center justify-between px-4 h-16">
-        <Link to="/patient/dashboard" className="flex items-center gap-2">
+        <Link
+          to={onboardingGateActive ? patientOnboardingPath() : '/patient/dashboard'}
+          className="flex items-center gap-2"
+        >
           <PayPillLogo className="h-7 max-h-8 w-auto" />
         </Link>
         <div className="flex items-center gap-2">
@@ -99,7 +114,7 @@ export default function PatientLayout({ children }) {
                 <p className="text-xs text-muted-foreground">{currentUser?.email}</p>
               </div>
               <nav className="flex flex-col gap-2 flex-1">
-                {navItems.map((item) => (
+                {navItemsForRender.map((item) => (
                   <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive(item.path) ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}>
                     <item.icon className="h-4 w-4" />
                     <span className="flex-1">{item.label}</span>
@@ -122,7 +137,10 @@ export default function PatientLayout({ children }) {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 border-r bg-card min-h-screen sticky top-0">
         <div className="h-16 flex items-center px-6 border-b">
-          <Link to="/patient/dashboard" className="flex items-center gap-2">
+          <Link
+            to={onboardingGateActive ? patientOnboardingPath() : '/patient/dashboard'}
+            className="flex items-center gap-2"
+          >
             <PayPillLogo className="h-8 max-h-9 w-auto" />
           </Link>
         </div>
@@ -131,7 +149,7 @@ export default function PatientLayout({ children }) {
           <p className="text-xs text-muted-foreground truncate">{currentUser?.email}</p>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          {navItems.map((item) => (
+          {navItemsForRender.map((item) => (
             <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${isActive(item.path) ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
               <item.icon className="h-4 w-4" />
               <span className="flex-1">{item.label}</span>
@@ -163,25 +181,13 @@ export default function PatientLayout({ children }) {
           </div>
         </header>
         <div className="flex-1 p-4 sm:p-6 lg:p-8">
-          {showOnboardingReminder ? (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
-              <span className="font-medium">Finish your health profile when you can.</span>{' '}
-              <Link to="/patient/onboarding" className="underline font-semibold">
-                Continue setup
-              </Link>
-              <span className="text-amber-800/90 dark:text-amber-200/90">
-                {' '}
-                — you can use the rest of the app; progress is saved as you go.
-              </span>
-            </div>
-          ) : null}
           {children}
         </div>
       </main>
 
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 border-t bg-background flex items-center justify-around px-2 z-50 pb-safe">
-        {navItems.slice(0, 4).map((item) => (
+        {navItemsForRender.slice(0, 4).map((item) => (
           <Link key={item.path} to={item.path} className={`flex flex-col items-center justify-center w-16 h-full gap-1 ${isActive(item.path) ? 'text-primary' : 'text-muted-foreground'}`}>
             <span className="relative">
               <item.icon className="h-5 w-5" />

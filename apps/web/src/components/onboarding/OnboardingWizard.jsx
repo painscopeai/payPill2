@@ -25,7 +25,10 @@ export default function OnboardingWizard({ children, title, description, isValid
     await nextStep();
   };
 
+  const profileAlreadyComplete = currentUser?.onboarding_completed === true;
+
   const handleSaveAndExit = async () => {
+    if (!profileAlreadyComplete) return;
     if (!currentUser?.id) {
       toast.error("Authentication error: Patient ID missing. Please log in again.");
       return;
@@ -47,9 +50,11 @@ export default function OnboardingWizard({ children, title, description, isValid
             <h1 className="text-3xl md:text-4xl font-bold text-balance">{title}</h1>
             {description && <p className="text-muted-foreground mt-2 text-lg max-w-prose">{description}</p>}
           </div>
-          <Button variant="outline" onClick={handleSaveAndExit} className="shrink-0 w-full sm:w-auto" disabled={isLoading}>
-            <Save className="h-4 w-4 mr-2" /> Save & exit
-          </Button>
+          {profileAlreadyComplete ? (
+            <Button variant="outline" onClick={handleSaveAndExit} className="shrink-0 w-full sm:w-auto" disabled={isLoading}>
+              <Save className="h-4 w-4 mr-2" /> Save & exit
+            </Button>
+          ) : null}
         </div>
         <Progress value={progress} className="h-2 bg-muted" />
       </div>

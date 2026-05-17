@@ -13,6 +13,8 @@ import { Activity, Loader2, ArrowLeft } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
 import { postSignupProfilePath } from '@/lib/postSignupProfilePath.js';
+import { resolvePatientPostAuthPath } from '@/lib/patientPostAuthPath.js';
+import { supabase } from '@/lib/supabaseClient';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
 import apiServerClient from '@/lib/apiServerClient';
 
@@ -58,7 +60,18 @@ export default function AuthIndividualPage() {
     try {
       const user = await login(signInData.email, signInData.password);
       await assertPortalSignIn(user, 'individual', logout);
-      navigate(user?.onboarding_completed ? '/patient/dashboard' : '/patient/onboarding');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const mustChangePassword =
+        session?.user?.user_metadata?.must_change_password === true;
+      navigate(
+        resolvePatientPostAuthPath({
+          onboardingCompleted: user?.onboarding_completed === true,
+          passwordChangeRequired: mustChangePassword,
+        }),
+        { replace: true },
+      );
     } catch (err) {
       setLocalError(err?.message || '');
     }
