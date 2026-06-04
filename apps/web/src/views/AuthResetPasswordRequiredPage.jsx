@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { useAuth } from '@/contexts/AuthContext';
-import { resolvePatientPostAuthPath } from '@/lib/patientPostAuthPath.js';
+import { resolvePostPasswordDashboardPath } from '@/lib/resolvePostPasswordDashboardPath.js';
 
 export default function AuthResetPasswordRequiredPage() {
 	const navigate = useNavigate();
@@ -39,36 +39,8 @@ export default function AuthResetPasswordRequiredPage() {
 			if (refreshErr) console.warn('[AuthResetPasswordRequired] refreshSession:', refreshErr);
 			toast.success('Password updated. You can continue.');
 			await refreshProfile();
-			const {
-				data: { session },
-			} = await supabase.auth.getSession();
-			const role = session?.user?.user_metadata?.role || 'individual';
-			if (role === 'individual' || role === 'patient') {
-				const userId = session?.user?.id;
-				if (!userId) throw new Error('Session missing after password update.');
-				const { data: profile } = await supabase
-					.from('profiles')
-					.select('onboarding_completed')
-					.eq('id', userId)
-					.maybeSingle();
-				navigate(
-					resolvePatientPostAuthPath({
-						onboardingCompleted: profile?.onboarding_completed === true,
-						passwordChangeRequired: false,
-					}),
-					{ replace: true },
-				);
-			} else if (role === 'employer') {
-				navigate('/employer/dashboard', { replace: true });
-			} else if (role === 'insurance') {
-				navigate('/insurance/dashboard', { replace: true });
-			} else if (role === 'provider') {
-				navigate('/provider/dashboard', { replace: true });
-			} else if (role === 'admin') {
-				navigate('/admin/dashboard', { replace: true });
-			} else {
-				navigate('/', { replace: true });
-			}
+			const path = await resolvePostPasswordDashboardPath(supabase);
+			navigate(path, { replace: true });
 		} catch (err) {
 			console.error(err);
 			toast.error(err.message || 'Could not update password.');

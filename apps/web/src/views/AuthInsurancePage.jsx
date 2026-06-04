@@ -13,11 +13,13 @@ import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
 import { postSignupProfilePath } from '@/lib/postSignupProfilePath.js';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
+import ForgotPasswordPanel from '@/components/auth/ForgotPasswordPanel.jsx';
 
 export default function AuthInsurancePage() {
   const navigate = useNavigate();
   const { login, signup, verifySignupEmail, logout, isAuthPending, error } = useAuth();
   const [activeTab, setActiveTab] = useState('signin');
+  const [signInView, setSignInView] = useState('form');
   const [localError, setLocalError] = useState('');
   const [signupStep, setSignupStep] = useState('form');
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState('');
@@ -119,7 +121,7 @@ export default function AuthInsurancePage() {
         </div>
 
         <Card className="border-border/60 shadow-lg rounded-2xl overflow-hidden">
-          <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setLocalError(''); setSignupStep('form'); }} className="w-full">
+          <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setLocalError(''); setSignupStep('form'); setSignInView('form'); }} className="w-full">
             <TabsList className="grid w-full grid-cols-2 rounded-none border-b bg-transparent p-0 h-14">
               <TabsTrigger value="signin" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-emerald-600 data-[state=active]:shadow-none h-full">
                 Sign In
@@ -137,6 +139,14 @@ export default function AuthInsurancePage() {
               )}
 
               <TabsContent value="signin" className="mt-0 space-y-4">
+                {signInView === 'forgot' ? (
+                  <ForgotPasswordPanel
+                    initialEmail={signInData.email}
+                    accentClassName="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    linkClassName="text-emerald-600"
+                    onBack={() => setSignInView('form')}
+                  />
+                ) : (
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signin-email">Work Email</Label>
@@ -148,7 +158,7 @@ export default function AuthInsurancePage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="signin-password">Password</Label>
-                      <Button variant="link" className="p-0 h-auto text-xs text-emerald-600 font-medium" type="button">
+                      <Button variant="link" className="p-0 h-auto text-xs text-emerald-600 font-medium" type="button" onClick={() => setSignInView('forgot')}>
                         Forgot password?
                       </Button>
                     </div>
@@ -167,6 +177,7 @@ export default function AuthInsurancePage() {
                     </Button>
                   </div>
                 </form>
+                )}
               </TabsContent>
 
               <TabsContent value="signup" className="mt-0 space-y-4">

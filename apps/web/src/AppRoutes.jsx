@@ -9,6 +9,7 @@ import ProviderLayout from './components/ProviderLayout.jsx';
 import RoleSelectionLandingPage from './views/RoleSelectionLandingPage.jsx';
 import AuthIndividualPage from './views/AuthIndividualPage.jsx';
 import AuthResetPasswordRequiredPage from './views/AuthResetPasswordRequiredPage.jsx';
+import AuthUpdatePasswordPage from './views/AuthUpdatePasswordPage.jsx';
 import AuthEmployerPage from './views/AuthEmployerPage.jsx';
 import AuthInsurancePage from './views/AuthInsurancePage.jsx';
 import AuthAdminPage from './views/AuthAdminPage.jsx';
@@ -128,6 +129,7 @@ export default function AppRoutes() {
 					<Route path="/" element={<RoleSelectionLandingPage />} />
 					<Route path="/auth/individual" element={<AuthIndividualPage />} />
 					<Route path="/auth/reset-password-required" element={<AuthResetPasswordRequiredPage />} />
+					<Route path="/auth/update-password" element={<AuthUpdatePasswordPage />} />
 					<Route path="/auth/employer" element={<AuthEmployerPage />} />
 					<Route path="/auth/insurance" element={<AuthInsurancePage />} />
 					<Route path="/auth/admin" element={<AuthAdminPage />} />

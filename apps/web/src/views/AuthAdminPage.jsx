@@ -8,12 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Loader2 } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
+import ForgotPasswordPanel from '@/components/auth/ForgotPasswordPanel.jsx';
 
 export default function AuthAdminPage() {
   const navigate = useNavigate();
   const { login, isAuthPending, error, logout } = useAuth();
   const [localError, setLocalError] = useState('');
   const [signInData, setSignInData] = useState({ email: '', password: '' });
+  const [signInView, setSignInView] = useState('form');
 
   const assertAdminUser = async (user) => {
     if (!user || user.role !== 'admin') {
@@ -61,6 +63,14 @@ export default function AuthAdminPage() {
               </div>
             )}
 
+            {signInView === 'forgot' ? (
+              <ForgotPasswordPanel
+                initialEmail={signInData.email}
+                accentClassName="bg-violet-600 hover:bg-violet-700 text-white"
+                linkClassName="text-violet-600"
+                onBack={() => setSignInView('form')}
+              />
+            ) : (
             <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="admin-signin-email">Email address</Label>
@@ -75,7 +85,12 @@ export default function AuthAdminPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="admin-signin-password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="admin-signin-password">Password</Label>
+                  <Button variant="link" className="p-0 h-auto text-xs text-violet-600 font-medium" type="button" onClick={() => setSignInView('forgot')}>
+                    Forgot password?
+                  </Button>
+                </div>
                 <Input
                   id="admin-signin-password"
                   type="password"
@@ -95,6 +110,7 @@ export default function AuthAdminPage() {
                 Sign In
               </Button>
             </form>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -13,7 +13,12 @@ export default function ForcePasswordChangeGuard({ children }) {
 	useEffect(() => {
 		if (isInitializing) return;
 		if (!currentUser || !passwordChangeRequired) return;
-		if (location.pathname === '/auth/reset-password-required') return;
+		if (
+			location.pathname === '/auth/reset-password-required' ||
+			location.pathname === '/auth/update-password'
+		) {
+			return;
+		}
 		navigate('/auth/reset-password-required', { replace: true });
 	}, [isInitializing, passwordChangeRequired, currentUser, location.pathname, navigate]);
 

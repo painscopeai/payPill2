@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 import { withTimeout } from '@/lib/withTimeout';
+import { getPasswordResetRedirectUrl } from '@/lib/authRedirectUrl';
 
 const AuthContext = createContext<unknown>(null);
 
@@ -316,6 +317,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 		[applySession],
 	);
 
+	const requestPasswordReset = useCallback(async (email: string) => {
+		setIsAuthPending(true);
+		setError(null);
+		try {
+			const normalizedEmail = String(email || '').trim().toLowerCase();
+			if (!normalizedEmail) {
+				const msg = 'Please enter your email address.';
+				setError(msg);
+				throw new Error(msg);
+			}
+			const { error: resetErr } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+				redirectTo: getPasswordResetRedirectUrl(),
+			});
+			if (resetErr) throw resetErr;
+		} catch (err: unknown) {
+			console.error('[AuthContext] requestPasswordReset error:', err);
+			const msg = err instanceof Error ? err.message : 'Could not send password reset email.';
+			setError(msg);
+			throw err instanceof Error ? err : new Error(msg);
+		} finally {
+			setIsAuthPending(false);
+		}
+	}, []);
+
 	const logout = useCallback(async () => {
 		await supabase.auth.signOut();
 		setCurrentUser(null);
@@ -381,6 +406,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 			error,
 			login,
 			logout,
+			requestPasswordReset,
 			signup,
 			verifySignupEmail,
 			setUserRole,
@@ -397,6 +423,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 			session,
 			login,
 			logout,
+			requestPasswordReset,
 			signup,
 			verifySignupEmail,
 			setUserRole,
@@ -421,6 +448,7 @@ export const useAuth = () => {
 		error: string | null;
 		login: (email: string, password: string) => Promise<unknown>;
 		logout: () => Promise<void>;
+		requestPasswordReset: (email: string) => Promise<void>;
 		signup: (
 			email: string,
 			password: string,

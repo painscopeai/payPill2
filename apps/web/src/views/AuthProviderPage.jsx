@@ -21,11 +21,13 @@ import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { assertPortalSignIn } from '@/lib/portalAuth.js';
 import { postSignupProfilePath } from '@/lib/postSignupProfilePath.js';
 import EmailVerificationStep from '@/components/auth/EmailVerificationStep.jsx';
+import ForgotPasswordPanel from '@/components/auth/ForgotPasswordPanel.jsx';
 
 export default function AuthProviderPage() {
   const navigate = useNavigate();
   const { login, signup, verifySignupEmail, logout, isAuthPending, error } = useAuth();
   const [activeTab, setActiveTab] = useState('signin');
+  const [signInView, setSignInView] = useState('form');
   const [localError, setLocalError] = useState('');
   const [signupStep, setSignupStep] = useState('form');
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState('');
@@ -145,6 +147,7 @@ export default function AuthProviderPage() {
               setActiveTab(val);
               setLocalError('');
               setSignupStep('form');
+              setSignInView('form');
             }}
             className="w-full"
           >
@@ -171,6 +174,14 @@ export default function AuthProviderPage() {
               )}
 
               <TabsContent value="signin" className="mt-0 space-y-4">
+                {signInView === 'forgot' ? (
+                  <ForgotPasswordPanel
+                    initialEmail={signInData.email}
+                    accentClassName="bg-teal-600 hover:bg-teal-700 text-white"
+                    linkClassName="text-teal-600"
+                    onBack={() => setSignInView('form')}
+                  />
+                ) : (
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="prov-signin-email">Work Email</Label>
@@ -184,7 +195,12 @@ export default function AuthProviderPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="prov-signin-password">Password</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="prov-signin-password">Password</Label>
+                      <Button variant="link" className="p-0 h-auto text-xs text-teal-600 font-medium" type="button" onClick={() => setSignInView('forgot')}>
+                        Forgot password?
+                      </Button>
+                    </div>
                     <Input
                       id="prov-signin-password"
                       type="password"
@@ -208,6 +224,7 @@ export default function AuthProviderPage() {
                     </Button>
                   </div>
                 </form>
+                )}
               </TabsContent>
 
               <TabsContent value="signup" className="mt-0 space-y-4">
