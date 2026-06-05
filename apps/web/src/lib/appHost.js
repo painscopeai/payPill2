@@ -37,6 +37,12 @@ export function getPortalAppOrigin() {
 	return 'https://portal.paypill.com';
 }
 
+/** Public marketing homepage (www.paypill.com). */
+export function getMarketingSiteUrl() {
+	const configured = process.env.NEXT_PUBLIC_MARKETING_SITE_URL?.trim().replace(/\/$/, '');
+	return configured ? `${configured}/` : 'https://www.paypill.com/';
+}
+
 export function isSharedAuthPath(pathname) {
 	return SHARED_AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }

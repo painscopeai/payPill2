@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { User, Building2, ShieldCheck, ArrowRight, Stethoscope } from 'lucide-react';
 import { PayPillLogo } from '@/components/PayPillLogo.jsx';
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
+import { getMarketingSiteUrl } from '@/lib/appHost.js';
 
 export default function RoleSelectionLandingPage() {
   const navigate = useNavigate();
+  const marketingSiteUrl = getMarketingSiteUrl();
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -28,7 +30,13 @@ export default function RoleSelectionLandingPage() {
       <header className="w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-4">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <PayPillLogo className="h-9 max-h-10 w-auto" />
+            <a
+              href={marketingSiteUrl}
+              className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label="PayPill home"
+            >
+              <PayPillLogo className="h-9 max-h-10 w-auto" />
+            </a>
           </div>
         </div>
       </header>
@@ -146,7 +154,13 @@ export default function RoleSelectionLandingPage() {
       <footer className="border-t py-8 mt-auto bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
-            <PayPillLogo className="h-7 max-h-8 w-auto" />
+            <a
+              href={marketingSiteUrl}
+              className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label="PayPill home"
+            >
+              <PayPillLogo className="h-7 max-h-8 w-auto" />
+            </a>
           </div>
           <p className="text-sm text-muted-foreground">
             PayPill inc @{new Date().getFullYear()}. All rights reserved.
