@@ -1,12 +1,22 @@
 import React, { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '@/contexts/OnboardingContext.jsx';
+import { useAuth } from '@/contexts/AuthContext';
 import OnboardingWizard from './OnboardingWizard.jsx';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import CatalogSelect from './CatalogSelect.jsx';
 import { useProfileOptionCatalog } from '@/hooks/useProfileOptionCatalog.js';
-import { UserCircle2, Heart, Baby } from 'lucide-react';
+import { UserCircle2, Heart, Baby, ShieldCheck } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+	buildCompletePayload,
+	canCompleteOnboarding,
+	hasRequiredConsents,
+	hasRequiredStep2Fields,
+} from '@/lib/onboardingCompletion.js';
 
 const CATALOG_KEYS = [
   'sex_assigned_at_birth',
@@ -24,7 +34,9 @@ const CATALOG_KEYS = [
 ];
 
 export default function OnboardingStep2() {
-  const { formData, updateFormData } = useOnboarding();
+  const navigate = useNavigate();
+  const { formData, updateFormData, completeOnboarding, nextStep } = useOnboarding();
+  const { currentUser } = useAuth();
   const data = formData.step2 || {};
   const { catalog, loading } = useProfileOptionCatalog(CATALOG_KEYS);
 
@@ -60,13 +72,49 @@ export default function OnboardingStep2() {
     updateFormData(2, { disability_slugs: arr });
   };
 
-  const isValid = data.date_of_birth && data.sex_assigned_at_birth;
+  const demographicsValid = hasRequiredStep2Fields(data);
+  const consentsValid = hasRequiredConsents(data);
+  const isValid = demographicsValid && consentsValid;
+
+  const handleCompleteProfile = async () => {
+    if (!currentUser?.id) {
+      toast.error('Authentication error: Patient ID missing. Please log in again.');
+      return false;
+    }
+    if (!canCompleteOnboarding(formData)) {
+      toast.error('Complete all required fields on steps 1 and 2 first.');
+      return false;
+    }
+
+    try {
+      await completeOnboarding(currentUser.id, {
+        allDataOverride: buildCompletePayload(formData),
+      });
+      toast.success('Your health profile is saved.');
+      navigate('/patient/dashboard', { replace: true });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleContinueOptional = async () => {
+    await nextStep();
+    return false;
+  };
 
   return (
     <OnboardingWizard
       title="Basic health information"
-      description="Demographics help us tailor dosing, screenings, and education to you."
+      description="Fill in the required fields below to finish onboarding, or continue to add optional health details."
       isValid={!!isValid}
+      primaryLabel="Complete profile"
+      onNext={handleCompleteProfile}
+      advanceOnSuccess={false}
+      showSecondaryAction
+      secondaryLabel="Add optional details"
+      onSecondary={handleContinueOptional}
+      secondaryDisabled={!demographicsValid}
     >
       <div className="space-y-6">
         <section className="rounded-2xl border border-border/80 bg-muted/15 p-5 md:p-6">
@@ -247,6 +295,55 @@ export default function OnboardingStep2() {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
+
+        <section className="rounded-2xl border border-border/80 bg-muted/15 p-5 md:p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold tracking-tight">Required consents</h3>
+              <p className="text-sm text-muted-foreground">
+                Confirm these to complete your profile. Steps 3–13 are optional and can be filled in later.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-start space-x-3">
+              <Checkbox
+                id="consent_accuracy"
+                checked={data.consent_accuracy === true}
+                onCheckedChange={(c) => handleChange('consent_accuracy', c === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="consent_accuracy" className="text-sm font-normal leading-relaxed cursor-pointer">
+                I confirm that the information provided is accurate to the best of my knowledge. *
+              </Label>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Checkbox
+                id="consent_processing"
+                checked={data.consent_processing === true}
+                onCheckedChange={(c) => handleChange('consent_processing', c === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="consent_processing" className="text-sm font-normal leading-relaxed cursor-pointer">
+                I consent to the processing of my health data for personalized recommendations. *
+              </Label>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Checkbox
+                id="consent_hipaa"
+                checked={data.consent_hipaa === true}
+                onCheckedChange={(c) => handleChange('consent_hipaa', c === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="consent_hipaa" className="text-sm font-normal leading-relaxed cursor-pointer">
+                I have read and understand the HIPAA Privacy Notice. *
+              </Label>
+            </div>
+          </div>
+        </section>
 
         <section className="rounded-2xl border border-border/80 bg-muted/15 p-5 md:p-6 space-y-4">
           <h4 className="text-sm font-semibold text-foreground">Disability / accessibility</h4>

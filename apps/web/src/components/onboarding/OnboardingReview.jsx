@@ -9,12 +9,18 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import apiServerClient from '@/lib/apiServerClient';
 import { CheckCircle2, LayoutDashboard, PencilLine } from 'lucide-react';
+import { getStep2Data } from '@/lib/onboardingCompletion.js';
 
 export default function OnboardingReview() {
   const navigate = useNavigate();
   const { completeOnboarding, updateFormData, formData, goToStep } = useOnboarding();
   const { currentUser } = useAuth();
-  const [consent, setConsent] = useState({ accuracy: false, processing: false, hipaa: false });
+  const step2 = getStep2Data(formData);
+  const [consent, setConsent] = useState({
+    accuracy: step2.consent_accuracy === true,
+    processing: step2.consent_processing === true,
+    hipaa: step2.consent_hipaa === true,
+  });
   const [submittedOk, setSubmittedOk] = useState(false);
 
   const isValid = consent.accuracy && consent.processing && consent.hipaa;

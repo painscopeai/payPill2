@@ -31,6 +31,9 @@ const stepValidation = {
 			'menstrual_status',
 			'menopause_status',
 			'disability_slugs',
+			'consent_accuracy',
+			'consent_processing',
+			'consent_hipaa',
 		],
 	},
 	3: {

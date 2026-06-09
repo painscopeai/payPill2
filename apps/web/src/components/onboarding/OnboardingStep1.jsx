@@ -41,7 +41,11 @@ export default function OnboardingStep1() {
   ];
 
   return (
-    <OnboardingWizard title="Welcome & profile setup" description="Let's start with your basic information." isValid={!!isValid}>
+    <OnboardingWizard
+      title="Welcome & profile setup"
+      description="Required: name, phone, and terms acceptance. Everything else on this step is optional."
+      isValid={!!isValid}
+    >
       <div className="space-y-8">
         {introSections.map(({ id, title, icon: Icon, description }) => (
           <section key={id} className="rounded-2xl border border-border/80 bg-muted/20 p-5 md:p-6 space-y-4">
