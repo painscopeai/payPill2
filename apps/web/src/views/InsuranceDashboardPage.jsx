@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { Users, FileText, Heart, AlertCircle, Plus, ChevronRight, Activity, Clock } from 'lucide-react';
+import { Users, FileText, Heart, AlertCircle, ChevronRight, Activity, Clock } from 'lucide-react';
 import apiServerClient from '@/lib/apiServerClient';
 import { toast } from 'sonner';
 
@@ -85,7 +85,6 @@ export default function InsuranceDashboardPage() {
           </div>
           <div className="flex gap-3">
             <Button variant="outline">Generate Report</Button>
-            <Button>New Contract</Button>
           </div>
         </div>
 
