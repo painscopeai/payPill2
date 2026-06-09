@@ -3,9 +3,9 @@ import { encryptData, decryptData } from '@/lib/encryption';
 import apiServerClient from '@/lib/apiServerClient';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
+import { ONBOARDING_TOTAL_STEPS } from '@/lib/onboardingCompletion.js';
 
 const OnboardingContext = createContext(null);
-
 const STORAGE_KEY = 'paypill_onboarding_progress';
 
 export const OnboardingProvider = ({ children }) => {
@@ -53,8 +53,10 @@ export const OnboardingProvider = ({ children }) => {
             setFormData(prev => ({ ...prev, ...data.formData }));
             setCompletedSteps(data.completedSteps || []);
             // Only update step if backend is further along
-            if (data.currentStep > currentStep) {
-              setCurrentStep(data.currentStep);
+            if (data.currentStep > 13) {
+              setCurrentStep(13);
+            } else if (data.currentStep > currentStep) {
+              setCurrentStep(data.currentStep === 14 ? 13 : data.currentStep);
             }
           }
         }
@@ -154,7 +156,7 @@ export const OnboardingProvider = ({ children }) => {
       setCompletedSteps(prev => [...prev, currentStep]);
     }
     await saveProgress(false);
-    setCurrentStep(prev => Math.min(prev + 1, 14));
+    setCurrentStep(prev => Math.min(prev + 1, ONBOARDING_TOTAL_STEPS));
   };
 
   const previousStep = () => {

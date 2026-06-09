@@ -31,7 +31,7 @@ export default function OnboardingReview() {
       return false;
     }
 
-    const step14Payload = {
+    const step13Payload = {
       consent_accuracy: !!consent.accuracy,
       consent_processing: !!consent.processing,
       consent_hipaa: !!consent.hipaa,
@@ -40,18 +40,18 @@ export default function OnboardingReview() {
 
     const mergedAll = {
       ...formData,
-      step14: { ...(formData.step14 || {}), ...step14Payload },
+      step13: { ...(formData.step13 || {}), ...step13Payload },
     };
 
-    updateFormData(14, step14Payload);
+    updateFormData(13, step13Payload);
 
     try {
       const saveRes = await apiServerClient.fetch('/onboarding/save-step', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          step: 14,
-          data: mergedAll.step14,
+          step: 13,
+          data: mergedAll.step13,
         }),
       });
 
@@ -90,7 +90,7 @@ export default function OnboardingReview() {
     return (
       <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="mb-8 space-y-4">
-          <p className="text-sm font-medium text-primary mb-1 tracking-wide uppercase">Step 14 of 14</p>
+          <p className="text-sm font-medium text-primary mb-1 tracking-wide uppercase">Step 13 of 13</p>
           <h1 className="text-3xl md:text-4xl font-bold text-balance">You&apos;re all set</h1>
           <p className="text-muted-foreground mt-2 text-lg max-w-prose">
             Your profile was saved successfully. You can update these answers anytime from Profile.

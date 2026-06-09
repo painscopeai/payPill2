@@ -48,14 +48,14 @@ export async function GET(request: NextRequest) {
 
 	const distinctSteps = [...new Set(completedSteps)].sort((a, b) => a - b);
 	let currentStep = 1;
-	for (let i = 1; i <= 14; i++) {
+	for (let i = 1; i <= 12; i++) {
 		if (!distinctSteps.includes(i)) {
 			currentStep = i;
 			break;
 		}
-	}
-	if (distinctSteps.length >= 14) {
-		currentStep = 14;
+		if (i === 12) {
+			currentStep = 13;
+		}
 	}
 
 	return NextResponse.json({

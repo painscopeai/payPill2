@@ -304,7 +304,7 @@ export default function OnboardingStep2() {
             <div>
               <h3 className="text-lg font-semibold tracking-tight">Required consents</h3>
               <p className="text-sm text-muted-foreground">
-                Confirm these to complete your profile. Steps 3–13 are optional and can be filled in later.
+                Confirm these to complete your profile. Steps 3–12 are optional and can be filled in later.
               </p>
             </div>
           </div>

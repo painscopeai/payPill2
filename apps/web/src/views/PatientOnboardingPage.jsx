@@ -13,7 +13,6 @@ import OnboardingStep9 from '@/components/onboarding/OnboardingStep9.jsx';
 import OnboardingStep10 from '@/components/onboarding/OnboardingStep10.jsx';
 import OnboardingStep11 from '@/components/onboarding/OnboardingStep11.jsx';
 import OnboardingStep12 from '@/components/onboarding/OnboardingStep12.jsx';
-import OnboardingStep13 from '@/components/onboarding/OnboardingStep13.jsx';
 import OnboardingReview from '@/components/onboarding/OnboardingReview.jsx';
 import PatientBasicProfileSection from '@/components/PatientBasicProfileSection.jsx';
 
@@ -34,8 +33,7 @@ export default function PatientOnboardingPage() {
       case 10: return <OnboardingStep10 />;
       case 11: return <OnboardingStep11 />;
       case 12: return <OnboardingStep12 />;
-      case 13: return <OnboardingStep13 />;
-      case 14: return <OnboardingReview />;
+      case 13: return <OnboardingReview />;
       default: return <OnboardingStep1 />;
     }
   };

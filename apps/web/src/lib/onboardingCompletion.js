@@ -1,4 +1,7 @@
-/** Required onboarding fields — steps 1–2 only (aligned with server validation). */
+/** Active patient onboarding steps (insurance catalog step removed). */
+export const ONBOARDING_TOTAL_STEPS = 13;
+export const ONBOARDING_REVIEW_STEP = 13;
+export const ONBOARDING_LAST_CONTENT_STEP = 12;
 
 export function getStep1Data(formData) {
 	return formData?.step1 && typeof formData.step1 === 'object' ? formData.step1 : {};
@@ -35,10 +38,10 @@ export function canCompleteOnboarding(formData) {
 	return hasRequiredStep1Fields(step1) && hasRequiredStep2Fields(step2) && hasRequiredConsents(step2);
 }
 
-/** Merge step-2 consents into step14 payload for /onboarding/complete. */
+/** Merge step-2 consents into review-step payload for /onboarding/complete. */
 export function buildCompletePayload(formData) {
 	const step2 = getStep2Data(formData);
-	const step14FromConsents = {
+	const reviewConsents = {
 		consent_accuracy: step2.consent_accuracy === true,
 		consent_processing: step2.consent_processing === true,
 		consent_hipaa: step2.consent_hipaa === true,
@@ -47,6 +50,7 @@ export function buildCompletePayload(formData) {
 
 	return {
 		...formData,
-		step14: { ...(formData.step14 || {}), ...step14FromConsents },
+		step13: { ...(formData.step13 || {}), ...reviewConsents },
+		step14: { ...(formData.step14 || {}), ...reviewConsents },
 	};
 }

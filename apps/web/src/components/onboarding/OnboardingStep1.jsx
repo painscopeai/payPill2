@@ -8,12 +8,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import CatalogSelect from './CatalogSelect.jsx';
 import { useProfileOptionCatalog } from '@/hooks/useProfileOptionCatalog.js';
-import { User, Mail, MessageSquare, Shield } from 'lucide-react';
+import { User, Mail, MessageSquare } from 'lucide-react';
 
 const CATALOG_KEYS = [
   'preferred_language',
   'communication_preference',
-  'account_two_factor',
 ];
 
 export default function OnboardingStep1() {
@@ -147,29 +146,6 @@ export default function OnboardingStep1() {
                 placeholder="Select preference"
               />
             </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-border/80 bg-muted/20 p-5 md:p-6 space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Shield className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold tracking-tight">Two-factor authentication</h3>
-              <p className="text-sm text-muted-foreground">Tell us if you use 2FA on your account (optional).</p>
-            </div>
-          </div>
-          <div className="max-w-md space-y-2">
-            <Label>2FA status</Label>
-            <CatalogSelect
-              setKey="account_two_factor"
-              options={catalog.account_two_factor}
-              loading={catalogLoading}
-              value={data.account_two_factor || ''}
-              onValueChange={(v) => handleChange('account_two_factor', v)}
-              placeholder="Select status"
-            />
           </div>
         </section>
 

@@ -12,7 +12,6 @@ const stepValidation = {
 			'preferred_language',
 			'communication_preference',
 			'privacy_preferences',
-			'account_two_factor',
 		],
 	},
 	2: {
@@ -111,12 +110,12 @@ const stepValidation = {
 		optional: ['providers', 'provider_notes', 'primary_provider_type', 'specialist_type', 'facility_type'],
 	},
 	13: {
-		name: 'Health Insurance',
+		name: 'Review & Consents',
 		required: [],
-		optional: ['insurance', 'insurance_coverage_type', 'insurance_carrier', 'coverage_notes', 'coverage_areas_slugs'],
+		optional: ['consent_accuracy', 'consent_processing', 'consent_hipaa', 'completed_at_ack'],
 	},
 	14: {
-		name: 'Review & Consents',
+		name: 'Review & Consents (legacy)',
 		required: [],
 		optional: ['consent_accuracy', 'consent_processing', 'consent_hipaa'],
 	},
@@ -196,7 +195,7 @@ export function validateStep(step, data) {
 export function validateAllSteps(allData, options = {}) {
 	const errors = {};
 	const criticalOnly = options.criticalOnly === true;
-	const maxStep = criticalOnly ? 2 : 13;
+	const maxStep = criticalOnly ? 2 : 12;
 
 	for (let step = 1; step <= maxStep; step++) {
 		const stepData =

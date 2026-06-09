@@ -7,7 +7,7 @@ import { Loader2, Save, ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { buildCompletePayload, canCompleteOnboarding } from '@/lib/onboardingCompletion.js';
+import { buildCompletePayload, canCompleteOnboarding, ONBOARDING_TOTAL_STEPS } from '@/lib/onboardingCompletion.js';
 
 export default function OnboardingWizard({
   children,
@@ -26,7 +26,7 @@ export default function OnboardingWizard({
   const { currentStep, nextStep, previousStep, saveProgress, isLoading, formData, completeOnboarding } = useOnboarding();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const totalSteps = 14;
+  const totalSteps = ONBOARDING_TOTAL_STEPS;
   const progress = (currentStep / totalSteps) * 100;
 
   const handleNext = async () => {
